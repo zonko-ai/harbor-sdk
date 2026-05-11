@@ -1,0 +1,34 @@
+{
+  "name": "@hrbr/orbit",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./common": "./src/common.ts",
+    "./storage": "./src/storage.ts",
+    "./cache": "./src/cache.ts",
+    "./runtime": "./src/runtime.ts",
+    "./ai": "./src/ai.ts",
+    "./usage": "./src/usage.ts",
+    "./jobs": "./src/jobs.ts",
+    "./apps": "./src/apps.ts",
+    "./socket": "./src/socket.ts",
+    "./db": "./src/db.ts",
+    "./readiness": "./src/readiness.ts",
+    "./branding": "./src/branding.ts",
+    "./bundler": "./src/bundler/index.ts",
+    "./app-ui": "./src/app-ui/index.ts",
+    "./app-ui/templates/feedback-board": "./src/app-ui/templates/feedback-board.ts",
+    "./app-ui/templates/intake-board": "./src/app-ui/templates/intake-board.ts",
+    "./app-ui/templates/status-page": "./src/app-ui/templates/status-page.ts",
+    "./app-ui/templates/list-page": "./src/app-ui/templates/list-page.ts",
+    "./app-ui/templates/hero-cta": "./src/app-ui/templates/hero-cta.ts",
+    "./app-ui/schemas/*": "./src/app-ui/schemas/*"
+  },
+  "scripts": { "build": "tsc --noEmit", "typecheck": "tsc --noEmit", "test": "bun test test" },
+  "dependencies": {
+    "effect": "catalog:",
+    "esbuild": "^0.27.3"
+  },
+  "devDependencies": { "@hrbr/tsconfig": "workspace:*", "@types/node": "^22.0.0", "typescript": "catalog:" }
+}

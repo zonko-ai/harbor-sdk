@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tryharbor.ai/schemas/orbit-ui/v2/intake-board.config.schema.json",
+  "title": "Orbit UI intake-board template config",
+  "description": "Configuration for a single-form public intake board backed by one submit job.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "title", "fields"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Stable app identifier. It is slugified by the template.",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "title": {
+      "type": "string",
+      "description": "Primary heading for the intake form.",
+      "minLength": 1,
+      "maxLength": 140
+    },
+    "description": {
+      "type": "string",
+      "description": "Short explanation shown below the heading.",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "eyebrow": {
+      "type": "string",
+      "description": "Small uppercase label shown above the heading.",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "fields": {
+      "type": "array",
+      "description": "Ordered form fields rendered in the intake card.",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "label"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Form field name submitted to the backing job.",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_-]{0,63}$"
+          },
+          "label": {
+            "type": "string",
+            "description": "Human-readable field label.",
+            "minLength": 1,
+            "maxLength": 120
+          },
+          "required": {
+            "type": "boolean",
+            "description": "Whether the browser should require this field before submit."
+          },
+          "placeholder": {
+            "type": "string",
+            "description": "Optional placeholder copy for the field.",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "multiline": {
+            "type": "boolean",
+            "description": "When true, render a textarea instead of a text input."
+          },
+          "type": {
+            "type": "string",
+            "description": "Input type for single-line fields.",
+            "enum": ["text", "email", "url"]
+          }
+        }
+      }
+    },
+    "submitLabel": {
+      "type": "string",
+      "description": "Submit button label.",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "thanksTitle": {
+      "type": "string",
+      "description": "Heading shown after successful submission.",
+      "minLength": 1,
+      "maxLength": 140
+    },
+    "thanksMessage": {
+      "type": "string",
+      "description": "Body copy shown after successful submission.",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  }
+}
