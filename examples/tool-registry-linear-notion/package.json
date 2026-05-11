@@ -1,0 +1,20 @@
+{
+  "name": "tool-registry-linear-notion-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@hrbr/runs": "workspace:*",
+    "@hrbr/source-core": "workspace:*",
+    "@hrbr/source-credentials": "workspace:*",
+    "@hrbr/source-policy": "workspace:*",
+    "@hrbr/tools": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

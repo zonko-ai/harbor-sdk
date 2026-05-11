@@ -1,0 +1,7 @@
+{
+  "extends": "@hrbr/tsconfig/base",
+  "compilerOptions": {
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"]
+}

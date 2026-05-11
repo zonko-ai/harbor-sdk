@@ -1,0 +1,21 @@
+{
+  "name": "sdk-custom-source-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hrbr/runs": "workspace:*",
+    "@hrbr/source-core": "workspace:*",
+    "@hrbr/source-credentials": "workspace:*",
+    "@hrbr/source-mcp": "workspace:*",
+    "@hrbr/source-policy": "workspace:*",
+    "@hrbr/tools": "workspace:*",
+    "@hrbr/workflows": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
