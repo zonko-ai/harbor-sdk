@@ -1,0 +1,9 @@
+node_modules
+dist
+docs/api
+.turbo
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example

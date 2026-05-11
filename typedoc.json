@@ -1,0 +1,30 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": [
+    "packages/sdk/source-core",
+    "packages/sdk/source-credentials",
+    "packages/sdk/source-mcp",
+    "packages/sdk/source-policy",
+    "packages/sdk/workspaces",
+    "packages/sdk/runs",
+    "packages/sdk/sources",
+    "packages/sdk/tools",
+    "packages/sdk/orbit",
+    "packages/workflows",
+    "packages/sdk/client"
+  ],
+  "entryPointStrategy": "packages",
+  "out": "docs/api",
+  "tsconfig": "tsconfig.typedoc.json",
+  "name": "Harbor SDK",
+  "includeVersion": false,
+  "readme": "docs/architecture/harbor-sdk-spec.md",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeExternals": true,
+  "highlightLanguages": ["ts", "js", "json", "text", "mermaid"],
+  "categorizeByGroup": true,
+  "navigationLinks": {
+    "Repository": "https://github.com/zonko-ai/harbor-sdk"
+  }
+}

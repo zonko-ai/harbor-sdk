@@ -1,0 +1,16 @@
+{
+  "extends": "./packages/tsconfig/base.json",
+  "include": [
+    "packages/sdk/source-core/src/**/*.ts",
+    "packages/sdk/source-credentials/src/**/*.ts",
+    "packages/sdk/source-mcp/src/**/*.ts",
+    "packages/sdk/source-policy/src/**/*.ts",
+    "packages/sdk/workspaces/src/**/*.ts",
+    "packages/sdk/runs/src/**/*.ts",
+    "packages/sdk/sources/src/**/*.ts",
+    "packages/sdk/tools/src/**/*.ts",
+    "packages/sdk/orbit/src/**/*.ts",
+    "packages/workflows/src/**/*.ts",
+    "packages/sdk/client/src/**/*.ts"
+  ]
+}
