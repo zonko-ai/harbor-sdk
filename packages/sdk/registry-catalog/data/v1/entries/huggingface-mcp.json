@@ -1,0 +1,24 @@
+{
+  "slug": "huggingface-mcp",
+  "skill": {},
+  "display_name": "Hugging Face MCP",
+  "description": "Models, datasets, spaces, and ML resources",
+  "category": "ai",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://huggingface.co/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://huggingface.co/docs/hub/mcp",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "huggingface-mcp"
+}

@@ -1,0 +1,23 @@
+{
+  "slug": "attio-mcp",
+  "display_name": "Attio MCP",
+  "description": "CRM search, records, and workspace operations via MCP",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.attio.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://docs.attio.com/mcp/overview",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "attio-mcp"
+}

@@ -1,0 +1,23 @@
+{
+  "slug": "intercom-mcp",
+  "display_name": "Intercom MCP",
+  "description": "Conversations, contacts, and ticket management",
+  "category": "comms",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.intercom.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://mcp.intercom.com",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "intercom-mcp"
+}

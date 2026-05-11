@@ -1,0 +1,97 @@
+{
+  "slug": "sentry-api",
+  "display_name": "Sentry API",
+  "description": "Official Sentry REST API imported from Sentry's OpenAPI schema",
+  "category": "observability",
+  "kind": "api",
+  "default_namespace": "sentry_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://sentry.io",
+    "api_allowed_hosts": [
+      "sentry.io",
+      "us.sentry.io",
+      "de.sentry.io"
+    ],
+    "api_spec_url": "https://raw.githubusercontent.com/getsentry/sentry-api-schema/main/openapi-derefed.json",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "SENTRY_AUTH_TOKEN",
+      "secret_name": "sentry_auth_token",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "SENTRY_AUTH_TOKEN"
+    ]
+  },
+  "auth_test": {
+    "method": "GET",
+    "url": "https://sentry.io/api/0/organizations/",
+    "expected_status": 200,
+    "auth_template": {
+      "kind": "header",
+      "header_name": "Authorization",
+      "value_template": "Bearer ${secret}",
+      "secret_slot": "SENTRY_AUTH_TOKEN"
+    }
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API docs",
+        "url": "https://docs.sentry.io/api/",
+        "kind": "docs"
+      },
+      {
+        "label": "Auth tokens",
+        "url": "https://sentry.io/settings/account/api/auth-tokens/",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://sentry.io",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "SENTRY_AUTH_TOKEN",
+        "display_name": "Sentry auth token",
+        "description": "Sentry user auth token Harbor sends as a Bearer token.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://raw.githubusercontent.com/getsentry/sentry-api-schema/main/openapi-derefed.json",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/api/0/organizations/",
+      "expected_status": 200,
+      "success_message": "Returns Sentry organizations visible to the auth token."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "403"
+          }
+        ],
+        "message": "Set a valid `SENTRY_AUTH_TOKEN` with access to the target Sentry organization."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API docs",
+      "url": "https://docs.sentry.io/api/",
+      "kind": "docs"
+    }
+  ]
+}

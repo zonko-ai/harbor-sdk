@@ -1,0 +1,118 @@
+{
+  "slug": "asana-api",
+  "display_name": "Asana API",
+  "description": "Asana REST API for workspaces, users, projects, and teams",
+  "category": "dev",
+  "kind": "api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://app.asana.com/api/1.0",
+    "api_allowed_hosts": [
+      "app.asana.com"
+    ],
+    "api_spec_url": "https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "ASANA_ACCESS_TOKEN",
+      "secret_name": "asana_access_token",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "ASANA_ACCESS_TOKEN"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API reference",
+        "url": "https://developers.asana.com/reference/rest-api-reference",
+        "kind": "docs"
+      },
+      {
+        "label": "Personal access token",
+        "url": "https://developers.asana.com/docs/personal-access-token",
+        "kind": "docs"
+      }
+    ],
+    "base_url": "https://app.asana.com/api/1.0",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "ASANA_ACCESS_TOKEN",
+        "display_name": "Asana personal access token",
+        "description": "Personal access token Harbor sends as a Bearer token to the Asana API.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/workspaces?limit=1",
+      "expected_status": 200,
+      "success_message": "Returns the workspaces visible to the authenticated Asana user."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Unauthorized"
+          },
+          {
+            "kind": "substring",
+            "pattern": "ASANA_ACCESS_TOKEN"
+          },
+          {
+            "kind": "substring",
+            "pattern": "invalid token"
+          }
+        ],
+        "message": "Set a valid `ASANA_ACCESS_TOKEN`; Harbor forwards it as a Bearer token to Asana."
+      },
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "403"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Forbidden"
+          },
+          {
+            "kind": "substring",
+            "pattern": "workspace"
+          },
+          {
+            "kind": "substring",
+            "pattern": "not authorized"
+          }
+        ],
+        "message": "Make sure the PAT belongs to an Asana account that can see the workspace or project you are querying."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API reference",
+      "url": "https://developers.asana.com/reference/rest-api-reference",
+      "kind": "docs"
+    },
+    {
+      "label": "Personal access token",
+      "url": "https://developers.asana.com/docs/personal-access-token",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "asana_api"
+}

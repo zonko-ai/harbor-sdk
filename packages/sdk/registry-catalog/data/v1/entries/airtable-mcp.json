@@ -1,0 +1,23 @@
+{
+  "slug": "airtable-mcp",
+  "display_name": "Airtable MCP",
+  "description": "Bases, tables, records, and schema management",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.airtable.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://support.airtable.com/docs/using-the-airtable-mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "airtable-mcp"
+}

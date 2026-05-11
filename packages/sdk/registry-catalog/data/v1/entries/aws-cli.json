@@ -1,0 +1,736 @@
+{
+  "slug": "aws-cli",
+  "display_name": "AWS CLI",
+  "description": "AWS account and resource inspection via local aws through sand",
+  "category": "infra",
+  "kind": "cli",
+  "config": {
+    "cli_launcher": "binary",
+    "cli_command": "aws",
+    "cli_args": [],
+    "cli_cwd_policy": "workspace",
+    "cli_allowed_env_keys": [
+      "AWS_REGION",
+      "AWS_PROFILE"
+    ],
+    "sand_sandbox_policy": {
+      "filesystem": "workspace"
+    },
+    "sand_runtime": {
+      "env": [
+        {
+          "env": "AWS_PAGER",
+          "value": {
+            "kind": "literal",
+            "value": ""
+          }
+        },
+        {
+          "env": "AWS_CLI_AUTO_PROMPT",
+          "value": {
+            "kind": "literal",
+            "value": "off"
+          }
+        },
+        {
+          "env": "AWS_EC2_METADATA_DISABLED",
+          "value": {
+            "kind": "literal",
+            "value": "true"
+          }
+        }
+      ]
+    },
+    "sand_secret_bindings": [
+      {
+        "secret_name": "aws_access_key_id",
+        "env": "AWS_ACCESS_KEY_ID",
+        "required": true
+      },
+      {
+        "secret_name": "aws_secret_access_key",
+        "env": "AWS_SECRET_ACCESS_KEY",
+        "required": true
+      },
+      {
+        "secret_name": "aws_session_token",
+        "env": "AWS_SESSION_TOKEN",
+        "required": false
+      }
+    ],
+    "cli_result_defaults": {
+      "sand_stdin_mode": "none",
+      "sand_result_mode": "stdout_text"
+    },
+    "sand_runtime_constraints": {
+      "requires_sandbox_runtime": true
+    }
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "cli_setup": {
+    "links": [
+      {
+        "label": "AWS CLI Command Reference",
+        "url": "https://docs.aws.amazon.com/cli/latest/reference/",
+        "kind": "docs"
+      },
+      {
+        "label": "AWS CLI Environment Variables",
+        "url": "https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-envvars.html",
+        "kind": "docs"
+      }
+    ],
+    "required_secrets": [
+      {
+        "env": "AWS_ACCESS_KEY_ID",
+        "display_name": "AWS access key ID",
+        "description": "Access key ID Harbor injects for non-interactive AWS CLI authentication.",
+        "required": true
+      },
+      {
+        "env": "AWS_SECRET_ACCESS_KEY",
+        "display_name": "AWS secret access key",
+        "description": "Secret access key paired with `AWS_ACCESS_KEY_ID` for Harbor AWS CLI runs.",
+        "required": true
+      },
+      {
+        "env": "AWS_SESSION_TOKEN",
+        "display_name": "AWS session token",
+        "description": "Optional token for temporary AWS credentials (for example from STS or IAM Identity Center flows).",
+        "required": false
+      }
+    ],
+    "runnable": {
+      "summary": "Requires `aws` on the originating machine plus `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`; `AWS_SESSION_TOKEN` is optional and `AWS_REGION` / `AWS_PROFILE` can override context.",
+      "required_programs": [
+        "aws"
+      ]
+    },
+    "verify_probe": {
+      "args": [
+        "sts",
+        "get-caller-identity",
+        "--output",
+        "json"
+      ],
+      "success_message": "Returns the authenticated AWS account identity as JSON."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "ENOENT"
+          },
+          {
+            "kind": "substring",
+            "pattern": "command not found"
+          },
+          {
+            "kind": "substring",
+            "pattern": "No such file or directory"
+          }
+        ],
+        "message": "Install AWS CLI on the originating machine and make sure `aws` is available in PATH for Harbor sand."
+      },
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "Unable to locate credentials"
+          },
+          {
+            "kind": "substring",
+            "pattern": "InvalidClientTokenId"
+          },
+          {
+            "kind": "substring",
+            "pattern": "The security token included in the request is invalid"
+          },
+          {
+            "kind": "substring",
+            "pattern": "SignatureDoesNotMatch"
+          },
+          {
+            "kind": "substring",
+            "pattern": "ExpiredToken"
+          }
+        ],
+        "message": "Set `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`; include `AWS_SESSION_TOKEN` when using temporary credentials."
+      },
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "You must specify a region"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Unable to parse config file"
+          },
+          {
+            "kind": "substring",
+            "pattern": "The config profile"
+          }
+        ],
+        "message": "Set `AWS_REGION` for region-scoped commands; use `AWS_PROFILE` only when that profile is available in the runtime environment."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "AWS CLI Command Reference",
+      "url": "https://docs.aws.amazon.com/cli/latest/reference/",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "aws",
+  "manifest": {
+    "tools": [
+      {
+        "tool_id": "aws_version",
+        "name": "version",
+        "display_name": "Version",
+        "description": "Print the installed AWS CLI version.",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "string"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "version",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "--version"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "stdout_text"
+        }
+      },
+      {
+        "tool_id": "aws_sts_get_caller_identity",
+        "name": "sts_get_caller_identity",
+        "display_name": "STS Caller Identity",
+        "description": "Return the active AWS account identity from STS.",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "sts_get_caller_identity",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "sts"
+            },
+            {
+              "kind": "literal",
+              "value": "get-caller-identity"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "aws_region_list",
+        "name": "region_list",
+        "display_name": "Region List",
+        "description": "List AWS regions visible to the current account.",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "region_list",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "ec2"
+            },
+            {
+              "kind": "literal",
+              "value": "describe-regions"
+            },
+            {
+              "kind": "literal",
+              "value": "--all-regions"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "aws_s3_bucket_list",
+        "name": "s3_bucket_list",
+        "display_name": "S3 Bucket List",
+        "description": "List S3 buckets visible to the current account.",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "s3_bucket_list",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "s3api"
+            },
+            {
+              "kind": "literal",
+              "value": "list-buckets"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "aws_lambda_list_functions",
+        "name": "lambda_list_functions",
+        "display_name": "Lambda List Functions",
+        "description": "To see help text, you can run: aws help aws <command> help aws <command> <subcommand> help Unknown options: --help",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subcommand": {
+              "type": "string",
+              "description": "Positional argument: subcommand"
+            },
+            "parameters": {
+              "type": "string",
+              "description": "Positional argument: parameters"
+            }
+          },
+          "required": [
+            "subcommand",
+            "subcommand"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "tags": [
+          "read"
+        ],
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "lambda_list_functions",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "lambda"
+            },
+            {
+              "kind": "literal",
+              "value": "list-functions"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "parameters"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "aws_cloudformation_list_stacks",
+        "name": "cloudformation_list_stacks",
+        "display_name": "Cloudformation List Stacks",
+        "description": "To see help text, you can run: aws help aws <command> help aws <command> <subcommand> help Unknown options: --help",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subcommand": {
+              "type": "string",
+              "description": "Positional argument: subcommand"
+            },
+            "parameters": {
+              "type": "string",
+              "description": "Positional argument: parameters"
+            }
+          },
+          "required": [
+            "subcommand",
+            "subcommand"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "tags": [
+          "read"
+        ],
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "cloudformation_list_stacks",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "cloudformation"
+            },
+            {
+              "kind": "literal",
+              "value": "list-stacks"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "parameters"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "aws_logs_describe_log_groups",
+        "name": "logs_describe_log_groups",
+        "display_name": "Logs Describe Log Groups",
+        "description": "To see help text, you can run: aws help aws <command> help aws <command> <subcommand> help Unknown options: --help",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subcommand": {
+              "type": "string",
+              "description": "Positional argument: subcommand"
+            },
+            "parameters": {
+              "type": "string",
+              "description": "Positional argument: parameters"
+            }
+          },
+          "required": [
+            "subcommand",
+            "subcommand"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "tags": [
+          "read",
+          "logs"
+        ],
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "logs_describe_log_groups",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "logs"
+            },
+            {
+              "kind": "literal",
+              "value": "describe-log-groups"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "parameters"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "aws_sqs_list_queues",
+        "name": "sqs_list_queues",
+        "display_name": "Sqs List Queues",
+        "description": "To see help text, you can run: aws help aws <command> help aws <command> <subcommand> help Unknown options: --help",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subcommand": {
+              "type": "string",
+              "description": "Positional argument: subcommand"
+            },
+            "parameters": {
+              "type": "string",
+              "description": "Positional argument: parameters"
+            }
+          },
+          "required": [
+            "subcommand",
+            "subcommand"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "tags": [
+          "read"
+        ],
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "sqs_list_queues",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "sqs"
+            },
+            {
+              "kind": "literal",
+              "value": "list-queues"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "parameters"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "aws_dynamodb_list_tables",
+        "name": "dynamodb_list_tables",
+        "display_name": "Dynamodb List Tables",
+        "description": "To see help text, you can run: aws help aws <command> help aws <command> <subcommand> help Unknown options: --help",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subcommand": {
+              "type": "string",
+              "description": "Positional argument: subcommand"
+            },
+            "parameters": {
+              "type": "string",
+              "description": "Positional argument: parameters"
+            }
+          },
+          "required": [
+            "subcommand",
+            "subcommand"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "tags": [
+          "read"
+        ],
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "dynamodb_list_tables",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "dynamodb"
+            },
+            {
+              "kind": "literal",
+              "value": "list-tables"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "parameters"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "aws_ec2_describe_instances",
+        "name": "ec2_describe_instances",
+        "display_name": "Ec2 Describe Instances",
+        "description": "To see help text, you can run: aws help aws <command> help aws <command> <subcommand> help Unknown options: --help",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "subcommand": {
+              "type": "string",
+              "description": "Positional argument: subcommand"
+            },
+            "parameters": {
+              "type": "string",
+              "description": "Positional argument: parameters"
+            }
+          },
+          "required": [
+            "subcommand",
+            "subcommand"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object"
+        },
+        "tags": [
+          "read"
+        ],
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "ec2_describe_instances",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "ec2"
+            },
+            {
+              "kind": "literal",
+              "value": "describe-instances"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "subcommand"
+            },
+            {
+              "kind": "input",
+              "path": "parameters"
+            },
+            {
+              "kind": "literal",
+              "value": "--output"
+            },
+            {
+              "kind": "literal",
+              "value": "json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      }
+    ]
+  }
+}

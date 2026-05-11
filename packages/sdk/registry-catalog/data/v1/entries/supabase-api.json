@@ -1,0 +1,84 @@
+{
+  "slug": "supabase-api",
+  "display_name": "Supabase Management API",
+  "description": "Official Supabase Management API imported from Supabase's OpenAPI spec",
+  "category": "dev",
+  "kind": "api",
+  "default_namespace": "supabase_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.supabase.com",
+    "api_allowed_hosts": [
+      "api.supabase.com"
+    ],
+    "api_spec_url": "https://api.supabase.com/api/v1-json",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "SUPABASE_ACCESS_TOKEN",
+      "secret_name": "supabase_access_token",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "SUPABASE_ACCESS_TOKEN"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "Management API docs",
+        "url": "https://supabase.com/docs/reference/api/introduction",
+        "kind": "docs"
+      },
+      {
+        "label": "Access tokens",
+        "url": "https://supabase.com/dashboard/account/tokens",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://api.supabase.com",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "SUPABASE_ACCESS_TOKEN",
+        "display_name": "Supabase access token",
+        "description": "Supabase Management API access token Harbor sends as a Bearer token.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://api.supabase.com/api/v1-json",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/v1/projects",
+      "expected_status": 200,
+      "success_message": "Returns Supabase projects visible to the access token."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Invalid API key"
+          }
+        ],
+        "message": "Set a valid `SUPABASE_ACCESS_TOKEN`; Harbor forwards it as a Bearer token."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "Management API docs",
+      "url": "https://supabase.com/docs/reference/api/introduction",
+      "kind": "docs"
+    }
+  ]
+}

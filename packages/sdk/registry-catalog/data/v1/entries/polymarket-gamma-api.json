@@ -1,0 +1,62 @@
+{
+  "slug": "polymarket-gamma-api",
+  "display_name": "Polymarket Gamma API",
+  "description": "Official Polymarket Gamma API imported from its OpenAPI spec",
+  "category": "data",
+  "kind": "api",
+  "default_namespace": "polymarket_gamma",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://gamma-api.polymarket.com",
+    "api_allowed_hosts": [
+      "gamma-api.polymarket.com"
+    ],
+    "api_spec_url": "https://gamma-api.polymarket.com/openapi.json",
+    "api_auth": {
+      "method": "none",
+      "required": false
+    }
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API docs",
+        "url": "https://docs.polymarket.com",
+        "kind": "docs"
+      }
+    ],
+    "base_url": "https://gamma-api.polymarket.com",
+    "auth_mode": "none",
+    "required_secrets": [],
+    "spec_url": "https://gamma-api.polymarket.com/openapi.json",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/spotlights",
+      "expected_status": 200,
+      "success_message": "Returns public Polymarket Gamma spotlight data."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "429"
+          }
+        ],
+        "message": "Polymarket Gamma is public but may rate-limit anonymous requests; retry later."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API docs",
+      "url": "https://docs.polymarket.com",
+      "kind": "docs"
+    }
+  ]
+}

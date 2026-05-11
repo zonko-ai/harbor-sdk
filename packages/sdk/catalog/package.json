@@ -1,0 +1,20 @@
+{
+  "name": "@hrbr/catalog",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hrbr/registry": "workspace:*",
+    "@hrbr/registry-catalog": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

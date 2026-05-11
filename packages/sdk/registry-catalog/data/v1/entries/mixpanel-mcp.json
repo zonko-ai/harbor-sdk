@@ -1,0 +1,17 @@
+{
+  "slug": "mixpanel-mcp",
+  "skill": {},
+  "display_name": "Mixpanel MCP",
+  "description": "Event analytics, funnels, retention, and user insights",
+  "category": "analytics",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.mixpanel.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "mixpanel-mcp"
+}

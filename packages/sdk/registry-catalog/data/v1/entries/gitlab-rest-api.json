@@ -1,0 +1,101 @@
+{
+  "slug": "gitlab-rest-api",
+  "display_name": "GitLab REST API",
+  "description": "GitLab REST API for user, project, and instance inspection",
+  "category": "dev",
+  "kind": "api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://gitlab.com",
+    "api_spec_url": "https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/api/openapi/openapi_v2.yaml",
+    "api_allowed_hosts": [
+      "gitlab.com"
+    ],
+    "api_auth": {
+      "method": "header",
+      "required": true,
+      "env": "GITLAB_TOKEN",
+      "secret_name": "gitlab_token",
+      "header_name": "PRIVATE-TOKEN"
+    }
+  },
+  "auth": {
+    "method": "header",
+    "header_name": "PRIVATE-TOKEN",
+    "required_secrets": [
+      "GITLAB_TOKEN"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "REST API",
+        "url": "https://docs.gitlab.com/api/rest/",
+        "kind": "docs"
+      },
+      {
+        "label": "Authentication",
+        "url": "https://docs.gitlab.com/api/rest/authentication/",
+        "kind": "docs"
+      }
+    ],
+    "base_url": "https://gitlab.com",
+    "auth_mode": "header",
+    "required_secrets": [
+      {
+        "env": "GITLAB_TOKEN",
+        "display_name": "GitLab personal access token",
+        "description": "Personal access token Harbor sends as a PRIVATE-TOKEN header.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://gitlab.com/gitlab-org/gitlab/-/raw/master/doc/api/openapi/openapi_v2.yaml",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/api/v4/user",
+      "expected_status": 200,
+      "success_message": "Returns the authenticated GitLab user."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Unauthorized"
+          },
+          {
+            "kind": "substring",
+            "pattern": "PRIVATE-TOKEN"
+          }
+        ],
+        "message": "Set a valid `GITLAB_TOKEN`; Harbor sends it as a PRIVATE-TOKEN header."
+      },
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "404"
+          },
+          {
+            "kind": "substring",
+            "pattern": "not found"
+          }
+        ],
+        "message": "Private GitLab resources return 404 when the token cannot see the project or group."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "REST API",
+      "url": "https://docs.gitlab.com/api/rest/",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "gitlab_rest"
+}

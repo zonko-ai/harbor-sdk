@@ -1,0 +1,23 @@
+{
+  "slug": "stytch-mcp",
+  "display_name": "Stytch MCP",
+  "description": "Authentication, user management, and identity APIs",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.stytch.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "stytch-mcp",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://stytch.com/docs/guides/mcp",
+      "kind": "docs"
+    }
+  ]
+}

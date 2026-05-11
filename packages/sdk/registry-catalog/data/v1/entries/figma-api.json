@@ -1,0 +1,84 @@
+{
+  "slug": "figma-api",
+  "display_name": "Figma API",
+  "description": "Official Figma REST API imported from Figma's OpenAPI spec",
+  "category": "dev",
+  "kind": "api",
+  "default_namespace": "figma_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.figma.com",
+    "api_allowed_hosts": [
+      "api.figma.com"
+    ],
+    "api_spec_url": "https://raw.githubusercontent.com/figma/rest-api-spec/main/openapi/openapi.yaml",
+    "api_auth": {
+      "method": "header",
+      "required": true,
+      "env": "FIGMA_TOKEN",
+      "secret_name": "figma_token",
+      "header_name": "X-Figma-Token"
+    }
+  },
+  "auth": {
+    "method": "header",
+    "header_name": "X-Figma-Token",
+    "required_secrets": [
+      "FIGMA_TOKEN"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API docs",
+        "url": "https://www.figma.com/developers/api",
+        "kind": "docs"
+      },
+      {
+        "label": "Account settings",
+        "url": "https://www.figma.com/settings",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://api.figma.com",
+    "auth_mode": "header",
+    "required_secrets": [
+      {
+        "env": "FIGMA_TOKEN",
+        "display_name": "Figma token",
+        "description": "Figma personal access token Harbor sends in the X-Figma-Token header.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://raw.githubusercontent.com/figma/rest-api-spec/main/openapi/openapi.yaml",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/v1/me",
+      "expected_status": 200,
+      "success_message": "Returns the authenticated Figma user."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "403"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Invalid token"
+          }
+        ],
+        "message": "Set a valid `FIGMA_TOKEN`; Harbor sends it in the X-Figma-Token header."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API docs",
+      "url": "https://www.figma.com/developers/api",
+      "kind": "docs"
+    }
+  ]
+}

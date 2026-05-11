@@ -1,0 +1,16 @@
+{
+  "slug": "stackoverflow-mcp",
+  "display_name": "Stack Overflow MCP",
+  "description": "Search questions, answers, and developer knowledge",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.stackoverflow.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "stackoverflow-mcp"
+}

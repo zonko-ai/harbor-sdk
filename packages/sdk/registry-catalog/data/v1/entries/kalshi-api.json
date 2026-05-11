@@ -1,0 +1,66 @@
+{
+  "slug": "kalshi-api",
+  "display_name": "Kalshi API",
+  "description": "Official Kalshi Trade API imported from its OpenAPI spec",
+  "category": "data",
+  "kind": "api",
+  "default_namespace": "kalshi_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.elections.kalshi.com/trade-api/v2",
+    "api_allowed_hosts": [
+      "api.elections.kalshi.com"
+    ],
+    "api_spec_url": "https://docs.kalshi.com/openapi.yaml",
+    "api_auth": {
+      "method": "none",
+      "required": false
+    }
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API docs",
+        "url": "https://docs.kalshi.com",
+        "kind": "docs"
+      }
+    ],
+    "base_url": "https://api.elections.kalshi.com/trade-api/v2",
+    "auth_mode": "none",
+    "required_secrets": [],
+    "spec_url": "https://docs.kalshi.com/openapi.yaml",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/exchange/status",
+      "expected_status": 200,
+      "success_message": "Returns the public Kalshi exchange status."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "403"
+          }
+        ],
+        "message": "Public Kalshi endpoints should not require credentials; authenticated endpoints may require Kalshi API keys outside this no-secret setup."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API docs",
+      "url": "https://docs.kalshi.com",
+      "kind": "docs"
+    }
+  ]
+}

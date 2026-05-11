@@ -1,0 +1,24 @@
+{
+  "slug": "calendly-mcp",
+  "skill": {},
+  "display_name": "Calendly MCP",
+  "description": "Availability, scheduling, and event type workflows via MCP",
+  "category": "comms",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.calendly.com",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developer.calendly.com/calendly-mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "calendly-mcp"
+}

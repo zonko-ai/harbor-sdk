@@ -1,0 +1,17 @@
+{
+  "slug": "wix-mcp",
+  "skill": {},
+  "display_name": "Wix MCP",
+  "description": "Build and manage Wix sites, collections, and business tools",
+  "category": "web",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.wix.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "wix-mcp"
+}

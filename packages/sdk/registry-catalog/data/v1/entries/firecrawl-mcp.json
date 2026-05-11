@@ -1,0 +1,18 @@
+{
+  "slug": "firecrawl-mcp",
+  "display_name": "Firecrawl MCP",
+  "description": "Web scraping and crawling via MCP",
+  "category": "web",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.firecrawl.dev/v2/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "bearer",
+    "required_secrets": [
+      "FIRECRAWL_API_KEY"
+    ]
+  },
+  "default_namespace": "firecrawl-mcp"
+}

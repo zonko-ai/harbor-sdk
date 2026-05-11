@@ -1,0 +1,24 @@
+{
+  "slug": "slack-mcp",
+  "display_name": "Slack MCP",
+  "description": "Messages, channels, search, and canvas management",
+  "category": "comms",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.slack.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "icon_url": "https://logos.composio.dev/api/slack",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://docs.slack.dev/ai/slack-mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "slack-mcp"
+}

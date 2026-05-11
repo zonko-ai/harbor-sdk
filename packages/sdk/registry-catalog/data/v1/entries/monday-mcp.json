@@ -1,0 +1,23 @@
+{
+  "slug": "monday-mcp",
+  "display_name": "Monday.com MCP",
+  "description": "Boards, items, users, and work OS automation via MCP",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.monday.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developer.monday.com/api-reference/docs/mondaycom-mcp-integration",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "monday-mcp"
+}

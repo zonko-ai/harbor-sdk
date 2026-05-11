@@ -1,0 +1,102 @@
+{
+  "slug": "whoop-api",
+  "display_name": "WHOOP API",
+  "description": "Read WHOOP health data: recovery scores, sleep stages, strain cycles, workouts, and body measurements",
+  "category": "data",
+  "kind": "api",
+  "icon_url": "https://www.whoop.com/favicon.ico",
+  "default_namespace": "whoop_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.prod.whoop.com/developer",
+    "api_allowed_hosts": [
+      "api.prod.whoop.com"
+    ],
+    "api_spec_url": "https://api.prod.whoop.com/developer/doc/openapi.yaml",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "WHOOP_ACCESS_TOKEN",
+      "secret_name": "whoop_access_token",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "WHOOP_ACCESS_TOKEN"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API docs",
+        "url": "https://developer.whoop.com/api/",
+        "kind": "docs"
+      },
+      {
+        "label": "Developer portal",
+        "url": "https://app.whoop.com/apps",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://api.prod.whoop.com/developer",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "WHOOP_ACCESS_TOKEN",
+        "display_name": "WHOOP access token",
+        "description": "OAuth 2.0 access token from WHOOP. Create an app at app.whoop.com/apps, run the OAuth 2.0 authorization code flow, and paste the resulting access token here. Required scopes: read:profile, read:recovery, read:cycles, read:sleep, read:workout, read:body_measurement.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://api.prod.whoop.com/developer/doc/openapi.yaml",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/v2/user/profile/basic",
+      "expected_status": 200,
+      "success_message": "Returns the authenticated WHOOP user's basic profile."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Unauthorized"
+          },
+          {
+            "kind": "substring",
+            "pattern": "invalid_token"
+          }
+        ],
+        "message": "Set a valid `WHOOP_ACCESS_TOKEN`. Obtain one by registering an app at app.whoop.com/apps and completing the OAuth 2.0 authorization code flow with the required read scopes."
+      },
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "403"
+          },
+          {
+            "kind": "substring",
+            "pattern": "insufficient_scope"
+          }
+        ],
+        "message": "The access token is missing required scopes. Re-authorize with: read:profile, read:recovery, read:cycles, read:sleep, read:workout, read:body_measurement."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API docs",
+      "url": "https://developer.whoop.com/api/",
+      "kind": "docs"
+    }
+  ]
+}

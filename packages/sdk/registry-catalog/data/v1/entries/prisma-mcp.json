@@ -1,0 +1,24 @@
+{
+  "slug": "prisma-mcp",
+  "skill": {},
+  "display_name": "Prisma MCP",
+  "description": "Database schema management, migrations, and Prisma Postgres",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.prisma.io/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "prisma-mcp",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://www.prisma.io/docs/orm/prisma-schema/mcp",
+      "kind": "docs"
+    }
+  ]
+}

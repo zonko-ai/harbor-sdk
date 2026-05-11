@@ -1,0 +1,23 @@
+{
+  "slug": "square-mcp",
+  "display_name": "Square MCP",
+  "description": "Payments, catalog, orders, and customer management",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.squareup.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://github.com/square/square-mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "square-mcp"
+}

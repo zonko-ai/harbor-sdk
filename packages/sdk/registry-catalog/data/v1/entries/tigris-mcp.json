@@ -1,0 +1,24 @@
+{
+  "slug": "tigris-mcp",
+  "skill": {},
+  "display_name": "Tigris MCP",
+  "description": "S3-compatible object storage for buckets and objects",
+  "category": "storage",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.storage.dev/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://www.tigrisdata.com/docs/mcp/remote/",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "tigris-mcp"
+}

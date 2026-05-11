@@ -1,0 +1,16 @@
+{
+  "slug": "you-mcp",
+  "display_name": "You.com MCP",
+  "description": "Real-time web search, AI answers, and content extraction",
+  "category": "search",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://api.you.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "you-mcp"
+}

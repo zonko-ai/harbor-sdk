@@ -1,0 +1,89 @@
+{
+  "slug": "x-api",
+  "display_name": "X API",
+  "description": "X API v2 endpoints converted from the official Postman collection",
+  "category": "comms",
+  "kind": "api",
+  "icon_url": "/plugin-icons/x-api.svg",
+  "default_namespace": "x_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.x.com",
+    "api_allowed_hosts": [
+      "api.x.com"
+    ],
+    "api_spec_url": "https://api.tryharbor.ai/openapi/x-api-v2.json",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "X_ACCESS_TOKEN",
+      "secret_name": "x_access_token",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "X_ACCESS_TOKEN"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API docs",
+        "url": "https://docs.x.com/x-api",
+        "kind": "docs"
+      },
+      {
+        "label": "Developer portal",
+        "url": "https://developer.x.com/en/portal/dashboard",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://api.x.com",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "X_ACCESS_TOKEN",
+        "display_name": "X access token",
+        "description": "X API Bearer token. Use an app-only bearer token for public read endpoints, or an OAuth 2.0 user access token with the required scopes for user-context/write endpoints.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://api.tryharbor.ai/openapi/x-api-v2.json",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/2/users/by/username/xdevelopers",
+      "expected_status": 200,
+      "success_message": "Returns the public @XDevelopers user, matching X's first-request guide."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "403"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Unauthorized"
+          }
+        ],
+        "message": "Set a valid `X_ACCESS_TOKEN`; Harbor forwards it as a Bearer token. Public reads can use an app-only bearer token; user-context and write endpoints need an OAuth 2.0 user access token with the endpoint's required scopes."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API docs",
+      "url": "https://docs.x.com/x-api",
+      "kind": "docs"
+    }
+  ]
+}

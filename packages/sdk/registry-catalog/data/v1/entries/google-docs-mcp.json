@@ -1,0 +1,28 @@
+{
+  "slug": "google-docs-mcp",
+  "display_name": "Google Docs",
+  "description": "Read and append content to Google Docs as markdown",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://backend.composio.dev/v3/mcp/587d655f-9574-454a-80ce-04a3d3d4c8e0/mcp?user_id={user_id}",
+    "mcp_transport": "http",
+    "mcp_default_headers": {
+      "x-api-key": "{{env:COMPOSIO_API_KEY}}"
+    },
+    "composio_auth_config_id": "ac_KB7gKC3kbFGP"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "icon_url": "https://logos.composio.dev/api/googledocs",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developers.google.com/docs/api",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "google-docs"
+}

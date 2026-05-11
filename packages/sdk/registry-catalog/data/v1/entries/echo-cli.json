@@ -1,0 +1,107 @@
+{
+  "slug": "echo-cli",
+  "display_name": "Echo CLI",
+  "description": "Local echo command for sand wiring and environment smoke tests",
+  "category": "dev",
+  "kind": "cli",
+  "config": {
+    "cli_launcher": "binary",
+    "cli_command": "echo",
+    "cli_args": [],
+    "cli_cwd_policy": "call",
+    "cli_allowed_env_keys": [],
+    "sand_sandbox_policy": {
+      "filesystem": "none"
+    },
+    "cli_result_defaults": {
+      "sand_stdin_mode": "none",
+      "sand_result_mode": "stdout_text"
+    },
+    "sand_runtime_constraints": {
+      "requires_sandbox_runtime": true
+    }
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "cli_setup": {
+    "links": [
+      {
+        "label": "Echo Command Docs",
+        "url": "https://www.gnu.org/software/coreutils/manual/html_node/echo-invocation.html",
+        "kind": "docs"
+      }
+    ],
+    "required_secrets": [],
+    "runnable": {
+      "summary": "Requires a basic `echo` binary on the originating machine; Harbor uses it as a zero-secret sand smoke test.",
+      "required_programs": [
+        "echo"
+      ]
+    },
+    "verify_probe": {
+      "args": [
+        "harbor-cli-echo-ready"
+      ],
+      "success_message": "Prints the probe token back verbatim on stdout."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "ENOENT"
+          },
+          {
+            "kind": "substring",
+            "pattern": "command not found"
+          },
+          {
+            "kind": "substring",
+            "pattern": "No such file or directory"
+          }
+        ],
+        "message": "The originating machine must expose `echo` as an executable command for Harbor sand."
+      }
+    ]
+  },
+  "default_namespace": "echo",
+  "manifest": {
+    "tools": [
+      {
+        "tool_id": "echo",
+        "name": "echo",
+        "display_name": "Echo",
+        "description": "Echo back a provided message.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "message"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "string"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "echo",
+          "argv_template": [
+            {
+              "kind": "input",
+              "path": "message"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "stdout_text"
+        }
+      }
+    ]
+  }
+}

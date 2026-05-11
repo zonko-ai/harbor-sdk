@@ -1,0 +1,83 @@
+{
+  "manual_oauth_setup_slugs": [
+    "airtable-mcp",
+    "clickup-mcp",
+    "dropbox-mcp",
+    "intercom-mcp",
+    "plaid-mcp",
+    "square-mcp",
+    "vercel-mcp"
+  ],
+  "client_secret_required_slugs": [
+    "asana-mcp",
+    "azure-devops-mcp",
+    "box-mcp",
+    "devrev-mcp",
+    "docusign-mcp",
+    "figma-mcp",
+    "github-mcp",
+    "hubspot-mcp",
+    "pagerduty-mcp",
+    "slack-mcp",
+    "xero-mcp",
+    "zoom-mcp"
+  ],
+  "global_client_enabled_slugs": [
+    "github-mcp",
+    "slack-mcp"
+  ],
+  "known_broken_slugs": [
+    "echo-cli",
+    "atlassian-mcp",
+    "bitly-mcp",
+    "calendly-mcp",
+    "canva-mcp",
+    "close-mcp",
+    "context7-mcp",
+    "datadog-mcp",
+    "digitalocean-mcp",
+    "google-maps-mcp",
+    "granola-mcp",
+    "incidentio-mcp",
+    "instacart-mcp",
+    "jina-mcp",
+    "mixpanel-mcp",
+    "mollie-mcp",
+    "monday-mcp",
+    "newrelic-mcp",
+    "paypal-mcp",
+    "plane-mcp",
+    "render-mcp",
+    "tigris-mcp",
+    "x-api"
+  ],
+  "superseded_by_kind": {
+    "gh-cli": "github-rest-api",
+    "github-graphql": "github-rest-api",
+    "vercel-cli": "vercel-api",
+    "vercel-mcp": "vercel-api",
+    "wrangler-cli": "cloudflare-api",
+    "cloudflare-mcp": "cloudflare-api",
+    "glab-cli": "gitlab-rest-api",
+    "linear-mcp": "linear-graphql",
+    "digitalocean-mcp": "digitalocean-api",
+    "asana-mcp": "asana-api",
+    "axiom-mcp": "axiom-api",
+    "stripe-mcp": "stripe-api",
+    "figma-mcp": "figma-api",
+    "openai-mcp": "openai-api"
+  },
+  "install_verification_pending_slugs": [
+    "brightdata-mcp",
+    "fal-mcp",
+    "freshdesk-mcp",
+    "scraperapi-mcp",
+    "tally-mcp",
+    "typeform-mcp",
+    "you-mcp",
+    "pinterest-mcp",
+    "stackoverflow-mcp",
+    "stytch-mcp",
+    "brevo-mcp"
+  ]
+}

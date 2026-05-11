@@ -1,0 +1,23 @@
+{
+  "slug": "xero-mcp",
+  "display_name": "Xero MCP",
+  "description": "Accounting, invoicing, and financial reporting",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.xero.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "xero-mcp",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developer.xero.com",
+      "kind": "docs"
+    }
+  ]
+}

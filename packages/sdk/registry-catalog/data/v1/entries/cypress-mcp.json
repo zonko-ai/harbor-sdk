@@ -1,0 +1,16 @@
+{
+  "slug": "cypress-mcp",
+  "display_name": "Cypress Cloud MCP",
+  "description": "Test results, debugging, and CI/CD test analytics",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.cypress.io/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "cypress-mcp"
+}

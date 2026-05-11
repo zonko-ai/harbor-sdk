@@ -1,0 +1,125 @@
+{
+  "slug": "twilio-api",
+  "display_name": "Twilio API",
+  "description": "Twilio REST API for accounts and phone-number inspection",
+  "category": "comms",
+  "kind": "api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.twilio.com",
+    "api_allowed_hosts": [
+      "api.twilio.com"
+    ],
+    "api_spec_url": "https://raw.githubusercontent.com/twilio/twilio-oai/main/spec/json/twilio_api_v2010.json",
+    "api_auth": {
+      "method": "basic",
+      "required": true,
+      "username_env": "TWILIO_ACCOUNT_SID",
+      "username_secret_name": "twilio_account_sid",
+      "password_env": "TWILIO_AUTH_TOKEN",
+      "password_secret_name": "twilio_auth_token"
+    }
+  },
+  "auth": {
+    "method": "basic",
+    "required_secrets": [
+      "TWILIO_ACCOUNT_SID",
+      "TWILIO_AUTH_TOKEN"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API basics",
+        "url": "https://www.twilio.com/docs/iam/api/",
+        "kind": "docs"
+      },
+      {
+        "label": "Auth Token",
+        "url": "https://www.twilio.com/docs/iam/api/authtoken",
+        "kind": "docs"
+      }
+    ],
+    "base_url": "https://api.twilio.com",
+    "auth_mode": "basic",
+    "required_secrets": [
+      {
+        "env": "TWILIO_ACCOUNT_SID",
+        "display_name": "Twilio Account SID",
+        "description": "Account SID Harbor uses as the Basic auth username for Twilio REST.",
+        "required": true
+      },
+      {
+        "env": "TWILIO_AUTH_TOKEN",
+        "display_name": "Twilio Auth Token",
+        "description": "Auth Token Harbor uses as the Basic auth password for Twilio REST.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://raw.githubusercontent.com/twilio/twilio-oai/main/spec/json/twilio_api_v2010.json",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/2010-04-01/Accounts.json?PageSize=1",
+      "expected_status": 200,
+      "success_message": "Lists the Twilio accounts visible to the authenticated account."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Unauthorized"
+          },
+          {
+            "kind": "substring",
+            "pattern": "TWILIO_AUTH_TOKEN"
+          },
+          {
+            "kind": "substring",
+            "pattern": "accountSid_authToken"
+          }
+        ],
+        "message": "Set a valid `TWILIO_ACCOUNT_SID` and `TWILIO_AUTH_TOKEN`; Harbor sends them as HTTP Basic auth."
+      },
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "404"
+          },
+          {
+            "kind": "substring",
+            "pattern": "not found"
+          },
+          {
+            "kind": "substring",
+            "pattern": "subaccount"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Account SID"
+          }
+        ],
+        "message": "Use an Account SID that the authenticated Twilio account can actually see, especially for subaccount-scoped reads."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API basics",
+      "url": "https://www.twilio.com/docs/iam/api/",
+      "kind": "docs"
+    },
+    {
+      "label": "Auth Token",
+      "url": "https://www.twilio.com/docs/iam/api/authtoken",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "twilio_api"
+}

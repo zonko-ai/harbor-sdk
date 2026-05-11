@@ -1,0 +1,16 @@
+{
+  "slug": "globalping-mcp",
+  "display_name": "Globalping MCP",
+  "description": "Network diagnostics — ping, traceroute, DNS, and HTTP from global probes",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.globalping.dev/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "globalping-mcp"
+}

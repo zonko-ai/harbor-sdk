@@ -1,0 +1,28 @@
+{
+  "slug": "parallel-search-mcp",
+  "display_name": "Parallel Search MCP",
+  "description": "Real-time web search and markdown content extraction (web_search + web_fetch). Free tier requires no API key; Bearer token unlocks higher rate limits.",
+  "category": "search",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://search.parallel.ai/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://docs.parallel.ai/mcp",
+      "kind": "docs"
+    },
+    {
+      "label": "Platform",
+      "url": "https://platform.parallel.ai",
+      "kind": "dashboard"
+    }
+  ],
+  "default_namespace": "parallel-search-mcp"
+}

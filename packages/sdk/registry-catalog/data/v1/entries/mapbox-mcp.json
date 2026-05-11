@@ -1,0 +1,23 @@
+{
+  "slug": "mapbox-mcp",
+  "display_name": "Mapbox MCP",
+  "description": "Geocoding, directions, isochrones, and static maps",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.mapbox.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://docs.mapbox.com/api/guides/mcp-server/",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "mapbox-mcp"
+}

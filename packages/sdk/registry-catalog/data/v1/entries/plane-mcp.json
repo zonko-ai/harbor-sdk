@@ -1,0 +1,24 @@
+{
+  "slug": "plane-mcp",
+  "skill": {},
+  "display_name": "Plane MCP",
+  "description": "Open-source project management with issues, epics, and cycles",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.plane.so/http/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developers.plane.so/dev-tools/mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "plane-mcp"
+}

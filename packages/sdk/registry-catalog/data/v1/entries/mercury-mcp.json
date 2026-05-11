@@ -1,0 +1,16 @@
+{
+  "slug": "mercury-mcp",
+  "display_name": "Mercury MCP",
+  "description": "Business banking accounts, balances, and transactions",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.mercury.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "mercury-mcp"
+}

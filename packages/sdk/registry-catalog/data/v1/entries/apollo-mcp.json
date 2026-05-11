@@ -1,0 +1,16 @@
+{
+  "slug": "apollo-mcp",
+  "display_name": "Apollo.io MCP",
+  "description": "Prospect search, contact enrichment, and outbound campaigns",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.apollo.io/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "apollo-mcp"
+}

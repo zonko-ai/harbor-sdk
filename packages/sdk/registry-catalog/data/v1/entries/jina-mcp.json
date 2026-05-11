@@ -1,0 +1,24 @@
+{
+  "slug": "jina-mcp",
+  "skill": {},
+  "display_name": "Jina AI MCP",
+  "description": "Web reading, search, and content extraction",
+  "category": "web",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.jina.ai/v1",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://mcp.jina.ai",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "jina-mcp"
+}

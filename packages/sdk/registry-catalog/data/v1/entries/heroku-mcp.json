@@ -1,0 +1,23 @@
+{
+  "slug": "heroku-mcp",
+  "display_name": "Heroku MCP",
+  "description": "Create and manage apps, dynos, add-ons, and deployments",
+  "category": "infra",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.heroku.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://heroku.com/blog/heroku-remote-mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "heroku-mcp"
+}

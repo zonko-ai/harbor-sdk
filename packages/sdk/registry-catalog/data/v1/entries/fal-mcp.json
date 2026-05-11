@@ -1,0 +1,23 @@
+{
+  "slug": "fal-mcp",
+  "display_name": "fal.ai MCP",
+  "description": "Access 1,000+ AI models for image, video, and audio generation",
+  "category": "ai",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.fal.ai/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://blog.fal.ai/connect-your-ai-to-1-000-models-with-the-fal-mcp-server/",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "fal-mcp"
+}

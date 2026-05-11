@@ -1,0 +1,16 @@
+{
+  "slug": "brightdata-mcp",
+  "display_name": "Bright Data MCP",
+  "description": "Web scraping, data collection, and proxy infrastructure",
+  "category": "web",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.brightdata.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "brightdata-mcp"
+}

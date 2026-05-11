@@ -1,0 +1,84 @@
+{
+  "slug": "vercel-api",
+  "display_name": "Vercel API",
+  "description": "Official Vercel REST API imported from Vercel's OpenAPI spec",
+  "category": "dev",
+  "kind": "api",
+  "default_namespace": "vercel_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.vercel.com",
+    "api_allowed_hosts": [
+      "api.vercel.com"
+    ],
+    "api_spec_url": "https://openapi.vercel.sh/",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "VERCEL_TOKEN",
+      "secret_name": "vercel_token",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "VERCEL_TOKEN"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API reference",
+        "url": "https://vercel.com/docs/rest-api",
+        "kind": "docs"
+      },
+      {
+        "label": "Tokens",
+        "url": "https://vercel.com/account/tokens",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://api.vercel.com",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "VERCEL_TOKEN",
+        "display_name": "Vercel token",
+        "description": "Vercel token Harbor sends as a Bearer token.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://openapi.vercel.sh/",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/v2/user",
+      "expected_status": 200,
+      "success_message": "Returns the authenticated Vercel user."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Unauthorized"
+          }
+        ],
+        "message": "Set a valid `VERCEL_TOKEN`; Harbor forwards it as a Bearer token."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API reference",
+      "url": "https://vercel.com/docs/rest-api",
+      "kind": "docs"
+    }
+  ]
+}

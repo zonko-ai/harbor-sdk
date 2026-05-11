@@ -1,0 +1,456 @@
+{
+  "slug": "modal-cli",
+  "display_name": "Modal CLI",
+  "description": "Modal app and deploy workflows via local modal through sand",
+  "category": "infra",
+  "kind": "cli",
+  "config": {
+    "cli_launcher": "uvx",
+    "cli_command": "modal",
+    "cli_args": [],
+    "cli_cwd_policy": "workspace",
+    "cli_allowed_env_keys": [
+      "MODAL_ENVIRONMENT"
+    ],
+    "sand_sandbox_policy": {
+      "filesystem": "workspace"
+    },
+    "sand_runtime": {
+      "artifacts": [
+        {
+          "id": "modal_config_dir",
+          "kind": "temp_dir",
+          "prefix": "hrbr-sand-modal-"
+        },
+        {
+          "id": "modal_config_path",
+          "kind": "temp_file",
+          "parent_artifact_id": "modal_config_dir",
+          "filename": ".modal.toml",
+          "contents": ""
+        },
+        {
+          "id": "uv_cache_dir",
+          "kind": "temp_dir",
+          "prefix": "hrbr-sand-uv-"
+        }
+      ],
+      "env": [
+        {
+          "env": "MODAL_CONFIG_PATH",
+          "value": {
+            "kind": "artifact_path",
+            "artifact_id": "modal_config_path"
+          }
+        },
+        {
+          "env": "UV_CACHE_DIR",
+          "value": {
+            "kind": "artifact_path",
+            "artifact_id": "uv_cache_dir"
+          }
+        }
+      ]
+    },
+    "sand_secret_bindings": [
+      {
+        "secret_name": "modal_token_id",
+        "env": "MODAL_TOKEN_ID",
+        "required": true
+      },
+      {
+        "secret_name": "modal_token_secret",
+        "env": "MODAL_TOKEN_SECRET",
+        "required": true
+      }
+    ],
+    "cli_result_defaults": {
+      "sand_stdin_mode": "none",
+      "sand_result_mode": "stdout_text"
+    },
+    "sand_runtime_constraints": {
+      "requires_sandbox_runtime": true
+    }
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "cli_setup": {
+    "links": [
+      {
+        "label": "Modal Token CLI",
+        "url": "https://modal.com/docs/reference/cli/token",
+        "kind": "docs"
+      },
+      {
+        "label": "Modal Service Users",
+        "url": "https://modal.com/docs/guide/service-users",
+        "kind": "docs"
+      }
+    ],
+    "required_secrets": [
+      {
+        "env": "MODAL_TOKEN_ID",
+        "display_name": "Modal token ID",
+        "description": "Token identifier for the Modal workspace or service user Harbor should use.",
+        "required": true
+      },
+      {
+        "env": "MODAL_TOKEN_SECRET",
+        "display_name": "Modal token secret",
+        "description": "Secret paired with `MODAL_TOKEN_ID`; Harbor injects both into an isolated Modal config path for the run.",
+        "required": true
+      }
+    ],
+    "runnable": {
+      "summary": "Requires `uvx` on the originating machine so Harbor can launch `modal`, plus `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET` for the target workspace.",
+      "required_programs": [
+        "uvx"
+      ]
+    },
+    "verify_probe": {
+      "args": [
+        "token",
+        "info"
+      ],
+      "success_message": "Prints the active Modal token metadata when the credentials are valid."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "ENOENT"
+          },
+          {
+            "kind": "substring",
+            "pattern": "command not found"
+          },
+          {
+            "kind": "substring",
+            "pattern": "No such file or directory"
+          }
+        ],
+        "message": "Install `uv` so Harbor can launch `modal` through `uvx` on the originating machine."
+      },
+      {
+        "matchers": [
+          {
+            "kind": "regex",
+            "pattern": "token (id|secret)",
+            "flags": "i"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Token ID is malformed"
+          },
+          {
+            "kind": "substring",
+            "pattern": "failed to authenticate"
+          },
+          {
+            "kind": "substring",
+            "pattern": "unauthenticated"
+          }
+        ],
+        "message": "Set both `MODAL_TOKEN_ID` and `MODAL_TOKEN_SECRET`; Harbor does not reuse an interactive Modal login."
+      },
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "multiple environments"
+          }
+        ],
+        "message": "Set `MODAL_ENVIRONMENT` when the Modal workspace exposes more than one environment."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://modal.com/docs/reference/cli",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "modal",
+  "manifest": {
+    "tools": [
+      {
+        "tool_id": "modal_app_list",
+        "name": "app_list",
+        "display_name": "App List",
+        "description": "List Modal apps.",
+        "input_schema": {
+          "type": "object",
+          "properties": {},
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "array"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "app_list",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "app"
+            },
+            {
+              "kind": "literal",
+              "value": "list"
+            },
+            {
+              "kind": "literal",
+              "value": "--json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "modal_app_history",
+        "name": "app_history",
+        "display_name": "App History",
+        "description": "Show deployment history for a Modal app.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "app_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "app_id"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "array"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "app_history",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "app"
+            },
+            {
+              "kind": "literal",
+              "value": "history"
+            },
+            {
+              "kind": "input",
+              "path": "app_id"
+            },
+            {
+              "kind": "literal",
+              "value": "--json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "modal_app_logs",
+        "name": "app_logs",
+        "display_name": "App Logs",
+        "description": "Stream or fetch logs for a Modal app.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "app_id": {
+              "type": "string"
+            },
+            "tail": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "app_id"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "string"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "app_logs",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "app"
+            },
+            {
+              "kind": "literal",
+              "value": "logs"
+            },
+            {
+              "kind": "input",
+              "path": "app_id"
+            },
+            {
+              "kind": "option",
+              "flag": "--tail",
+              "path": "tail",
+              "omit_if_empty": true
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "stdout_text"
+        }
+      },
+      {
+        "tool_id": "modal_deploy",
+        "name": "deploy",
+        "display_name": "Deploy",
+        "description": "Deploy a Modal entrypoint.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "entrypoint": {
+              "type": "string",
+              "description": "Python file/module accepted by modal deploy."
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "entrypoint"
+          ],
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "string"
+        },
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "deploy",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "deploy"
+            },
+            {
+              "kind": "input",
+              "path": "entrypoint"
+            },
+            {
+              "kind": "option",
+              "flag": "--name",
+              "path": "name",
+              "omit_if_empty": true
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "stdout_text"
+        }
+      },
+      {
+        "tool_id": "modal_secret_list",
+        "name": "secret_list",
+        "display_name": "List Secrets",
+        "description": "List published Modal secrets in the selected environment.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "env": {
+              "type": "string",
+              "description": "Modal environment to query. Defaults to MODAL_ENVIRONMENT or the workspace default."
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "description": "Array of Modal secrets in the environment with name and metadata."
+        },
+        "tags": [
+          "read"
+        ],
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "secret_list",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "secret"
+            },
+            {
+              "kind": "literal",
+              "value": "list"
+            },
+            {
+              "kind": "option",
+              "flag": "--env",
+              "path": "env",
+              "omit_if_empty": true
+            },
+            {
+              "kind": "literal",
+              "value": "--json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      },
+      {
+        "tool_id": "modal_volume_list",
+        "name": "volume_list",
+        "display_name": "List Volumes",
+        "description": "List Modal Volumes in the selected environment.",
+        "input_schema": {
+          "type": "object",
+          "properties": {
+            "env": {
+              "type": "string",
+              "description": "Modal environment to query. Defaults to MODAL_ENVIRONMENT or the workspace default."
+            }
+          },
+          "additionalProperties": false
+        },
+        "output_schema": {
+          "type": "object",
+          "description": "Array of Modal Volume metadata: name, created_at, etc."
+        },
+        "tags": [
+          "read"
+        ],
+        "binding": {
+          "kind": "cli_command",
+          "tool_name": "volume_list",
+          "argv_template": [
+            {
+              "kind": "literal",
+              "value": "volume"
+            },
+            {
+              "kind": "literal",
+              "value": "list"
+            },
+            {
+              "kind": "option",
+              "flag": "--env",
+              "path": "env",
+              "omit_if_empty": true
+            },
+            {
+              "kind": "literal",
+              "value": "--json"
+            }
+          ],
+          "sand_stdin_mode": "none",
+          "sand_result_mode": "json_stdout"
+        }
+      }
+    ]
+  }
+}

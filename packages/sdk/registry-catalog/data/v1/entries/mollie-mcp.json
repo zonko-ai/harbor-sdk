@@ -1,0 +1,24 @@
+{
+  "slug": "mollie-mcp",
+  "skill": {},
+  "display_name": "Mollie MCP",
+  "description": "Payment processing, refunds, and subscription management",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.mollie.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "mollie-mcp",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://docs.mollie.com",
+      "kind": "docs"
+    }
+  ]
+}

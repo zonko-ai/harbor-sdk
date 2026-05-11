@@ -1,0 +1,17 @@
+{
+  "slug": "cloudflare-mcp",
+  "skill": {},
+  "display_name": "Cloudflare MCP",
+  "description": "Workers, KV, R2, and edge infrastructure via MCP",
+  "category": "infra",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.cloudflare.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "cloudflare-mcp"
+}

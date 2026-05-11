@@ -1,0 +1,49 @@
+{
+  "slug": "replicate-mcp",
+  "skill": {},
+  "display_name": "Replicate MCP",
+  "description": "Discover, compare, and run AI models via MCP (requires OAuth sign-in)",
+  "category": "media",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.replicate.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "auth_test": {
+    "method": "POST",
+    "url": "https://mcp.replicate.com/mcp",
+    "headers": {
+      "content-type": "application/json",
+      "accept": "application/json, text/event-stream"
+    },
+    "body": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2025-11-25",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "harbor-auth-test",
+          "version": "0.0.0"
+        }
+      }
+    },
+    "expected_status": 200,
+    "auth_template": {
+      "kind": "none"
+    }
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://replicate.com/docs/reference/mcp",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "replicate-mcp"
+}

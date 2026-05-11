@@ -1,0 +1,23 @@
+{
+  "slug": "apify-mcp",
+  "display_name": "Apify MCP",
+  "description": "Web scraping, automation, and data extraction actors",
+  "category": "web",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.apify.com",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://docs.apify.com/platform/integrations/mcp",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "apify-mcp"
+}

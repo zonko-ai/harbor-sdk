@@ -1,0 +1,16 @@
+{
+  "slug": "dropbox-mcp",
+  "display_name": "Dropbox MCP",
+  "description": "File storage, sharing, and search across Dropbox and Dash",
+  "category": "storage",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.dropbox.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "dropbox-mcp"
+}

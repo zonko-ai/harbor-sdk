@@ -1,0 +1,23 @@
+{
+  "slug": "tally-mcp",
+  "display_name": "Tally MCP",
+  "description": "Build and manage forms using natural language",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://api.tally.so/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://tally.so/help/mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "tally-mcp"
+}

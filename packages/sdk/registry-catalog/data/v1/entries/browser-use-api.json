@@ -1,0 +1,84 @@
+{
+  "slug": "browser-use-api",
+  "display_name": "Browser-use API",
+  "description": "Official Browser-use Cloud API imported from its OpenAPI spec",
+  "category": "web",
+  "kind": "api",
+  "default_namespace": "browser_use_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.browser-use.com/api/v3",
+    "api_allowed_hosts": [
+      "api.browser-use.com"
+    ],
+    "api_spec_url": "https://docs.browser-use.com/cloud/openapi/v3.json",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "BROWSER_USE_API_KEY",
+      "secret_name": "browser_use_api_key",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "BROWSER_USE_API_KEY"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API docs",
+        "url": "https://docs.browser-use.com/cloud",
+        "kind": "docs"
+      },
+      {
+        "label": "API keys",
+        "url": "https://cloud.browser-use.com",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://api.browser-use.com/api/v3",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "BROWSER_USE_API_KEY",
+        "display_name": "Browser-use API key",
+        "description": "Browser-use Cloud API key Harbor sends as a Bearer token.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://docs.browser-use.com/cloud/openapi/v3.json",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/sessions",
+      "expected_status": 200,
+      "success_message": "Returns Browser-use Cloud sessions visible to the API key."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "403"
+          }
+        ],
+        "message": "Set a valid `BROWSER_USE_API_KEY`; Harbor forwards it as a Bearer token."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API docs",
+      "url": "https://docs.browser-use.com/cloud",
+      "kind": "docs"
+    }
+  ]
+}

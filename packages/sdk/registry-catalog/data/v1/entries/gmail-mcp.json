@@ -1,0 +1,28 @@
+{
+  "slug": "gmail-mcp",
+  "display_name": "Gmail",
+  "description": "Read, search, draft, send, label, and triage Gmail messages on behalf of the connected user",
+  "category": "comms",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://backend.composio.dev/v3/mcp/49d5a85a-a4ff-4842-a0ea-e545b3a1d7c3/mcp?user_id={user_id}",
+    "mcp_transport": "http",
+    "mcp_default_headers": {
+      "x-api-key": "{{env:COMPOSIO_API_KEY}}"
+    },
+    "composio_auth_config_id": "ac_S4X59eoandGf"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "icon_url": "https://logos.composio.dev/api/gmail",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developers.google.com/gmail/api",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "gmail"
+}

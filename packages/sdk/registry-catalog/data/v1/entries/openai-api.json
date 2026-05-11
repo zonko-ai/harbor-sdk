@@ -1,0 +1,90 @@
+{
+  "slug": "openai-api",
+  "display_name": "OpenAI API",
+  "description": "OpenAI API for models, Responses, and embeddings",
+  "category": "ai",
+  "kind": "api",
+  "icon_url": "/plugin-icons/openai-api.svg",
+  "default_namespace": "openai_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.openai.com/v1",
+    "api_allowed_hosts": [
+      "api.openai.com"
+    ],
+    "api_spec_url": "https://app.stainless.com/api/spec/documented/openai/openapi.documented.yml",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "OPENAI_API_KEY",
+      "secret_name": "openai_api_key",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "OPENAI_API_KEY"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API docs",
+        "url": "https://platform.openai.com/docs/api-reference",
+        "kind": "docs"
+      },
+      {
+        "label": "API keys",
+        "url": "https://platform.openai.com/api-keys",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://api.openai.com/v1",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "OPENAI_API_KEY",
+        "display_name": "OpenAI API key",
+        "description": "OpenAI API key Harbor sends as a Bearer token.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://app.stainless.com/api/spec/documented/openai/openapi.documented.yml",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/models",
+      "expected_status": 200,
+      "success_message": "Returns models visible to the OpenAI key."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Incorrect API key"
+          }
+        ],
+        "message": "Set a valid `OPENAI_API_KEY`; Harbor forwards it as a Bearer token."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API docs",
+      "url": "https://platform.openai.com/docs/api-reference",
+      "kind": "docs"
+    },
+    {
+      "label": "Dashboard",
+      "url": "https://platform.openai.com",
+      "kind": "dashboard"
+    }
+  ]
+}

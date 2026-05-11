@@ -1,0 +1,23 @@
+{
+  "slug": "close-mcp",
+  "display_name": "Close MCP",
+  "description": "CRM leads, contacts, and opportunity management",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.close.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://help.close.com/docs/mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "close-mcp"
+}

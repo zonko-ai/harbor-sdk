@@ -1,0 +1,24 @@
+{
+  "slug": "context7-mcp",
+  "skill": {},
+  "display_name": "Context7 Docs",
+  "description": "Up-to-date library and framework documentation",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.context7.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://context7.com",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "context7"
+}

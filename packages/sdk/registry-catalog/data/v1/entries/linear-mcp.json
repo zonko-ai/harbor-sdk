@@ -1,0 +1,17 @@
+{
+  "slug": "linear-mcp",
+  "skill": {},
+  "display_name": "Linear MCP",
+  "description": "Issue tracking and project management via MCP",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.linear.app/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "linear-mcp"
+}

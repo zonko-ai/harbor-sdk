@@ -1,0 +1,16 @@
+{
+  "slug": "devrev-mcp",
+  "display_name": "DevRev MCP",
+  "description": "Product development platform with issues, tickets, and knowledge",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://api.devrev.ai/mcp/v1",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "devrev-mcp"
+}

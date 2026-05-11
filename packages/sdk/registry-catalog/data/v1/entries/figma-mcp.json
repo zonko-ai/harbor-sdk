@@ -1,0 +1,23 @@
+{
+  "slug": "figma-mcp",
+  "display_name": "Figma MCP",
+  "description": "Design context, component data, and canvas edits via MCP",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.figma.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developers.figma.com/docs/figma-mcp-server/",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "figma-mcp"
+}

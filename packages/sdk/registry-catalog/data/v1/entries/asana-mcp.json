@@ -1,0 +1,23 @@
+{
+  "slug": "asana-mcp",
+  "display_name": "Asana MCP",
+  "description": "Task management, projects, and workspace operations",
+  "category": "dev",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.asana.com/v2/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developers.asana.com/docs/mcp-server",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "asana-mcp"
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "@hrbr/tsconfig/base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "lib": ["ESNext", "DOM"]
+  },
+  "include": ["src", "data"]
+}

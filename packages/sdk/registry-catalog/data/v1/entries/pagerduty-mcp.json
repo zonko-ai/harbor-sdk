@@ -1,0 +1,23 @@
+{
+  "slug": "pagerduty-mcp",
+  "display_name": "PagerDuty MCP",
+  "description": "Incidents, on-call schedules, services, and team management",
+  "category": "observability",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.pagerduty.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://docs.pagerduty.com/main/docs/pagerduty-mcp-server-integration-guide",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "pagerduty-mcp"
+}

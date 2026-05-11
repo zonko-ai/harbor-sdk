@@ -1,0 +1,84 @@
+{
+  "slug": "stripe-api",
+  "display_name": "Stripe API",
+  "description": "Official Stripe API imported from Stripe's OpenAPI spec",
+  "category": "data",
+  "kind": "api",
+  "default_namespace": "stripe_api",
+  "config": {
+    "api_protocol": "openapi",
+    "api_base_url": "https://api.stripe.com",
+    "api_allowed_hosts": [
+      "api.stripe.com"
+    ],
+    "api_spec_url": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
+    "api_auth": {
+      "method": "bearer",
+      "required": true,
+      "env": "STRIPE_SECRET_KEY",
+      "secret_name": "stripe_secret_key",
+      "prefix": "Bearer "
+    }
+  },
+  "auth": {
+    "method": "bearer",
+    "prefix": "Bearer ",
+    "required_secrets": [
+      "STRIPE_SECRET_KEY"
+    ]
+  },
+  "api_setup": {
+    "links": [
+      {
+        "label": "API reference",
+        "url": "https://docs.stripe.com/api",
+        "kind": "docs"
+      },
+      {
+        "label": "API keys",
+        "url": "https://dashboard.stripe.com/apikeys",
+        "kind": "dashboard"
+      }
+    ],
+    "base_url": "https://api.stripe.com",
+    "auth_mode": "bearer",
+    "required_secrets": [
+      {
+        "env": "STRIPE_SECRET_KEY",
+        "display_name": "Stripe secret key",
+        "description": "Stripe secret key Harbor sends as a Bearer token.",
+        "required": true
+      }
+    ],
+    "spec_url": "https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json",
+    "verify_probe": {
+      "kind": "request",
+      "method": "GET",
+      "path": "/v1/account",
+      "expected_status": 200,
+      "success_message": "Returns the Stripe account for the secret key."
+    },
+    "failure_hints": [
+      {
+        "matchers": [
+          {
+            "kind": "substring",
+            "pattern": "401"
+          },
+          {
+            "kind": "substring",
+            "pattern": "Invalid API Key"
+          }
+        ],
+        "message": "Set a valid `STRIPE_SECRET_KEY`; Harbor forwards it as a Bearer token."
+      }
+    ]
+  },
+  "links": [
+    {
+      "label": "API reference",
+      "url": "https://docs.stripe.com/api",
+      "kind": "docs"
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "slug": "webflow-mcp",
+  "display_name": "Webflow MCP",
+  "description": "Manage sites, pages, CMS collections, and design elements",
+  "category": "web",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.webflow.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://mcp.webflow.com/",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "webflow-mcp"
+}

@@ -1,0 +1,28 @@
+{
+  "slug": "google-calendar-mcp",
+  "display_name": "Google Calendar",
+  "description": "List, create, and update calendar events; read free/busy across calendars",
+  "category": "comms",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://backend.composio.dev/v3/mcp/5dea3930-4d0b-4f5a-9441-a015d54747cc/mcp?user_id={user_id}",
+    "mcp_transport": "http",
+    "mcp_default_headers": {
+      "x-api-key": "{{env:COMPOSIO_API_KEY}}"
+    },
+    "composio_auth_config_id": "ac_HZdMZoL4mwsL"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "icon_url": "https://logos.composio.dev/api/googlecalendar",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developers.google.com/calendar/api",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "google-calendar"
+}

@@ -1,0 +1,16 @@
+{
+  "slug": "scraperapi-mcp",
+  "display_name": "ScraperAPI MCP",
+  "description": "Web scraping with proxy rotation and JS rendering",
+  "category": "web",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.scraperapi.com/mcp",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "scraperapi-mcp"
+}

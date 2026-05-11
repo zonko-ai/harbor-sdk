@@ -1,0 +1,28 @@
+{
+  "slug": "google-sheets-mcp",
+  "display_name": "Google Sheets",
+  "description": "Read and write Google Sheets ranges, append rows, and create tabs",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://backend.composio.dev/v3/mcp/ab99f337-9071-4b5f-be19-5d7a65e72638/mcp?user_id={user_id}",
+    "mcp_transport": "http",
+    "mcp_default_headers": {
+      "x-api-key": "{{env:COMPOSIO_API_KEY}}"
+    },
+    "composio_auth_config_id": "ac_Ou58hAS2jOhP"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "icon_url": "https://logos.composio.dev/api/googlesheets",
+  "links": [
+    {
+      "label": "Docs",
+      "url": "https://developers.google.com/sheets/api",
+      "kind": "docs"
+    }
+  ],
+  "default_namespace": "google-sheets"
+}

@@ -1,0 +1,17 @@
+{
+  "slug": "stripe-mcp",
+  "skill": {},
+  "display_name": "Stripe MCP",
+  "description": "Payments and billing management via MCP",
+  "category": "data",
+  "kind": "mcp",
+  "config": {
+    "mcp_endpoint": "https://mcp.stripe.com",
+    "mcp_transport": "http"
+  },
+  "auth": {
+    "method": "none",
+    "required_secrets": []
+  },
+  "default_namespace": "stripe-mcp"
+}
