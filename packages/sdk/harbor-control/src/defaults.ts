@@ -1,0 +1,2 @@
+export const EXEC_DEFAULT_TIMEOUT_MS = 120_000
+export const EXEC_MAX_TIMEOUT_MS = 300_000

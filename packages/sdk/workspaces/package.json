@@ -1,0 +1,12 @@
+{
+  "name": "@hrbr/workspaces",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": { "build": "tsc --noEmit", "typecheck": "tsc --noEmit", "test": "bun test test" },
+  "dependencies": {
+    "@hrbr/roles": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": { "@hrbr/tsconfig": "workspace:*", "typescript": "catalog:" }
+}

@@ -1,0 +1,24 @@
+{
+  "name": "@hrbr/tools",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@hrbr/plugins": "workspace:*",
+    "@hrbr/runs": "workspace:*",
+    "@hrbr/source-core": "workspace:*",
+    "@hrbr/source-credentials": "workspace:*",
+    "@hrbr/source-policy": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
