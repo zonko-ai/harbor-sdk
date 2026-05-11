@@ -1,0 +1,22 @@
+{
+  "name": "@hrbr/source-mcp",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@hrbr/source-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrbr/source-credentials": "workspace:*",
+    "@hrbr/tools": "workspace:*",
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}
