@@ -1,0 +1,151 @@
+// Workflow catalog builder.
+//
+// Reads /workflows/harbor-skill-workflow/workflow-tool-map.json + each
+// referenced .md file at the repo root, emits manifest.generated.ts with
+// the full typed catalog. Keep this script deterministic — output should
+// only change when source content changes.
+//
+// Slot classification is heuristic: any slug ending in -mcp, -cli, or -api
+// is treated as a tool slug (validated at runtime against @hrbr/registry by
+// consumers); anything else is a chat-input slot. This matches how the
+// JSON catalog is authored today.
+
+import { createHash } from "node:crypto"
+import { readdirSync, readFileSync, writeFileSync } from "node:fs"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
+
+interface RawWorkflowEntry {
+  readonly skill: string
+  readonly file: string
+  readonly default_tools: ReadonlyArray<string>
+  readonly or_groups: ReadonlyArray<ReadonlyArray<string>>
+  readonly optional_tools: ReadonlyArray<string>
+  readonly category?: string
+}
+
+interface RawWorkflowMap {
+  readonly version: number
+  readonly tool_id_type: string
+  readonly workflows: ReadonlyArray<RawWorkflowEntry>
+}
+
+const here = dirname(fileURLToPath(import.meta.url))
+const repoRoot = join(here, "..", "..", "..")
+const contentDir = join(repoRoot, "workflows", "harbor-skill-workflow")
+const mapPath = join(contentDir, "workflow-tool-map.json")
+const outPath = join(here, "manifest.generated.ts")
+
+function hashContent(content: string): string {
+  return `sha256:${createHash("sha256").update(content, "utf8").digest("hex")}`
+}
+
+function isToolSlug(slug: string): boolean {
+  return slug.endsWith("-mcp") || slug.endsWith("-cli") || slug.endsWith("-api")
+}
+
+function classifySlot(slug: string): { kind: "tool" | "input"; slug: string } {
+  return { kind: isToolSlug(slug) ? "tool" : "input", slug }
+}
+
+interface Frontmatter {
+  readonly name?: string
+  readonly description?: string
+}
+
+function parseFrontmatter(raw: string): { frontmatter: Frontmatter; body: string } {
+  if (!raw.startsWith("---\n")) return { frontmatter: {}, body: raw }
+  const end = raw.indexOf("\n---\n", 4)
+  if (end === -1) return { frontmatter: {}, body: raw }
+  const block = raw.slice(4, end)
+  const body = raw.slice(end + 5)
+  const frontmatter: Record<string, string> = {}
+  for (const line of block.split("\n")) {
+    const idx = line.indexOf(":")
+    if (idx === -1) continue
+    const key = line.slice(0, idx).trim()
+    const value = line.slice(idx + 1).trim()
+    if (key) frontmatter[key] = value
+  }
+  return { frontmatter, body }
+}
+
+function titleFromBody(body: string): string | undefined {
+  for (const line of body.split("\n")) {
+    const trimmed = line.trim()
+    if (trimmed.startsWith("# ")) return trimmed.slice(2).trim()
+  }
+  return undefined
+}
+
+function humanizeSlug(slug: string): string {
+  return slug
+    .replace(/^harbor-/, "")
+    .split("-")
+    .map((word) => (word.length > 0 ? word[0]!.toUpperCase() + word.slice(1) : word))
+    .join(" ")
+}
+
+const rawMap = JSON.parse(readFileSync(mapPath, "utf8")) as RawWorkflowMap
+
+const referencedFiles = new Set(rawMap.workflows.map((w) => w.file))
+const allMdFiles = readdirSync(contentDir).filter((f) => f.endsWith(".md"))
+const orphanFiles = allMdFiles.filter((f) => !referencedFiles.has(f))
+if (orphanFiles.length > 0) {
+  console.warn(
+    `[workflows] ${orphanFiles.length} workflow md files are not referenced in workflow-tool-map.json:\n  ${orphanFiles.join("\n  ")}`,
+  )
+}
+
+const workflows = rawMap.workflows.map((wf) => {
+  const filePath = join(contentDir, wf.file)
+  const raw = readFileSync(filePath, "utf8")
+  const { frontmatter, body } = parseFrontmatter(raw)
+  // Prefer the H1 in the body — frontmatter `name` is always the slug, not
+  // a human title. Fall back to a humanized slug if neither is present.
+  const title = titleFromBody(body) ?? humanizeSlug(frontmatter.name ?? wf.skill)
+
+  const defaultTools = wf.default_tools.map(classifySlot).filter((s) => s.kind === "tool")
+  const optionalTools = wf.optional_tools.map(classifySlot).filter((s) => s.kind === "tool")
+  const orGroups = wf.or_groups.map((group) => group.map(classifySlot))
+
+  // Hash covers both the body markdown AND the slot mapping so the
+  // seed function (apps/api/src/workflows/seed.ts) detects drift when
+  // workflow-tool-map.json changes too — not just when the .md body
+  // changes. Without this, slot edits would be silently ignored on
+  // re-seed because content_hash stayed the same.
+  const hashInput = JSON.stringify({
+    body: raw,
+    default_tools: wf.default_tools,
+    or_groups: wf.or_groups,
+    optional_tools: wf.optional_tools,
+    category: wf.category ?? "",
+  })
+
+  return {
+    id: wf.skill,
+    title,
+    description: frontmatter.description ?? "",
+    category: wf.category ?? "",
+    defaultTools,
+    orGroups,
+    optionalTools,
+    bodyMarkdown: body.trim(),
+    contentHash: hashContent(hashInput),
+  }
+})
+
+const body = `// Generated by packages/workflows/src/build.ts. Do not edit by hand.
+// Source of truth: /workflows/harbor-skill-workflow/
+
+import type { Workflow } from './types'
+
+export const WORKFLOWS: ReadonlyArray<Workflow> = ${JSON.stringify(workflows, null, 2)}
+
+export const WORKFLOW_BY_ID: Readonly<Record<string, Workflow>> = Object.freeze(
+  Object.fromEntries(WORKFLOWS.map((w) => [w.id, w])),
+)
+`
+
+writeFileSync(outPath, body)
+console.log(`Generated ${outPath} with ${workflows.length} workflows`)

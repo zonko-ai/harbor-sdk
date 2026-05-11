@@ -1,0 +1,23 @@
+{
+  "name": "@hrbr/workflows",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "build": "bun run src/build.ts && tsc --noEmit",
+    "generate": "bun run src/build.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@hrbr/runs": "workspace:*",
+    "@hrbr/tools": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@hrbr/source-core": "workspace:*",
+    "@hrbr/tsconfig": "workspace:*",
+    "@types/node": "^22.0.0",
+    "typescript": "catalog:"
+  }
+}
