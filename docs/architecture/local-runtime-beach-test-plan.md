@@ -220,6 +220,63 @@ When testing starts, record failures in this format:
 - Fix status: fixed. Beach now returns only `origin`, `mcp_endpoint`, and `auth: "local-bearer-token-redacted"`.
 - Retest: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=bootstrap` from `/tmp/harbor-sdk-beach-iter1-token-retest.uwDLoF` returned no raw `token` field and no `authorization` header.
 
+### Iteration 2: Credentials Vault Through Beach
+
+- Test project: `/tmp/harbor-sdk-beach-iter2-creds.yAtyg2`
+- Beach command shape: `mcporter ... node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct`
+- Status: bugs documented before fixes.
+
+### BUG-8: Beach local runtime has no credential vault actions
+
+- Scenario: Add/list/update/delete local credentials through Beach after bootstrapping a fresh local runtime.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=credential_list`.
+- Expected: Beach exposes local credential vault actions that can add/import credentials, list safe metadata, update credentials, delete credentials, and keep secret values out of output.
+- Actual: MCP validation rejected the action because `hrbr_local` only supports `bootstrap` and `status`.
+- Evidence: Validation error said `Invalid option: expected one of "bootstrap"|"status"`.
+- Suspected cause: Iteration 1 only added the local bootstrap/status surface and did not wire the SDK credential vault primitives into Beach.
+- Fix status: fixed. `hrbr_local` now supports `credential_list`, `credential_set`, `credential_import_env`, and `credential_delete`.
+- Retest:
+  - `credential_list` returned `vault: "uninitialized"` and no credentials before mutation.
+  - `credential_set slot=api_token value=super-secret-token-123456` returned metadata with redacted value `supe...3456`.
+  - `credential_import_env` with `HRBR_TEST_IMPORT_TOKEN=imported-secret-abcdef` returned metadata with redacted value `impo...cdef`.
+  - `credential_delete credential_id=local:api_token` removed the credential on the sequential retest.
+  - `rg -n "super-secret-token-123456|imported-secret-abcdef|HRBR_TEST_IMPORT_TOKEN" .harbor` found no raw dummy secrets in `.harbor`.
+
+### BUG-9: Beach status does not reconnect to an already-running local daemon
+
+- Scenario: Bootstrap local runtime in one Beach process, then call `hrbr_local action=status` from a second Beach process.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=status`.
+- Expected: Status probes the manifest daemon endpoint and reports `running` when the daemon is still alive.
+- Actual: Status reported `status: "stopped"` and `daemon: null` even though `fetch("http://127.0.0.1:49782/health")` returned `200 {"ok":true,"workspace_id":"local"}`.
+- Suspected cause: `localStatus` only checks the in-memory `localDaemons` map for the current Beach process and does not verify manifest connection metadata.
+- Fix status: fixed. `hrbr_local status` now probes the daemon `/health` endpoint from `runtime.json`.
+- Retest: a second Beach process calling `hrbr_local action=status` from `/tmp/harbor-sdk-beach-iter2-creds.yAtyg2` returned `status: "running"` with daemon source `runtime_manifest`.
+
+## Iteration 2 Fix Plan
+
+Implement local credentials as Beach-owned actions over the SDK credential vault primitives, and make status process-independent.
+
+1. Extend `hrbr_local` schema with explicit credential actions:
+   - `credential_list`
+   - `credential_set`
+   - `credential_import_env`
+   - `credential_delete`
+2. Use a project-local vault key file under `.harbor/` for local-only Beach usage.
+   - Generate it on first credential mutation.
+   - Keep it inside `.harbor/`, which bootstrap already adds to `.gitignore`.
+   - Do not print the key or raw credential values.
+3. Return only credential metadata:
+   - id
+   - slot
+   - source ref id
+   - scope
+   - status
+   - created/updated timestamps
+   - redacted value preview only when useful.
+4. Update/delete through `readHarborLocalCredentials` and `writeHarborLocalCredentials`.
+5. Make `status` probe the daemon health endpoint from `runtime.json` before reporting stopped.
+6. Retest through `mcporter` from a fresh project and keep Beach typecheck/build green.
+
 ## Iteration 1 Fix Plan
 
 Implement the local runtime as an explicit Beach target instead of mixing it silently into the existing cloud workspace behavior.
