@@ -151,6 +151,79 @@ export function cloudflareProvisioningStatus(
   return lock
 }
 
+export interface CloudflareOrbitBindingClient {
+  readonly r2?: {
+    readonly get: (bucket: string, key: string) => Promise<unknown> | unknown
+    readonly put: (bucket: string, key: string, value: unknown) => Promise<unknown> | unknown
+    readonly delete?: (bucket: string, key: string) => Promise<unknown> | unknown
+  } | undefined
+  readonly kv?: {
+    readonly get: (namespace: string, key: string) => Promise<unknown> | unknown
+    readonly put: (namespace: string, key: string, value: unknown) => Promise<unknown> | unknown
+  } | undefined
+  readonly d1?: {
+    readonly query: (database: string, statement: string, params?: readonly unknown[]) => Promise<unknown> | unknown
+  } | undefined
+  readonly worker?: {
+    readonly fetch: (worker: string, path: string, init?: RequestInit) => Promise<unknown> | unknown
+  } | undefined
+  readonly ai?: {
+    readonly run: (gateway: string, model: string, input: unknown) => Promise<unknown> | unknown
+  } | undefined
+}
+
+export interface CloudflareOrbitAdapterInput {
+  readonly resources: readonly CloudflareOrbitResourceRef[]
+  readonly client: CloudflareOrbitBindingClient
+}
+
+function requireResource(
+  resources: readonly CloudflareOrbitResourceRef[],
+  kind: CloudflareOrbitResourceKind
+): CloudflareOrbitResourceRef {
+  const resource = resources.find((item) => item.kind === kind)
+  if (!resource) throw new Error(`Cloudflare Orbit resource is not configured: ${kind}`)
+  return resource
+}
+
+export function createCloudflareOrbitAdapters(input: CloudflareOrbitAdapterInput) {
+  const r2 = () => requireResource(input.resources, "r2_bucket")
+  const kv = () => requireResource(input.resources, "kv_namespace")
+  const d1 = () => requireResource(input.resources, "d1_database")
+  const worker = () => requireResource(input.resources, "worker")
+  const aiGateway = () => requireResource(input.resources, "ai_gateway")
+  return {
+    storage: {
+      get: async (key: string) => await input.client.r2?.get(r2().name, key),
+      put: async (key: string, value: unknown) => await input.client.r2?.put(r2().name, key, value),
+      delete: async (key: string) => await input.client.r2?.delete?.(r2().name, key),
+    },
+    cache: {
+      get: async (key: string) => await input.client.kv?.get(kv().name, key),
+      set: async (key: string, value: unknown) => await input.client.kv?.put(kv().name, key, value),
+    },
+    db: {
+      query: async (statement: string, params?: readonly unknown[]) =>
+        await input.client.d1?.query(d1().name, statement, params),
+    },
+    jobs: {
+      run: async (path: string, value: unknown) =>
+        await input.client.worker?.fetch(worker().name, path, {
+          method: "POST",
+          body: JSON.stringify(value),
+        }),
+    },
+    apps: {
+      fetch: async (path: string, init?: RequestInit) =>
+        await input.client.worker?.fetch(worker().name, path, init),
+    },
+    ai: {
+      run: async (model: string, value: unknown) =>
+        await input.client.ai?.run(aiGateway().name, model, value),
+    },
+  } as const
+}
+
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
     throw new Error(`Cloudflare runtime daemon request failed: ${response.status}`)

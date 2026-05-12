@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test"
 import {
   applyCloudflareProvisioningPlan,
   cloudflareCredentialEnvImportConfig,
+  createCloudflareOrbitAdapters,
   createCloudflareProvisioningPlan,
   createCloudflareRuntimeAdapter,
   CLOUDFLARE_CREDENTIAL_ENV,
@@ -120,5 +121,77 @@ describe("@hrbr/runtime-cloudflare", () => {
       updatedAt: "2026-05-12T00:00:00.000Z",
     })
     expect(deleted).toEqual(["old-db"])
+  })
+
+  it("maps Orbit adapter calls onto configured Cloudflare resources", async () => {
+    const calls: string[] = []
+    const orbit = createCloudflareOrbitAdapters({
+      resources: [
+        { kind: "r2_bucket", name: "artifacts" },
+        { kind: "kv_namespace", name: "cache" },
+        { kind: "d1_database", name: "workspace-db" },
+        { kind: "worker", name: "apps-worker" },
+        { kind: "ai_gateway", name: "gateway" },
+      ],
+      client: {
+        r2: {
+          get: (bucket, key) => {
+            calls.push(`r2.get:${bucket}:${key}`)
+            return "object"
+          },
+          put: (bucket, key, value) => {
+            calls.push(`r2.put:${bucket}:${key}:${value}`)
+            return { ok: true }
+          },
+        },
+        kv: {
+          get: (namespace, key) => {
+            calls.push(`kv.get:${namespace}:${key}`)
+            return "cached"
+          },
+          put: (namespace, key, value) => {
+            calls.push(`kv.put:${namespace}:${key}:${value}`)
+            return { ok: true }
+          },
+        },
+        d1: {
+          query: (database, statement) => {
+            calls.push(`d1.query:${database}:${statement}`)
+            return { rows: [] }
+          },
+        },
+        worker: {
+          fetch: (worker, path) => {
+            calls.push(`worker.fetch:${worker}:${path}`)
+            return { status: 200 }
+          },
+        },
+        ai: {
+          run: (gateway, model) => {
+            calls.push(`ai.run:${gateway}:${model}`)
+            return { text: "ok" }
+          },
+        },
+      },
+    })
+
+    await expect(orbit.storage.get("report.txt")).resolves.toBe("object")
+    await expect(orbit.storage.put("report.txt", "data")).resolves.toEqual({ ok: true })
+    await expect(orbit.cache.get("k")).resolves.toBe("cached")
+    await expect(orbit.cache.set("k", "v")).resolves.toEqual({ ok: true })
+    await expect(orbit.db.query("select 1")).resolves.toEqual({ rows: [] })
+    await expect(orbit.jobs.run("/jobs/echo", { ok: true })).resolves.toEqual({ status: 200 })
+    await expect(orbit.apps.fetch("/apps/hello")).resolves.toEqual({ status: 200 })
+    await expect(orbit.ai.run("@cf/meta/llama", "hi")).resolves.toEqual({ text: "ok" })
+    expect(calls).toEqual([
+      "r2.get:artifacts:report.txt",
+      "r2.put:artifacts:report.txt:data",
+      "kv.get:cache:k",
+      "kv.put:cache:k:v",
+      "d1.query:workspace-db:select 1",
+      "worker.fetch:apps-worker:/jobs/echo",
+      "worker.fetch:apps-worker:/apps/hello",
+      "ai.run:gateway:@cf/meta/llama",
+    ])
   })
 })

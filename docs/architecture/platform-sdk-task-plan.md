@@ -302,6 +302,8 @@ Status: complete for initial SDK provisioning flow: desired resources plus exist
 
 ## 16. Cloudflare Orbit Adapters
 
+Status: complete for initial adapter contracts: Cloudflare-backed Orbit calls map storage to R2, cache to KV, db to D1, jobs/apps to Workers routes, and ai to AI Gateway through an injectable Cloudflare binding client. Durable Objects/sockets, Vectorize, and local-to-Cloudflare migration remain post-MVP as planned. Verified with `bun test packages/sdk/runtime-cloudflare/test` and `bun run typecheck:packages`.
+
 - Add Cloudflare-backed adapters for:
   - storage -> R2
   - cache -> KV
