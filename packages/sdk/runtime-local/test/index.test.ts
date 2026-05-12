@@ -4,8 +4,11 @@ import { tmpdir } from "node:os"
 import { describe, expect, it } from "bun:test"
 import {
   ensureHarborLocalProject,
+  expectedHarborLocalTables,
   harborLocalPaths,
   HARBOR_LOCAL_DIR,
+  HARBOR_LOCAL_SCHEMA_VERSION,
+  runHarborLocalMigrations,
   LOCAL_WORKSPACE_ID,
   type HarborRegistryDevRefsFile,
 } from "../src/index"
@@ -52,5 +55,37 @@ describe("@hrbr/runtime-local project layout", () => {
       const gitignore = await readFile(join(projectRoot, ".gitignore"), "utf8")
       expect(gitignore.match(/\.harbor\//g)).toHaveLength(1)
     })
+  })
+})
+
+describe("@hrbr/runtime-local sqlite schema", () => {
+  it("tracks the MVP local runtime tables in the initial migration", () => {
+    const tables = expectedHarborLocalTables()
+    expect(tables).toContain("local_workspace")
+    expect(tables).toContain("source_refs")
+    expect(tables).toContain("tool_index")
+    expect(tables).toContain("workflow_refs")
+    expect(tables).toContain("job_refs")
+    expect(tables).toContain("app_refs")
+    expect(tables).toContain("runs")
+    expect(tables).toContain("spans")
+    expect(tables).toContain("artifact_metadata")
+    expect(tables).toContain("cache_metadata")
+    expect(tables).toContain("credential_metadata")
+    expect(tables).toContain("cloudflare_resources")
+  })
+
+  it("runs local migrations in version order", async () => {
+    const statements: string[] = []
+    const latest = await runHarborLocalMigrations({
+      exec: async (sql) => {
+        statements.push(sql)
+      },
+    })
+
+    expect(latest).toBe(HARBOR_LOCAL_SCHEMA_VERSION)
+    expect(statements).toHaveLength(1)
+    expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS local_workspace")
+    expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS cloudflare_resources")
   })
 })

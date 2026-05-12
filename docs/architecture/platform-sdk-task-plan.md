@@ -74,6 +74,8 @@ Status: complete in `@hrbr/runtime-local` for MVP layout helpers. Verified with 
 
 ## 3. SQLite Runtime Store
 
+Status: complete for initial schema/migration definitions and repository-facing SQL executor boundary. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Add SQLite schema for:
   - local workspace metadata
   - source refs

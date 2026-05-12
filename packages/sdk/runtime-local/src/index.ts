@@ -1,6 +1,17 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
+export {
+  expectedHarborLocalTables,
+  HARBOR_LOCAL_MIGRATIONS,
+  HARBOR_LOCAL_SCHEMA_VERSION,
+  HARBOR_LOCAL_TABLES,
+  runHarborLocalMigrations,
+  type HarborLocalMigration,
+  type HarborLocalSqlExecutor,
+  type HarborLocalTable,
+} from "./sqlite"
+
 export const LOCAL_WORKSPACE_ID = "local"
 export const HARBOR_LOCAL_DIR = ".harbor"
 export const HARBOR_RUNTIME_FILE = "runtime.json"
