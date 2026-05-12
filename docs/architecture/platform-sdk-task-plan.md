@@ -279,6 +279,8 @@ Status: complete for SDK-owned submission helpers: Git-oriented package layout, 
 
 ## 14. Cloudflare Runtime Package
 
+Status: complete for the package boundary: `@hrbr/runtime-cloudflare` exposes a daemon-backed runtime adapter, keeps Cloudflare provider operations behind the local daemon control API, requires confirmation for apply, and defines Cloudflare credential env slots for encrypted local credential import. No Cloudflare SDK dependency is added to `@hrbr/runtime-local`. Verified with `bun test packages/sdk/runtime-cloudflare/test` and `bun run typecheck:packages`.
+
 - Create `@hrbr/runtime-cloudflare`.
 - Keep Cloudflare dependencies out of local runtime package.
 - Expose Cloudflare as an Orbit/runtime adapter, not a different authoring model.
