@@ -9,14 +9,18 @@ import {
   harborLocalPaths,
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_SCHEMA_VERSION,
+  importHarborLocalCredentialsFromEnv,
   hashHarborLocalToken,
   readHarborLocalRuntimeManifest,
+  readHarborLocalCredentials,
+  redactHarborSecret,
   readHarborRegistryDevRefs,
   removeHarborRegistryDevRef,
   runHarborLocalMigrations,
   startHarborLocalDaemon,
   upsertHarborRegistryDevRef,
   watchHarborRegistryDevRefs,
+  writeHarborLocalCredentials,
   LOCAL_WORKSPACE_ID,
   type HarborRegistryDevRefsFile,
 } from "../src/index"
@@ -219,6 +223,59 @@ describe("@hrbr/runtime-local registry dev refs", () => {
       })
 
       await expect(event).resolves.toBe("sources/acme.ts")
+    })
+  })
+})
+
+describe("@hrbr/runtime-local credentials", () => {
+  it("stores local credentials encrypted and reads them with the vault key", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      const paths = harborLocalPaths(projectRoot)
+      await writeHarborLocalCredentials(projectRoot, {
+        version: 1,
+        workspaceId: "local",
+        credentials: [{
+          id: "source-1:api_key",
+          workspaceId: "local",
+          sourceRefId: "source-1",
+          slot: "api_key",
+          value: "sk_test_secret",
+          scope: "local",
+          status: "active",
+          createdAt: "2026-05-12T00:00:00.000Z",
+          updatedAt: "2026-05-12T00:00:00.000Z",
+        }],
+      }, "vault-key")
+
+      const raw = await readFile(paths.credentials, "utf8")
+      expect(raw).not.toContain("sk_test_secret")
+      await expect(readHarborLocalCredentials(projectRoot, "vault-key")).resolves.toMatchObject({
+        credentials: [{ id: "source-1:api_key", value: "sk_test_secret" }],
+      })
+    })
+  })
+
+  it("imports credentials from env and redacts display values", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      await importHarborLocalCredentialsFromEnv(projectRoot, {
+        sourceRefId: "source-1",
+        slots: { api_key: "ACME_API_KEY" },
+        env: { ACME_API_KEY: "sk_live_123456789" },
+        key: "vault-key",
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+      })
+
+      await expect(readHarborLocalCredentials(projectRoot, "vault-key")).resolves.toMatchObject({
+        credentials: [{
+          id: "source-1:api_key",
+          sourceRefId: "source-1",
+          slot: "api_key",
+          value: "sk_live_123456789",
+        }],
+      })
+      expect(redactHarborSecret("sk_live_123456789")).toBe("sk_l...6789")
     })
   })
 })

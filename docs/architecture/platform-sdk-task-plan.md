@@ -137,6 +137,8 @@ Status: complete for dev-ref persistence and file-watch hot reload signals in `@
 
 ## 7. Local Credentials
 
+Status: complete for encrypted local credential file helpers, env import, and redaction utilities in `@hrbr/runtime-local`. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Add encrypted credential vault at `.harbor/credentials.enc`.
 - Support env import for onboarding.
 - Never commit credentials or lockfiles.

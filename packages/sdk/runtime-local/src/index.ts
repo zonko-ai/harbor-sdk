@@ -2,6 +2,17 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  importHarborLocalCredentialsFromEnv,
+  readHarborLocalCredentials,
+  redactHarborSecret,
+  writeHarborLocalCredentials,
+  type HarborLocalCredentialEnvImportInput,
+  type HarborLocalCredentialRecord,
+  type HarborLocalCredentialsFile,
+  type HarborLocalEncryptedCredentialsFile,
+} from "./credentials"
+
+export {
   readHarborRegistryDevRefs,
   removeHarborRegistryDevRef,
   upsertHarborRegistryDevRef,
