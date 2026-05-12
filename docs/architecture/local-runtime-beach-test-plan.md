@@ -381,6 +381,43 @@ Add a local `exec` action to `hrbr_local` over the SDK QuickJS runner.
    - artifact and trace writes under `.harbor/artifacts` and `.harbor/traces`
 5. Retest successful exec, rejected import, unavailable `fetch`, timeout, and a host tool call.
 
+### Iteration 5: Local Jobs Through Beach
+
+- Test project: `/tmp/harbor-sdk-beach-iter5-jobs.R6a8Mk`
+- Beach command shape: `mcporter ... node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct`
+- Status: bugs documented before fixes.
+
+### BUG-14: Beach local runtime has no local job actions
+
+- Scenario: List/create/run/delete local jobs through Beach after bootstrapping a fresh local runtime.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=job_list`.
+- Expected: Beach exposes local job actions backed by the SDK local job runner.
+- Actual: MCP validation rejected the action because no local job action exists.
+- Evidence: Validation error listed bootstrap/status/credential/plugin/tool/exec actions only.
+- Suspected cause: `runHarborLocalJob` exists in `@hrbr/runtime-local`, but Beach has not exposed job refs or job runs.
+- Fix status: fixed. `hrbr_local` now supports `job_list`, `job_add`, `job_delete`, and `job_run`.
+- Retest:
+  - Created `/tmp/harbor-sdk-beach-iter5-jobs.R6a8Mk/hello-job.json`.
+  - `job_add path=hello-job.json name="Hello Job"` returned job metadata.
+  - Sequential `job_list` returned one job.
+  - `job_run job_id=hello-job input={"name":"Kushagra","count":2}` returned output `{ greeting: "hello Kushagra", count: 2 }` and a job trace.
+  - `job_run` without required `name` failed with `input.name is required`.
+  - `job_delete path=hello-job.json` returned `deleted: true`, and a sequential registry check showed `refs: []`.
+
+## Iteration 5 Fix Plan
+
+Add local job actions to `hrbr_local` using JSON job manifests and the SDK job runner.
+
+1. Extend `hrbr_local` schema with:
+   - `job_list`
+   - `job_add`
+   - `job_delete`
+   - `job_run`
+2. Store job refs in `.harbor/registry-dev-refs.json` with `kind=job`.
+3. Support JSON job manifests with `id`, `code`, optional `inputSchema`, optional `outputSchema`, and optional `timeoutMs`.
+4. Run jobs through `runHarborLocalJob`.
+5. Retest add/list/run/delete through Beach, plus schema validation failure.
+
 ## Iteration 1 Fix Plan
 
 Implement the local runtime as an explicit Beach target instead of mixing it silently into the existing cloud workspace behavior.
