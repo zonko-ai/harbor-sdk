@@ -277,6 +277,65 @@ Implement local credentials as Beach-owned actions over the SDK credential vault
 5. Make `status` probe the daemon health endpoint from `runtime.json` before reporting stopped.
 6. Retest through `mcporter` from a fresh project and keep Beach typecheck/build green.
 
+### Iteration 3: Plugin Registry and Local Tool Search Through Beach
+
+- Test project: `/tmp/harbor-sdk-beach-iter3-plugins.IIJ3IW`
+- Beach command shape: `mcporter ... node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct`
+- Status: bugs documented before fixes.
+
+### BUG-10: Beach local runtime has no local plugin registry actions
+
+- Scenario: List local custom plugin refs through Beach after bootstrapping a fresh local runtime.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=plugin_list`.
+- Expected: Beach lists local custom plugin refs from `.harbor/registry-dev-refs.json` and supports adding/removing local plugin refs.
+- Actual: MCP validation rejected the action because `hrbr_local` only supports bootstrap/status/credential actions.
+- Evidence: Validation error said `Invalid option: expected one of "bootstrap"|"status"|"credential_list"|"credential_set"|"credential_import_env"|"credential_delete"`.
+- Suspected cause: Local registry dev-ref primitives exist in `@hrbr/runtime-local`, but Beach has not exposed them.
+- Fix status: fixed. `hrbr_local` now supports `plugin_list`, `plugin_add`, and `plugin_delete` over `.harbor/registry-dev-refs.json`.
+- Retest:
+  - Created `/tmp/harbor-sdk-beach-iter3-plugins.IIJ3IW/demo-plugin.json`.
+  - `plugin_add path=demo-plugin.json name=Demo` returned namespace `demo` and tool `demo.search_issues`.
+  - `plugin_list` returned one local plugin.
+  - `plugin_delete path=demo-plugin.json` returned `deleted: true`.
+  - A sequential registry check showed `refs: []`.
+
+### BUG-11: Beach local runtime has no local BM25 tool search actions
+
+- Scenario: Search locally indexed plugin tools through Beach after bootstrapping a fresh local runtime.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=tool_search query=issue`.
+- Expected: Beach searches local plugin tools using the SDK local lexical/BM25 index.
+- Actual: MCP validation rejected the action because no local tool-search action exists.
+- Suspected cause: `createHarborLocalToolIndex` exists in the SDK package, but Beach has not built an index from local registry refs.
+- Fix status: fixed. `hrbr_local` now supports `tool_search`, `tool_describe`, `tool_schema`, `tool_schemas`, and `tool_call` using a local index built from plugin refs.
+- Retest:
+  - `tool_search query="issue keyword"` returned `demo.search_issues` with BM25 score.
+  - `tool_describe tool_id=demo.search_issues` returned description and schemas.
+  - `tool_schema` and `tool_schemas namespace=demo` returned the expected JSON schemas.
+  - `tool_call tool_id=demo.search_issues input={"query":"bug"}` returned the plugin manifest's static local output.
+  - After `plugin_delete`, `tool_search query=issue` returned `hits: []`.
+
+## Iteration 3 Fix Plan
+
+Expose a narrow local plugin manifest format through `hrbr_local`, then index those local tools with the SDK BM25 helper.
+
+1. Extend `hrbr_local` with plugin registry actions:
+   - `plugin_list`
+   - `plugin_add`
+   - `plugin_delete`
+2. Use `.harbor/registry-dev-refs.json` as the source of truth through the SDK registry helpers.
+3. Support JSON plugin manifests that declare:
+   - `namespace`
+   - optional `name`
+   - `tools[]` with `name`, `displayName`, `description`, `inputSchema`, `outputSchema`, and optional static `output` for local call smoke tests.
+4. Extend `hrbr_local` with tool actions:
+   - `tool_search`
+   - `tool_describe`
+   - `tool_schema`
+   - `tool_schemas`
+   - `tool_call`
+5. Build the local tool index from plugin refs on demand. Avoid hidden cloud calls.
+6. Retest add/list/search/describe/schema/call/delete through `mcporter`.
+
 ## Iteration 1 Fix Plan
 
 Implement the local runtime as an explicit Beach target instead of mixing it silently into the existing cloud workspace behavior.
