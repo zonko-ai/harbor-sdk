@@ -148,8 +148,8 @@ When testing starts, record failures in this format:
 - Actual: Beach exposes Harbor cloud workspace tools and no `.harbor/` directory is created.
 - Evidence: `find /tmp/harbor-sdk-beach-iter1.366woT -maxdepth 2 -print` returned only the temp project directory.
 - Suspected cause: Beach currently starts the existing hrbr MCP sidecar over Coast/cloud APIs and has no integration with `@hrbr/runtime-local`.
-- Fix status: open.
-- Retest: pending.
+- Fix status: partial. A new Beach `hrbr_local` bootstrap/status surface now creates `.harbor/` and starts a daemon, but follow-up BUG-6 shows the bootstrap layout is incomplete.
+- Retest: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=bootstrap` from `/tmp/harbor-sdk-beach-iter1-retest.BqLLwz` returned `status: "running"` and created `.gitignore`, `.harbor/runtime.json`, `.harbor/registry-dev-refs.json`, `.harbor/artifacts`, `.harbor/traces`, and `.harbor/cache`.
 
 ### BUG-2: Beach MCP surface has no local runtime mode or local CRUD actions
 
@@ -159,8 +159,8 @@ When testing starts, record failures in this format:
 - Actual: Exposed default tools are the existing cloud/control-plane surfaces: `hrbr_workspace`, `hrbr_plugins`, `hrbr_skills`, `hrbr_orbit`, `hrbr_tools`, `hrbr_exec`.
 - Evidence: Tool schemas only include cloud/workspace actions. `hrbr_orbit` supports `list/inspect/open/versions/run`, not local create/update/delete. `hrbr_skills` is read-only. No credential vault tool is exposed.
 - Suspected cause: Beach has not been extended with a local runtime target or local authoring actions.
-- Fix status: open.
-- Retest: pending.
+- Fix status: partial. `hrbr_local` now exposes local bootstrap/status only. Local CRUD actions for credentials, plugins, tools, exec, jobs, apps, and workflows remain later iterations.
+- Retest: `mcporter list --stdio "node .../apps/beach/dist/index.js stdio-direct" --schema --json` from `/tmp/harbor-sdk-beach-iter1-retest.BqLLwz` includes `hrbr_local` with `action=bootstrap|status`.
 
 ### BUG-3: Plugin registry operations are cloud workspace operations, not local plugin registry operations
 
@@ -198,6 +198,27 @@ When testing starts, record failures in this format:
 - Suspected cause: Beach currently documents and implements `hrbr_exec` as cloud execution and `hrbr_orbit`/`hrbr_skills` as hosted control-plane reads.
 - Fix status: open.
 - Retest: pending.
+
+### BUG-6: Local bootstrap layout is incomplete
+
+- Scenario: Bootstrap the local runtime through Beach from a fresh project.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=bootstrap`.
+- Expected: Bootstrap prepares the local project layout promised by the SDK plan: `.harbor/runtime.json`, `.harbor/harbor.sqlite`, `.harbor/credentials.enc`, `.harbor/registry-dev-refs.json`, `.harbor/artifacts/`, `.harbor/traces/`, `.harbor/cache/`, and clear `cloudflare.lock.json` behavior.
+- Actual: Bootstrap created runtime, registry refs, artifacts, traces, and cache, but `files.sqlite`, `files.credentials`, and `files.cloudflareLock` were false.
+- Evidence: `find /tmp/harbor-sdk-beach-iter1-retest.BqLLwz -maxdepth 3 -print | sort` did not include `harbor.sqlite`, `credentials.enc`, or `cloudflare.lock.json`.
+- Suspected cause: `ensureHarborLocalProject` creates directories and registry refs only; SQLite, credential vault, and Cloudflare lock initialization are lazy or absent.
+- Fix status: deferred to the first store/vault implementation slice. Do not create fake `harbor.sqlite` or invalid `credentials.enc` placeholders; implement a real local store/vault initialization path before marking this fixed.
+- Retest: token retest project `/tmp/harbor-sdk-beach-iter1-token-retest.uwDLoF` still reports `sqlite: false`, `credentials: false`, and `cloudflareLock: false`, so this remains open for the next local store/vault iteration.
+
+### BUG-7: Beach bootstrap response exposes the local daemon bearer token
+
+- Scenario: Bootstrap the local runtime through Beach from a fresh project.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=bootstrap`.
+- Expected: Beach output should expose safe connection metadata only; auth tokens and authorization headers should never be printed to an MCP client transcript.
+- Actual: Response included `connection.connection.token` and `connection.connection.headers.authorization` with the raw bearer token.
+- Suspected cause: Beach returned `harborLocalDaemonConnection(runtime.manifest)` directly instead of a redacted/safe connection summary.
+- Fix status: fixed. Beach now returns only `origin`, `mcp_endpoint`, and `auth: "local-bearer-token-redacted"`.
+- Retest: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=bootstrap` from `/tmp/harbor-sdk-beach-iter1-token-retest.uwDLoF` returned no raw `token` field and no `authorization` header.
 
 ## Iteration 1 Fix Plan
 
