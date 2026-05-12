@@ -4,6 +4,28 @@ This file is the approval checklist before starting Beach-driven local runtime t
 
 Scope: test the local runtime only, exactly how a user would use it through Beach in a locally hosted environment. Do not use Coast as the user interface. Cloudflare-backed runtime paths are out of scope except where they must stay disabled or non-blocking for local use.
 
+Approval status: approved and executed through Iteration 10 final acceptance.
+
+## Approval Task List
+
+These are the local-runtime capabilities to verify through Beach, in the same order they should be tested. Each area starts from a clean local project unless the task explicitly tests persistence, restart, or recovery.
+
+| Area | What will be tested | How it will be tested |
+| --- | --- | --- |
+| Bootstrap and daemon | Local project initialization, `.harbor/` layout, `.gitignore`, daemon startup, status, reconnect behavior | Call Beach `hrbr_local` bootstrap/status from a fresh project and inspect generated local state |
+| Credentials vault | Create, import from env, list metadata, update, delete, redaction, encrypted local storage | Use Beach credential actions only, then verify outputs and `.harbor/` files do not expose raw secrets |
+| Plugin registry | Add/list/delete local custom plugins, validate bad manifests, preserve native/global behavior where exposed | Register JSON plugin manifests through Beach and verify `.harbor/registry-dev-refs.json` plus list output |
+| Tool search and calls | Lexical/BM25 search, exact names, namespace filtering, describe, schema, schemas, local tool call dispatch | Build the local tool index from plugin refs and call search/schema/call actions through Beach |
+| Local exec | QuickJS-ng execution, no imports, no default network, host calls, artifacts, traces, timeouts, invalid code | Run bundled code through Beach `exec` and verify both success and failure cases |
+| Jobs | Add/list/run/delete local jobs, JSON input/output validation, traces/artifacts, missing dependency errors | Register local job manifests and run them through Beach |
+| Apps | Add/list/preview/delete local apps, JSON and HTML routes, missing route errors, trace records | Register local app manifests and preview routes through Beach |
+| Workflows | Add/list/run/delete workflows, required tool validation, replay fixtures, workflow manifests | Register workflow manifests, run with local tools/jobs, then test missing requirements |
+| Package submission | Plugin/workflow package generation, package validation, README/changelog/owner metadata, security warnings | Generate package snapshots and validate intentionally bad package metadata through Beach |
+| Persistence and recovery | Restart/reconnect, persisted refs/credentials/jobs/apps/workflows, corrupt files, stale daemon port | Reuse a project across Beach processes and intentionally corrupt local runtime files |
+| Final acceptance | One clean end-to-end local user flow covering all core features | Run bootstrap -> creds -> plugin/tools -> exec -> job -> app -> workflow -> package -> restart -> rerun |
+
+Testing rule: if any scenario fails, record the bug in the Bug Log below before fixing it. After each iteration, write the fix plan, implement only those fixes, retest the same Beach path, then commit the code and this task file together.
+
 ## Iteration Protocol
 
 Use this loop for every iteration:
@@ -148,8 +170,8 @@ When testing starts, record failures in this format:
 - Actual: Beach exposes Harbor cloud workspace tools and no `.harbor/` directory is created.
 - Evidence: `find /tmp/harbor-sdk-beach-iter1.366woT -maxdepth 2 -print` returned only the temp project directory.
 - Suspected cause: Beach currently starts the existing hrbr MCP sidecar over Coast/cloud APIs and has no integration with `@hrbr/runtime-local`.
-- Fix status: partial. A new Beach `hrbr_local` bootstrap/status surface now creates `.harbor/` and starts a daemon, but follow-up BUG-6 shows the bootstrap layout is incomplete.
-- Retest: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=bootstrap` from `/tmp/harbor-sdk-beach-iter1-retest.BqLLwz` returned `status: "running"` and created `.gitignore`, `.harbor/runtime.json`, `.harbor/registry-dev-refs.json`, `.harbor/artifacts`, `.harbor/traces`, and `.harbor/cache`.
+- Fix status: fixed for Beach local bootstrap/status. `hrbr_local` now creates `.harbor/`, starts the local daemon, and reports status. Full store/vault placeholder creation remains intentionally deferred under BUG-6 until real store/vault initialization.
+- Retest: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=bootstrap` from `/tmp/harbor-sdk-beach-iter1-retest.BqLLwz` returned `status: "running"` and created `.gitignore`, `.harbor/runtime.json`, `.harbor/registry-dev-refs.json`, `.harbor/artifacts`, `.harbor/traces`, and `.harbor/cache`. Iteration 10 final acceptance also bootstrapped `/tmp/harbor-sdk-beach-reglock.VddcAs`.
 
 ### BUG-2: Beach MCP surface has no local runtime mode or local CRUD actions
 
@@ -159,8 +181,8 @@ When testing starts, record failures in this format:
 - Actual: Exposed default tools are the existing cloud/control-plane surfaces: `hrbr_workspace`, `hrbr_plugins`, `hrbr_skills`, `hrbr_orbit`, `hrbr_tools`, `hrbr_exec`.
 - Evidence: Tool schemas only include cloud/workspace actions. `hrbr_orbit` supports `list/inspect/open/versions/run`, not local create/update/delete. `hrbr_skills` is read-only. No credential vault tool is exposed.
 - Suspected cause: Beach has not been extended with a local runtime target or local authoring actions.
-- Fix status: partial. `hrbr_local` now exposes local bootstrap/status only. Local CRUD actions for credentials, plugins, tools, exec, jobs, apps, and workflows remain later iterations.
-- Retest: `mcporter list --stdio "node .../apps/beach/dist/index.js stdio-direct" --schema --json` from `/tmp/harbor-sdk-beach-iter1-retest.BqLLwz` includes `hrbr_local` with `action=bootstrap|status`.
+- Fix status: fixed across later iterations. `hrbr_local` now exposes local bootstrap/status plus credentials, plugins, tools, exec, jobs, apps, workflows, and package actions.
+- Retest: `mcporter list --stdio "node .../apps/beach/dist/index.js stdio-direct" --schema --json` from `/tmp/harbor-sdk-beach-iter1-retest.BqLLwz` included `hrbr_local`; final acceptance exercised all core local actions through `hrbr_local`.
 
 ### BUG-3: Plugin registry operations are cloud workspace operations, not local plugin registry operations
 
@@ -169,8 +191,8 @@ When testing starts, record failures in this format:
 - Expected: Local runtime plugin list is empty or reflects `.harbor/registry-dev-refs.json`; custom local plugin creation/deletion is available.
 - Actual: Returned cloud workspace plugin state for workspace `c7c4f96d-eb82-4e71-8aee-462ccafce9e8`, including installed ready sources like `cloudflare`, `linear-mcp`, `replicate-mcp`, etc.
 - Suspected cause: `hrbr_plugins` routes directly to Harbor API plugin endpoints and has no local registry implementation.
-- Fix status: open.
-- Retest: pending.
+- Fix status: fixed in Iteration 3 by adding `hrbr_local` plugin registry actions over local registry refs.
+- Retest: `plugin_add`, `plugin_list`, and `plugin_delete` passed in `/tmp/harbor-sdk-beach-iter3-plugins.IIJ3IW`; final acceptance preserved the `final-plugin.json` ref in `/tmp/harbor-sdk-beach-reglock.VddcAs`.
 
 ### BUG-4: Tool search lexical mode searches cloud workspace tools, not local BM25 index
 
@@ -179,8 +201,8 @@ When testing starts, record failures in this format:
 - Expected: Search hits come from the local SDK BM25 index populated from local plugin refs.
 - Actual: Search returned cloud workspace tools under `gitlab-rest` for GitHub integration endpoints.
 - Suspected cause: `hrbr_tools` routes to Harbor API tool search and does not use `createHarborLocalToolIndex`.
-- Fix status: open.
-- Retest: pending.
+- Fix status: fixed in Iteration 3 by adding local BM25 tool search over local plugin refs.
+- Retest: `tool_search`, `tool_describe`, `tool_schema`, `tool_schemas`, and `tool_call` passed in `/tmp/harbor-sdk-beach-iter3-plugins.IIJ3IW`; final acceptance passed for `final.lookup`.
 
 ### BUG-5: Jobs, apps, workflows, and exec remain cloud/control-plane surfaces
 
@@ -196,8 +218,8 @@ When testing starts, record failures in this format:
   - workflows list reads native Harbor workflow catalog.
   - exec attempts Harbor cloud execution and failed with `SchemaError(Expected "sandbox", got "dynamic_worker" at ["mode"])`.
 - Suspected cause: Beach currently documents and implements `hrbr_exec` as cloud execution and `hrbr_orbit`/`hrbr_skills` as hosted control-plane reads.
-- Fix status: open.
-- Retest: pending.
+- Fix status: fixed across Iterations 4-7 by adding local QuickJS exec, jobs, apps, and workflows to `hrbr_local`.
+- Retest: Iterations 4-7 passed focused Beach smoke tests; final acceptance passed local exec, `job_run`, `app_preview`, and workflow add/manifest/run/replay/rerun in `/tmp/harbor-sdk-beach-reglock.VddcAs`.
 
 ### BUG-6: Local bootstrap layout is incomplete
 
@@ -529,15 +551,57 @@ Add local app actions to `hrbr_local` using JSON app manifests and the SDK app r
 - Fix status: fixed. `readHarborRegistryDevRefs` now wraps parse failures with the exact path and recovery guidance.
 - Retest: Corrupt registry now returns `Invalid local registry refs JSON at .../.harbor/registry-dev-refs.json. Restore the file from backup or delete it and run hrbr_local action=bootstrap to recreate an empty registry.`
 
+### BUG-20: Concurrent registry updates can lose refs
+
+- Scenario: Add plugin, job, and app refs concurrently in a fresh project during the final acceptance pass.
+- Beach command/tool call: parallel `plugin_add`, `job_add`, and `app_add`.
+- Expected: `.harbor/registry-dev-refs.json` contains all three refs after concurrent user/agent actions.
+- Actual: Registry contained only app and plugin refs; the job ref was lost.
+- Evidence: `cat .harbor/registry-dev-refs.json` in `/tmp/harbor-sdk-beach-final.9VzJIp` showed `app` and `plugin` only.
+- Suspected cause: registry upsert/remove operations use read-modify-write without an inter-process lock.
+- Fix status: fixed. Registry ref upsert/remove now runs under an inter-process lock at `.harbor/registry-dev-refs.lock`.
+- Retest: In `/tmp/harbor-sdk-beach-reglock.VddcAs`, concurrent Beach `plugin_add`, `job_add`, and `app_add` completed successfully and `.harbor/registry-dev-refs.json` contained all three refs: `app:final-app.json`, `job:final-job.json`, and `plugin:final-plugin.json`.
+
 ## Iteration 9 Fix Plan
 
 Make local project initialization concurrency-safe and retest persistence/recovery.
 
 1. Update `writeJsonIfMissing` to treat `EEXIST` as success after a concurrent writer wins the race.
 2. Apply the same runtime-local fix in the SDK repo and the Harbor Beach test copy.
-3. Retest parallel first-use bootstrap/plugin/credential actions.
-4. Retest status, plugin list/search, and credential metadata from a fresh Beach process.
-5. Retest corrupted registry/runtime errors after the race fix.
+3. Add an inter-process registry lock around registry ref upsert/remove so concurrent local authoring actions cannot lose refs.
+4. Retest parallel first-use bootstrap/plugin/credential actions.
+5. Retest status, plugin list/search, and credential metadata from a fresh Beach process.
+6. Retest corrupted registry/runtime errors after the race fix.
+7. Retest concurrent plugin/job/app registration from a final-acceptance project.
+
+## Iteration 9 Fix Results
+
+- First-use JSON creation now treats `EEXIST` as success when another Beach process creates the file first.
+- Corrupt registry JSON now returns an actionable error with the exact file path and recovery guidance.
+- Registry add/remove actions now use an inter-process lock to serialize read-modify-write operations.
+- Added an automated runtime-local regression test for concurrent plugin/job/app registry ref updates.
+- Retested parallel first-use bootstrap/plugin/credential actions in `/tmp/harbor-sdk-beach-iter9-retest.RQxzVD`.
+- Retested concurrent final plugin/job/app registration in `/tmp/harbor-sdk-beach-reglock.VddcAs`; all refs were preserved.
+
+### Iteration 10: Final Acceptance Pass
+
+- Test project: `/tmp/harbor-sdk-beach-reglock.VddcAs`
+- Beach command shape: `mcporter call --output json --stdio "node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct" hrbr_local --args ...`
+- Status: passed.
+
+Final acceptance evidence:
+
+- `bootstrap` created local runtime state and started a local daemon.
+- `credential_set` and `credential_list` stored a local credential and returned only redacted metadata.
+- Concurrent `plugin_add`, `job_add`, and `app_add` preserved all registry refs.
+- `tool_search`, `tool_describe`, `tool_schema`, and `tool_call` succeeded for `final.lookup`.
+- `exec` ran through QuickJS-ng, called `harbor.tools.call("final.lookup", ...)`, and verified `fetch` was unavailable.
+- `job_run` succeeded for `final-job`.
+- `app_preview` returned HTTP `200` for `final-app` route `/`.
+- `workflow_add`, `workflow_manifest`, `workflow_run`, and `workflow_replay` succeeded for `final-workflow`.
+- `package_plugin` and `package_workflow` generated valid package manifests with no package validation errors.
+- A fresh Beach process `status` call reported the daemon as `running` via `runtime_manifest`.
+- Core job, app, and workflow calls succeeded again after reconnect.
 
 ## Iteration 8 Fix Plan
 

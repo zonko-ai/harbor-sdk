@@ -1,5 +1,5 @@
 import { watch, watchFile, unwatchFile, type FSWatcher } from "node:fs"
-import { readFile, writeFile } from "node:fs/promises"
+import { mkdir, readFile, rmdir, writeFile } from "node:fs/promises"
 import { isAbsolute, join } from "node:path"
 import {
   harborLocalPaths,
@@ -36,6 +36,32 @@ function absoluteRefPath(projectRoot: string, path: string): string {
   return isAbsolute(path) ? path : join(projectRoot, path)
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function withRegistryLock<T>(projectRoot: string, fn: () => Promise<T>): Promise<T> {
+  const lock = join(harborLocalPaths(projectRoot).root, "registry-dev-refs.lock")
+  const started = Date.now()
+  while (true) {
+    try {
+      await mkdir(lock)
+      break
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error
+      if (Date.now() - started > 2_000) {
+        throw new Error(`Timed out waiting for local registry lock at ${lock}`)
+      }
+      await sleep(25)
+    }
+  }
+  try {
+    return await fn()
+  } finally {
+    await rmdir(lock)
+  }
+}
+
 export async function readHarborRegistryDevRefs(
   projectRoot: string
 ): Promise<HarborRegistryDevRefsFile> {
@@ -63,27 +89,31 @@ export async function upsertHarborRegistryDevRef(
   projectRoot: string,
   input: HarborRegistryDevRefInput
 ): Promise<HarborRegistryDevRefsFile> {
-  const current = await readHarborRegistryDevRefs(projectRoot)
-  const nextRef: HarborRegistryDevRef =
-    input.name === undefined
-      ? { kind: input.kind, path: input.path }
-      : { kind: input.kind, path: input.path, name: input.name }
-  const refs = new Map(current.refs.map((ref) => [refKey(ref), ref]))
-  refs.set(refKey(nextRef), nextRef)
-  const next = { ...current, refs: [...refs.values()].sort((a, b) => refKey(a).localeCompare(refKey(b))) }
-  await writeHarborRegistryDevRefs(projectRoot, next)
-  return next
+  return await withRegistryLock(projectRoot, async () => {
+    const current = await readHarborRegistryDevRefs(projectRoot)
+    const nextRef: HarborRegistryDevRef =
+      input.name === undefined
+        ? { kind: input.kind, path: input.path }
+        : { kind: input.kind, path: input.path, name: input.name }
+    const refs = new Map(current.refs.map((ref) => [refKey(ref), ref]))
+    refs.set(refKey(nextRef), nextRef)
+    const next = { ...current, refs: [...refs.values()].sort((a, b) => refKey(a).localeCompare(refKey(b))) }
+    await writeHarborRegistryDevRefs(projectRoot, next)
+    return next
+  })
 }
 
 export async function removeHarborRegistryDevRef(
   projectRoot: string,
   input: Pick<HarborRegistryDevRefInput, "kind" | "path">
 ): Promise<HarborRegistryDevRefsFile> {
-  const current = await readHarborRegistryDevRefs(projectRoot)
-  const key = refKey(input)
-  const next = { ...current, refs: current.refs.filter((ref) => refKey(ref) !== key) }
-  await writeHarborRegistryDevRefs(projectRoot, next)
-  return next
+  return await withRegistryLock(projectRoot, async () => {
+    const current = await readHarborRegistryDevRefs(projectRoot)
+    const key = refKey(input)
+    const next = { ...current, refs: current.refs.filter((ref) => refKey(ref) !== key) }
+    await writeHarborRegistryDevRefs(projectRoot, next)
+    return next
+  })
 }
 
 export async function watchHarborRegistryDevRefs(

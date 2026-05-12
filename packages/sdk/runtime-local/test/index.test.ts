@@ -280,6 +280,38 @@ describe("@hrbr/runtime-local registry dev refs", () => {
     })
   })
 
+  it("preserves concurrent registry ref updates", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+
+      await Promise.all([
+        upsertHarborRegistryDevRef(projectRoot, {
+          kind: "plugin",
+          path: "plugins/final.json",
+          name: "Final Plugin",
+        }),
+        upsertHarborRegistryDevRef(projectRoot, {
+          kind: "job",
+          path: "jobs/final.json",
+          name: "Final Job",
+        }),
+        upsertHarborRegistryDevRef(projectRoot, {
+          kind: "app",
+          path: "apps/final.json",
+          name: "Final App",
+        }),
+      ])
+
+      await expect(readHarborRegistryDevRefs(projectRoot)).resolves.toMatchObject({
+        refs: [
+          { kind: "app", path: "apps/final.json", name: "Final App" },
+          { kind: "job", path: "jobs/final.json", name: "Final Job" },
+          { kind: "plugin", path: "plugins/final.json", name: "Final Plugin" },
+        ],
+      })
+    })
+  })
+
   it("watches dev ref paths for hot reload signals", async () => {
     await withTempProject(async (projectRoot) => {
       await ensureHarborLocalProject({ projectRoot })
