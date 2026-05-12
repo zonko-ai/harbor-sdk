@@ -7,8 +7,10 @@ import {
   expectedHarborLocalTables,
   createHarborLocalToolIndex,
   createHarborLocalWorkflowReplayFixture,
+  createHarborLocalSubmissionSnapshot,
   harborLocalDaemonConnection,
   harborLocalPaths,
+  harborLocalSubmissionLayout,
   generateHarborLocalWorkflowManifest,
   generateHarborLocalPluginPackageManifest,
   generateHarborLocalWorkflowPackageManifest,
@@ -28,6 +30,7 @@ import {
   startHarborLocalDaemon,
   upsertHarborRegistryDevRef,
   validateHarborLocalPackageManifest,
+  validateHarborLocalSubmission,
   watchHarborRegistryDevRefs,
   writeHarborLocalCredentials,
   LOCAL_WORKSPACE_ID,
@@ -711,6 +714,87 @@ describe("@hrbr/runtime-local package format", () => {
         "name must be a portable package slug",
         "docs.readme is required",
         "changelog must include at least one entry",
+      ],
+    })
+  })
+})
+
+describe("@hrbr/runtime-local submission flow", () => {
+  it("builds git-oriented submission layout, snapshot files, and review checks", () => {
+    const manifest = generateHarborLocalPluginPackageManifest({
+      name: "github-tools",
+      version: "1.0.0",
+      owner: { name: "Harbor Dev", email: "dev@example.com" },
+      source: { kind: "git", path: "https://github.com/acme/github-tools" },
+      docs: { readme: "# GitHub Tools" },
+      auth: { required: true, slots: ["GITHUB_TOKEN"] },
+      scopes: ["issues:write"],
+      policies: ["network:github.com"],
+      tests: ["bun test"],
+      changelog: ["1.0.0 initial submission"],
+      tools: [{
+        id: "tool-1",
+        workspaceId: "local",
+        sourceRefId: "source-github",
+        namespace: "github",
+        name: "create_issue",
+        displayName: "Create Issue",
+        searchText: "github issue create",
+      }],
+    })
+
+    expect(harborLocalSubmissionLayout("plugin")).toEqual([
+      "harbor.package.json",
+      "README.md",
+      "CHANGELOG.md",
+      "plugins/",
+      "examples/",
+      "tests/",
+    ])
+    expect(createHarborLocalSubmissionSnapshot(manifest).files.map((file) => file.path)).toEqual([
+      "harbor.package.json",
+      "README.md",
+      "CHANGELOG.md",
+      "OWNERS.md",
+    ])
+    expect(validateHarborLocalSubmission(manifest)).toMatchObject({
+      ok: true,
+      security: [
+        { id: "auth-secret-values", status: "pass" },
+        { id: "scopes-declared", status: "pass" },
+        { id: "policies-declared", status: "pass" },
+        { id: "tests-declared", status: "pass" },
+      ],
+    })
+  })
+
+  it("flags security and review gaps before submission", () => {
+    const manifest = generateHarborLocalPluginPackageManifest({
+      name: "github-tools",
+      version: "1.0.0",
+      owner: { name: "Harbor Dev" },
+      source: { kind: "local", path: "plugins/github" },
+      docs: { readme: "# GitHub Tools" },
+      auth: { required: true, slots: ["GITHUB_TOKEN=secret"] },
+      changelog: ["1.0.0 initial submission"],
+      tools: [{
+        id: "tool-1",
+        workspaceId: "local",
+        sourceRefId: "source-github",
+        namespace: "github",
+        name: "create_issue",
+        displayName: "Create Issue",
+        searchText: "github issue create",
+      }],
+    })
+
+    expect(validateHarborLocalSubmission(manifest)).toMatchObject({
+      ok: false,
+      security: [
+        { id: "auth-secret-values", status: "fail" },
+        { id: "scopes-declared", status: "warn" },
+        { id: "policies-declared", status: "warn" },
+        { id: "tests-declared", status: "warn" },
       ],
     })
   })

@@ -267,6 +267,8 @@ Status: complete for SDK-owned portable package manifest primitives: plugin/work
 
 ## 13. Git-Based Submission Flow
 
+Status: complete for SDK-owned submission helpers: Git-oriented package layout, manifest snapshot files, ownership metadata, reviewer validation result, and security checklist covering secret-value leakage, scopes, policies, and tests. Actual GitHub PR/review automation remains outside the SDK package. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Define repo layout for plugin/workflow submissions.
 - Add validation checks Harbor reviewers can run.
 - Add package snapshot creation.

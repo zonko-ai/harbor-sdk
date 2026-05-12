@@ -2,6 +2,17 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  createHarborLocalSubmissionSecurityChecklist,
+  createHarborLocalSubmissionSnapshot,
+  harborLocalSubmissionLayout,
+  validateHarborLocalSubmission,
+  type HarborLocalSubmissionFile,
+  type HarborLocalSubmissionSecurityCheck,
+  type HarborLocalSubmissionSnapshot,
+  type HarborLocalSubmissionValidationResult,
+} from "./submission"
+
+export {
   generateHarborLocalPluginPackageManifest,
   generateHarborLocalWorkflowPackageManifest,
   validateHarborLocalPackageManifest,
