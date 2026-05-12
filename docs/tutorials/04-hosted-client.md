@@ -5,8 +5,11 @@ Use `@hrbr/client` when an app wants to talk to hosted Harbor SaaS instead of ru
 ```ts
 import { createHarborClient } from "@hrbr/client"
 
+const apiUrl = process.env.HRBR_API_URL
+if (!apiUrl) throw new Error("HRBR_API_URL is required")
+
 const harbor = createHarborClient({
-  apiUrl: process.env.HRBR_API_URL ?? "https://api.tryharbor.ai",
+  apiUrl,
   apiKey: process.env.HRBR_API_KEY!,
   workspaceId: process.env.HRBR_WORKSPACE_ID!,
 })

@@ -97,26 +97,18 @@ const ALWAYS_DENIED = new Set([
 ])
 
 const APP_ALLOWED_PACKAGES = [
-	"@hrbr/orbit/app-ui",
 	"@hrbr/orbit/apps",
 	"@hrbr/orbit/jobs",
 	"effect",
-	"hono",
-	"@kiwa-ui/enhance",
 ]
 
-// `@hrbr/orbit/app-ui` is allowed inside jobs too: jobs use render() +
-// artifact() to build HTML reports/digests stored via orbit.storage. The
-// app-only `response()` helper is a no-op in jobs but harmless if imported.
-// See examples/company-os/orbit-ui/v2/BUILD-SPEC.md §2 'Module surface'.
 const JOB_ALLOWED_PACKAGES = [
 	"@hrbr/orbit/jobs",
-	"@hrbr/orbit/app-ui",
 	"effect",
 ]
 
 // In monorepo dev this file lives at packages/sdk/orbit/src/bundler/index.ts
-// and the orbit src tree (jobs.ts, apps.ts, app-ui/) sits at `..`.
+// and the orbit src tree (jobs.ts, apps.ts) sits at `..`.
 //
 // In the published `@zonko-ai/harbor` CLI the bundler is rolled into
 // `dist/index.js`, so `..` resolves to the package root where the orbit
@@ -155,11 +147,6 @@ function getOrbitSrcDir(): string {
 
 function resolveOrbitSelfImport(specifier: string): string | undefined {
 	const dir = getOrbitSrcDir()
-	if (specifier === "@hrbr/orbit/app-ui") return resolve(dir, "app-ui/index.ts")
-	if (specifier.startsWith("@hrbr/orbit/app-ui/")) {
-		const sub = specifier.slice("@hrbr/orbit/app-ui/".length)
-		return resolve(dir, `app-ui/${sub}.ts`)
-	}
 	if (specifier === "@hrbr/orbit/apps") return resolve(dir, "apps.ts")
 	if (specifier === "@hrbr/orbit/jobs") return resolve(dir, "jobs.ts")
 	return undefined
@@ -198,9 +185,9 @@ function isRelativeOrAbsolute(specifier: string): boolean {
 
 function validateSource(source: string, _kind: OrbitBundleKind) {
 	const issues: string[] = []
-	// Note: jobs MAY import @hrbr/orbit/app-ui to build HTML artifacts via
-	// render()/artifact(). Only @hrbr/orbit/bundler is forbidden in user
-	// source (it's the build tool itself, not a runtime dep).
+	if (/from\s+["']@hrbr\/orbit\/app-ui(?:\/[^"']*)?["']/.test(source)) {
+		issues.push("Orbit bundled source must not import @hrbr/orbit/app-ui; frontend rendering is outside the SDK boundary.")
+	}
 	if (/from\s+["']@hrbr\/orbit\/bundler(?:\/[^"']*)?["']/.test(source)) {
 		issues.push("Orbit bundled source must not import @hrbr/orbit/bundler")
 	}

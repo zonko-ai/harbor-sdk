@@ -1,26 +1,17 @@
 // Integration tests for the bundled publish chain.
 //
-// Exercises (1) the bundler against real showcase sources from examples/,
-// (2) the publish-body schemas (runtime/bundle fields), and (3) the
-// interlock between bundler output and the schema's bundle struct.
+// Exercises publish-body schemas and the interlock between bundler output and
+// the schema's bundle struct. Frontend showcase sources are intentionally not
+// part of the SDK test surface.
 //
 // No live deploy. No Cloudflare. No credentials.
 
-import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'bun:test'
-import { readFile } from 'node:fs/promises'
-import { resolve } from 'node:path'
 import { Schema } from 'effect'
 
 import { bundleOrbitSource, OrbitBundleError } from '../src/bundler'
 import { OrbitAppPublishBody, OrbitAppPublishBundle } from '../src/apps'
 import { OrbitJobPublishBody, OrbitJobPublishBundle } from '../src/jobs'
-
-const SHOWCASE_DIR = resolve(import.meta.dir, '../../../../examples/company-os/orbit-ui/v2/showcase')
-const FEEDBACK_APP = resolve(SHOWCASE_DIR, '03-feedback-board.app.ts')
-const TRIAGE_JOB = resolve(SHOWCASE_DIR, '04-triage-report.job.ts')
-const hasShowcaseSources = existsSync(FEEDBACK_APP) && existsSync(TRIAGE_JOB)
-const itWithShowcaseSources = hasShowcaseSources ? it : it.skip
 
 // Real v4 UUID with the proper version+variant nibbles.
 const TEST_WORKSPACE_ID = '00000000-0000-4000-8000-000000000001'
@@ -43,14 +34,16 @@ const baseJobPublishBody = {
   policy: { timeout_ms: 60_000, retention_days: 30, idempotency: 'none' as const },
 }
 
-describe('bundled publish: bundler against real showcase sources', () => {
-  itWithShowcaseSources('bundles the feedback-board app source (with template subpath)', async () => {
-    const source = await readFile(FEEDBACK_APP, 'utf8')
+describe('bundled publish: bundler guardrails', () => {
+  it('bundles SDK-only app source', async () => {
     const result = await bundleOrbitSource({
       kind: 'app',
-      source,
-      sourcePath: FEEDBACK_APP,
-      resolveDir: SHOWCASE_DIR,
+      source: `import { defineOrbitApp } from "@hrbr/orbit/apps"
+export default defineOrbitApp({
+  name: "report",
+  routes: [{ method: "GET", path: "/", auth: "public", input: "none", output: "json", job: "render" }],
+  jobs: { render: { name: "render" } },
+})`,
       minify: true,
       metafile: true,
     })
@@ -61,16 +54,14 @@ describe('bundled publish: bundler against real showcase sources', () => {
     expect(result.bytes).toBeGreaterThan(0)
     expect(result.gzip_bytes).toBeGreaterThan(0)
     expect(result.gzip_bytes).toBeLessThan(1024 * 1024)
-    expect(result.code).not.toMatch(/^import\s+.+from\s+["']@hrbr\/orbit\/app-ui/m)
+    expect(result.code).not.toMatch(/^import\s+.+from\s+["']@hrbr\/orbit/m)
   })
 
-  itWithShowcaseSources('bundles the triage-report job source (job uses app-ui)', async () => {
-    const source = await readFile(TRIAGE_JOB, 'utf8')
+  it('bundles SDK-only job source', async () => {
     const result = await bundleOrbitSource({
       kind: 'job',
-      source,
-      sourcePath: TRIAGE_JOB,
-      resolveDir: SHOWCASE_DIR,
+      source: `import { defineOrbitJob } from "@hrbr/orbit/jobs"
+export default defineOrbitJob({ name: "summarize", handler: async () => ({ ok: true }) })`,
       minify: true,
     })
 
@@ -79,6 +70,16 @@ describe('bundled publish: bundler against real showcase sources', () => {
     expect(result.code.length).toBeGreaterThan(100)
     expect(result.gzip_bytes).toBeLessThan(1024 * 1024)
     expect(result.code).not.toMatch(/^import\s+.+from\s+["']@hrbr\/orbit/m)
+  })
+
+  it('rejects frontend app-ui imports', async () => {
+    await expect(
+      bundleOrbitSource({
+        kind: 'app',
+        source: `import { render } from "@hrbr/orbit/app-ui"
+export default { render }`,
+      }),
+    ).rejects.toBeInstanceOf(OrbitBundleError)
   })
 
   it('rejects sources with node:fs imports', async () => {
@@ -179,13 +180,15 @@ describe('bundled publish: schema decode', () => {
 })
 
 describe('bundled publish: bundler output flows into schema', () => {
-  itWithShowcaseSources('app bundler output fits OrbitAppPublishBundle', async () => {
-    const source = await readFile(FEEDBACK_APP, 'utf8')
+  it('app bundler output fits OrbitAppPublishBundle', async () => {
     const result = await bundleOrbitSource({
       kind: 'app',
-      source,
-      sourcePath: FEEDBACK_APP,
-      resolveDir: SHOWCASE_DIR,
+      source: `import { defineOrbitApp } from "@hrbr/orbit/apps"
+export default defineOrbitApp({
+  name: "report",
+  routes: [{ method: "GET", path: "/", auth: "public", input: "none", output: "json", job: "render" }],
+  jobs: { render: { name: "render" } },
+})`,
       minify: true,
     })
 
@@ -198,13 +201,11 @@ describe('bundled publish: bundler output flows into schema', () => {
     expect(() => Schema.decodeUnknownSync(OrbitAppPublishBundle)(bundle)).not.toThrow()
   })
 
-  itWithShowcaseSources('job bundler output fits OrbitJobPublishBundle', async () => {
-    const source = await readFile(TRIAGE_JOB, 'utf8')
+  it('job bundler output fits OrbitJobPublishBundle', async () => {
     const result = await bundleOrbitSource({
       kind: 'job',
-      source,
-      sourcePath: TRIAGE_JOB,
-      resolveDir: SHOWCASE_DIR,
+      source: `import { defineOrbitJob } from "@hrbr/orbit/jobs"
+export default defineOrbitJob({ name: "summarize", handler: async () => ({ ok: true }) })`,
       minify: true,
     })
 

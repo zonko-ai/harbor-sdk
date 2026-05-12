@@ -43,6 +43,7 @@ flowchart LR
 
 - No public `createHarbor()` all-in-one API.
 - No "build your own Harbor dashboard" starter.
+- No frontend component, page-template, or rendered UI package surface.
 - No turnkey workspace, billing, OAuth-admin, or SaaS-control-plane scaffold.
 - No raw secrets-as-strings API.
 - No raw D1/R2/KV/Durable Object exposure as the primary model.

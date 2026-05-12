@@ -28,7 +28,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "22222222-2222-4222-8222-222222222222",
       fetch: fetchImpl,
@@ -37,8 +37,38 @@ describe("@hrbr/client", () => {
     const result = await harbor.workspaces.list({ limit: 20 })
 
     expect(result.data[0]?.slug).toBe("demo")
-    expect(calls[0]?.url).toBe("https://api.tryharbor.ai/workspaces/list")
+    expect(calls[0]?.url).toBe("https://harbor.test/workspaces/list")
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ limit: 20 })
+  })
+
+  it("unwraps Harbor success envelopes before decoding responses", async () => {
+    const fetchImpl: HarborClientFetch = async () =>
+      jsonResponse({
+        success: true,
+        data: {
+          data: [{
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "Envelope Demo",
+            slug: "envelope-demo",
+            role: "owner",
+            onboarded_at: null,
+          }],
+          limit: 20,
+          offset: 0,
+          hasMore: false,
+        },
+      })
+
+    const harbor = createHarborClient({
+      apiUrl: "https://harbor.test",
+      apiKey: "test-key",
+      workspaceId: "22222222-2222-4222-8222-222222222222",
+      fetch: fetchImpl,
+    })
+
+    const result = await harbor.workspaces.list({ limit: 20 })
+
+    expect(result.data[0]?.slug).toBe("envelope-demo")
   })
 
   it("posts run graph requests to the hosted Harbor runs route", async () => {
@@ -76,7 +106,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -88,7 +118,7 @@ describe("@hrbr/client", () => {
     })
 
     expect(result.run.id).toBe("33333333-3333-4333-8333-333333333333")
-    expect(calls[0]?.url).toBe("https://api.tryharbor.ai/runs/graph")
+    expect(calls[0]?.url).toBe("https://harbor.test/runs/graph")
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       workspace_id: "11111111-1111-4111-8111-111111111111",
       run_id: "33333333-3333-4333-8333-333333333333",
@@ -121,7 +151,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -130,7 +160,7 @@ describe("@hrbr/client", () => {
     const result = await harbor.sources.list({ registrySlug: "sentry-mcp", limit: 20 })
 
     expect(result.data[0]?.namespace).toBe("sentry-mcp")
-    expect(calls[0]?.url).toBe("https://api.tryharbor.ai/plugins/sources/list")
+    expect(calls[0]?.url).toBe("https://harbor.test/plugins/sources/list")
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       workspace_id: "11111111-1111-4111-8111-111111111111",
       registry_slug: "sentry-mcp",
@@ -146,7 +176,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -156,7 +186,7 @@ describe("@hrbr/client", () => {
       data: [],
       total: 0,
     })
-    expect(calls[0]?.url).toBe("https://api.tryharbor.ai/plugins/registry/list")
+    expect(calls[0]?.url).toBe("https://harbor.test/plugins/registry/list")
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       workspace_id: "11111111-1111-4111-8111-111111111111",
       slug: "sentry-mcp",
@@ -205,7 +235,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -268,7 +298,7 @@ describe("@hrbr/client", () => {
       if (path === "/plugins/sources/oauth/setup-hints") {
         return jsonResponse({
           display_name: "Sentry",
-          redirect_uri: "https://api.tryharbor.ai/oauth/callback",
+          redirect_uri: "https://harbor.test/oauth/callback",
           register_url: null,
           register_url_source: "none",
           scopes_supported: [],
@@ -313,7 +343,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -369,7 +399,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -379,7 +409,7 @@ describe("@hrbr/client", () => {
 
     expect(result.hits[0]?.tool_id).toBe("web_search_exa")
     expect(calls).toHaveLength(1)
-    expect(calls[0]?.url).toBe("https://api.tryharbor.ai/plugins/tools/search")
+    expect(calls[0]?.url).toBe("https://harbor.test/plugins/tools/search")
     expect(calls[0]?.init?.method).toBe("POST")
     expect((calls[0]?.init?.headers as Record<string, string>).authorization).toBe("Bearer test-key")
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
@@ -403,7 +433,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -416,7 +446,7 @@ describe("@hrbr/client", () => {
     })
 
     expect(result.invocation_id).toBe("invoke-1")
-    expect(calls[0]?.url).toBe("https://api.tryharbor.ai/plugins/invoke")
+    expect(calls[0]?.url).toBe("https://harbor.test/plugins/invoke")
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
       workspace_id: "11111111-1111-4111-8111-111111111111",
       tool_id: "sentry-mcp.search_issues",
@@ -437,7 +467,7 @@ describe("@hrbr/client", () => {
     }
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -457,7 +487,7 @@ describe("@hrbr/client", () => {
       }),
     ).resolves.toMatchObject({ mode: "dynamic_worker" })
 
-    expect(calls[0]?.url).toBe("https://api.tryharbor.ai/plugins/execute")
+    expect(calls[0]?.url).toBe("https://harbor.test/plugins/execute")
     expect(calls[0]?.init?.headers).toMatchObject({
       "X-Hrbr-Machine": "machine-1",
       "X-Hrbr-Agent": "custom-sdk-agent",
@@ -481,7 +511,7 @@ describe("@hrbr/client", () => {
       })
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai/",
+      apiUrl: "https://harbor.test/",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,
@@ -498,7 +528,7 @@ describe("@hrbr/client", () => {
       jsonResponse({ error: "no workspace" }, { status: 403 })
 
     const harbor = createHarborClient({
-      apiUrl: "https://api.tryharbor.ai",
+      apiUrl: "https://harbor.test",
       apiKey: "test-key",
       workspaceId: "11111111-1111-4111-8111-111111111111",
       fetch: fetchImpl,

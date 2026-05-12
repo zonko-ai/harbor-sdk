@@ -137,6 +137,13 @@ async function readJson(response: Response): Promise<unknown> {
   }
 }
 
+function unwrapHarborEnvelope(payload: unknown): unknown {
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return payload
+  const record = payload as Record<string, unknown>
+  if (record["success"] === true && "data" in record) return record["data"]
+  return payload
+}
+
 function createPost(config: HarborClientConfig) {
   const fetchImpl = config.fetch ?? globalThis.fetch
   return async function post(
@@ -164,7 +171,7 @@ function createPost(config: HarborClientConfig) {
     if (!response.ok) {
       throw new HarborClientError({ status: response.status, body: payload })
     }
-    return payload
+    return unwrapHarborEnvelope(payload)
   }
 }
 

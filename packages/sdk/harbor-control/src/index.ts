@@ -5,6 +5,5 @@
 export * from "./routes";
 export * from "./categories";
 export * from "./tools";
-export * from "./links";
 export * from "./schemas";
 export * from "./defaults";

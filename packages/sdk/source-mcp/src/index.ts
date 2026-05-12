@@ -21,6 +21,14 @@ export interface McpSourceAdapterInput {
   readonly namespace: string
   readonly displayName: string
   readonly endpoint: string
+  /**
+   * Allow localhost and private-network endpoints. Defaults to false so hosted
+   * SDK users do not accidentally create an SSRF path. Developer-owned local
+   * runtimes can opt in explicitly for local MCP servers.
+   */
+  readonly allowLocalNetwork?: boolean | undefined
+  /** Per-request timeout. Defaults to 30s. */
+  readonly timeoutMs?: number | undefined
   readonly fetch?: McpSourceFetch | undefined
   readonly headers?:
     | Readonly<Record<string, string | undefined>>
@@ -95,8 +103,101 @@ export class McpSourceError extends Error {
   }
 }
 
+const DEFAULT_TIMEOUT_MS = 30_000
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function parseIpv4(hostname: string): readonly [number, number, number, number] | null {
+  const parts = hostname.split('.')
+  if (parts.length !== 4) return null
+  const parsed = [Number(parts[0]), Number(parts[1]), Number(parts[2]), Number(parts[3])] as const
+  if (
+    parsed.some((part, index) =>
+      !/^\d+$/.test(parts[index] ?? '') ||
+      !Number.isInteger(part) ||
+      part < 0 ||
+      part > 255
+    )
+  ) {
+    return null
+  }
+  return parsed
+}
+
+function parseIpv4MappedIpv6(hostname: string): readonly [number, number, number, number] | null {
+  const normalized = hostname.toLowerCase()
+  if (!normalized.startsWith('::ffff:')) return null
+  return parseIpv4(normalized.slice('::ffff:'.length))
+}
+
+function isPrivateIpv4([a, b]: readonly [number, number, number, number]): boolean {
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  )
+}
+
+function isLocalOrPrivateHostname(hostname: string): boolean {
+  const normalized = hostname.toLowerCase().replace(/^\[|\]$/g, '')
+  if (normalized === 'localhost' || normalized.endsWith('.localhost')) return true
+  const ipv4 = parseIpv4(normalized)
+  if (ipv4) return isPrivateIpv4(ipv4)
+  const mapped = parseIpv4MappedIpv6(normalized)
+  if (mapped) return isPrivateIpv4(mapped)
+  return (
+    normalized === '::1' ||
+    normalized.startsWith('fe80:') ||
+    normalized.startsWith('fc') ||
+    normalized.startsWith('fd')
+  )
+}
+
+function validateEndpointUrl(input: McpSourceAdapterInput): void {
+  let url: URL
+  try {
+    url = new URL(input.endpoint)
+  } catch {
+    throw new McpSourceError({
+      method: 'configure',
+      message: `MCP source "${input.namespace}" endpoint is not a valid URL.`,
+    })
+  }
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    throw new McpSourceError({
+      method: 'configure',
+      message: `MCP source "${input.namespace}" endpoint must use http or https.`,
+    })
+  }
+  if (input.allowLocalNetwork !== true && isLocalOrPrivateHostname(url.hostname)) {
+    throw new McpSourceError({
+      method: 'configure',
+      message: `MCP source "${input.namespace}" endpoint points to a local or private network host. Set allowLocalNetwork to opt in.`,
+    })
+  }
+}
+
+function composeAbortSignal(signal: AbortSignal | undefined, timeoutMs: number): {
+  readonly signal: AbortSignal
+  readonly dispose: () => void
+} {
+  const controller = new AbortController()
+  const abort = () => controller.abort(signal?.reason)
+  if (signal?.aborted) abort()
+  else signal?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(() => controller.abort(new Error(`MCP request timed out after ${timeoutMs}ms`)), timeoutMs)
+  return {
+    signal: controller.signal,
+    dispose: () => {
+      clearTimeout(timer)
+      signal?.removeEventListener('abort', abort)
+    },
+  }
 }
 
 async function readRpcResponse(
@@ -113,9 +214,18 @@ async function readRpcResponse(
   }
   if (text.trim().length === 0) return null
   const contentType = response.headers.get('content-type') ?? ''
-  const raw = contentType.includes('text/event-stream')
-    ? readSseJson(text)
-    : (JSON.parse(text) as unknown)
+  let raw: unknown
+  try {
+    raw = contentType.includes('text/event-stream')
+      ? readSseJson(text)
+      : (JSON.parse(text) as unknown)
+  } catch (error) {
+    throw new McpSourceError({
+      method,
+      message: `MCP ${method} response was not valid JSON.`,
+      data: error instanceof Error ? error.message : String(error),
+    })
+  }
   if (!isRecord(raw))
     throw new McpSourceError({ method, message: 'MCP response was not a JSON object.' })
   return raw as JsonRpcResponse
@@ -155,7 +265,15 @@ function toolDefinition(tool: McpTool): SourceToolDefinition {
 }
 
 export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): SourceAdapter {
+  validateEndpointUrl(input)
   const fetchImpl = input.fetch ?? globalThis.fetch
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new McpSourceError({
+      method: 'configure',
+      message: `MCP source "${input.namespace}" timeoutMs must be a positive number.`,
+    })
+  }
   let nextId = 1
   let initialized = false
   let sessionId: string | undefined
@@ -189,23 +307,37 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
     method: string,
     params: unknown,
     ctx: McpSourceHeaderContext,
-    options?: { readonly notification?: boolean | undefined }
+    options?: { readonly notification?: boolean | undefined; readonly signal?: AbortSignal | undefined }
   ): Promise<T> {
-    const response = await fetchImpl(input.endpoint, {
-      method: 'POST',
-      headers: await headers(ctx, method),
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        ...(options?.notification ? {} : { id: nextId++ }),
+    const abort = composeAbortSignal(options?.signal, timeoutMs)
+    try {
+      const response = await fetchImpl(input.endpoint, {
+        method: 'POST',
+        redirect: 'error',
+        headers: await headers(ctx, method),
+        signal: abort.signal,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          ...(options?.notification ? {} : { id: nextId++ }),
+          method,
+          ...(params === undefined ? {} : { params }),
+        } satisfies JsonRpcRequest),
+      })
+      sessionId = response.headers.get('mcp-session-id') ?? sessionId
+      return rpcResult<T>(await readRpcResponse(response, method), method)
+    } catch (error) {
+      if (error instanceof McpSourceError) throw error
+      throw new McpSourceError({
         method,
-        ...(params === undefined ? {} : { params }),
-      } satisfies JsonRpcRequest),
-    })
-    sessionId = response.headers.get('mcp-session-id') ?? sessionId
-    return rpcResult<T>(await readRpcResponse(response, method), method)
+        message: error instanceof Error ? error.message : `MCP ${method} request failed.`,
+        data: error,
+      })
+    } finally {
+      abort.dispose()
+    }
   }
 
-  async function initialize(ctx: McpSourceHeaderContext): Promise<void> {
+  async function initialize(ctx: McpSourceHeaderContext & { readonly signal?: AbortSignal | undefined }): Promise<void> {
     if (initialized) return
     await send(
       'initialize',
@@ -214,23 +346,25 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
         capabilities: {},
         clientInfo: input.clientInfo ?? { name: '@hrbr/source-mcp' },
       },
-      ctx
+      ctx,
+      { signal: ctx.signal }
     )
-    await send('notifications/initialized', undefined, ctx, { notification: true })
+    await send('notifications/initialized', undefined, ctx, { notification: true, signal: ctx.signal })
     initialized = true
   }
 
   async function listTools(
     ctx?: SourceAdapterListContext
   ): Promise<readonly SourceToolDefinition[]> {
-    await initialize({ credentials: ctx?.credentials })
+    await initialize({ credentials: ctx?.credentials, signal: ctx?.signal })
     const tools: SourceToolDefinition[] = []
     let cursor: string | undefined
     do {
       const result = await send<McpToolsListResult>(
         'tools/list',
         cursor === undefined ? {} : { cursor },
-        { credentials: ctx?.credentials }
+        { credentials: ctx?.credentials },
+        { signal: ctx?.signal }
       )
       tools.push(...(result.tools ?? []).map(toolDefinition))
       cursor = result.nextCursor
@@ -249,14 +383,15 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
       return tools.find((tool) => tool.name === name) ?? null
     },
     invokeTool: async (name, toolInput, ctx?: SourceAdapterInvokeContext) => {
-      await initialize({ credentials: ctx?.credentials })
+      await initialize({ credentials: ctx?.credentials, signal: ctx?.signal })
       return send(
         'tools/call',
         {
           name,
           arguments: toolInput,
         },
-        { credentials: ctx?.credentials }
+        { credentials: ctx?.credentials },
+        { signal: ctx?.signal }
       )
     },
   })

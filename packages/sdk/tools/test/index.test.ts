@@ -138,6 +138,36 @@ describe("@hrbr/tools contracts", () => {
     })
   })
 
+  it("lets host runtimes provide registry metadata without forking", async () => {
+    const registry = createToolRegistry({
+      workspaceId: "workspace-acme",
+      now: () => new Date("2026-01-02T03:04:05.000Z"),
+      callExample: ({ namespace, name }) => `await tools.${namespace}.${name}({})`,
+      invocationId: ({ toolId }) => `invoke:${toolId}`,
+      sources: [
+        defineSourceAdapter({
+          namespace: "acme",
+          displayName: "Acme",
+          listTools: async () => [{ name: "ping" }],
+          invokeTool: async () => ({ ok: true }),
+        }),
+      ],
+    })
+
+    await expect(registry.list()).resolves.toMatchObject({
+      data: [{
+        workspace_id: "workspace-acme",
+        created_at: "2026-01-02T03:04:05.000Z",
+      }],
+    })
+    await expect(registry.describe({ toolId: "acme.ping" })).resolves.toMatchObject({
+      call_example: "await tools.acme.ping({})",
+    })
+    await expect(registry.call("acme.ping")).resolves.toMatchObject({
+      invocation_id: "invoke:acme.ping",
+    })
+  })
+
   it("passes resolved credentials to custom source invocations", async () => {
     const registry = createToolRegistry({
       workspaceId: "workspace-1",

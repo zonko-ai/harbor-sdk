@@ -150,6 +150,22 @@ export interface CreateToolRegistryInput {
   readonly traces?: TraceWriter | undefined
   readonly workspaceId?: string | undefined
   readonly principalId?: string | undefined
+  readonly now?: (() => Date) | undefined
+  readonly callExample?:
+    | ((input: {
+        readonly toolId: string
+        readonly namespace: string
+        readonly name: string
+      }) => string)
+    | undefined
+  readonly invocationId?:
+    | ((input: {
+        readonly toolId: string
+        readonly namespace: string
+        readonly name: string
+        readonly runId?: string | undefined
+      }) => string)
+    | undefined
 }
 
 interface IndexedTool {
@@ -185,10 +201,18 @@ function signatureFor(tool: IndexedTool): string {
   return `${jsVar(tool.namespace)}.${tool.name}(input)`
 }
 
-function toPluginTool(tool: IndexedTool): ToolListPage['data'][number] {
+function defaultCallExample(tool: IndexedTool): string {
+  return `await registry.call("${tool.toolId}", input)`
+}
+
+function toPluginTool(
+  tool: IndexedTool,
+  input: Pick<CreateToolRegistryInput, 'workspaceId' | 'now'>
+): ToolListPage['data'][number] {
+  const now = input.now ?? (() => new Date())
   return {
     id: tool.toolId,
-    workspace_id: LOCAL_WORKSPACE_ID,
+    workspace_id: input.workspaceId ?? LOCAL_WORKSPACE_ID,
     source_id: sourceId(tool.source),
     tool_id: tool.toolId,
     name: tool.name,
@@ -214,14 +238,17 @@ function toPluginTool(tool: IndexedTool): ToolListPage['data'][number] {
       : {}),
     binding: { kind: 'custom', source: tool.namespace, tool: tool.name },
     tags: tool.definition.tags ? [...tool.definition.tags] : null,
-    created_at: new Date(0).toISOString(),
+    created_at: now().toISOString(),
     namespace: tool.namespace,
     js_var: jsVar(tool.namespace),
     signature: signatureFor(tool),
   }
 }
 
-function toDescription(tool: IndexedTool): ToolDescription {
+function toDescription(
+  tool: IndexedTool,
+  input: Pick<CreateToolRegistryInput, 'callExample'>
+): ToolDescription {
   return {
     tool_id: tool.toolId,
     name: tool.name,
@@ -245,7 +272,11 @@ function toDescription(tool: IndexedTool): ToolDescription {
     ...(tool.definition.typeDefinitions !== undefined
       ? { type_definitions: tool.definition.typeDefinitions }
       : {}),
-    call_example: `await registry.call("${tool.toolId}", input)`,
+    call_example: input.callExample?.({
+      toolId: tool.toolId,
+      namespace: tool.namespace,
+      name: tool.name,
+    }) ?? defaultCallExample(tool),
     kind: kindForSource(tool.definition.kind ?? tool.source.kind),
   }
 }
@@ -433,14 +464,18 @@ export function createToolRegistry(input: CreateToolRegistryInput): ToolRegistry
         await input.traces.finishSpan({ spanId: span.id, status: 'success', output: result })
       if (input.traces && run && ownsTraceRun)
         await input.traces.finishRun({ runId: run.id, status: 'completed', output: result })
+      const invocationRunId = run?.id ?? toolInput.runId
       return {
         result,
         content_type: 'application/json',
         duration_ms: Math.max(0, Math.round(performance.now() - startedAt)),
-        invocation_id: `local:${toolInput.toolId}`,
-        ...((run?.id ?? toolInput.runId) !== undefined
-          ? { run_id: (run?.id ?? toolInput.runId)! }
-          : {}),
+        invocation_id: input.invocationId?.({
+          toolId: toolInput.toolId,
+          namespace,
+          name,
+          ...(invocationRunId !== undefined ? { runId: invocationRunId } : {}),
+        }) ?? `${workspaceId}:${toolInput.toolId}:${(input.now ?? (() => new Date()))().getTime()}`,
+        ...(invocationRunId !== undefined ? { run_id: invocationRunId } : {}),
       }
     } catch (error) {
       const traceError = spanError(error)
@@ -460,7 +495,7 @@ export function createToolRegistry(input: CreateToolRegistryInput): ToolRegistry
         if (listInput?.namespace && tool.namespace !== listInput.namespace) return false
         return true
       })
-      const result = page(filtered.map(toPluginTool), listInput)
+      const result = page(filtered.map((tool) => toPluginTool(tool, input)), listInput)
       return {
         data: [...result.data],
         limit: result.limit,
@@ -509,7 +544,8 @@ export function createToolRegistry(input: CreateToolRegistryInput): ToolRegistry
           sources,
           describeInput.toolId,
           await resolveSourceCredentials(input, getSourceForToolId(sources, describeInput.toolId))
-        )
+        ),
+        input,
       ),
     schema: async (schemaInput: ToolSchemaInput) =>
       toSchema(

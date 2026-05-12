@@ -1,0 +1,32 @@
+{
+  "name": "@hrbr/harbor-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run src/dev.ts",
+    "dev:staging": "HARBOR_SDK_BACKEND_ENV=staging bun run src/dev.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test"
+  },
+  "dependencies": {
+    "@hrbr/ai": "workspace:*",
+    "@hrbr/client": "workspace:*",
+    "@hrbr/common": "workspace:*",
+    "@hrbr/harbor-control": "workspace:*",
+    "@hrbr/plugins": "workspace:*",
+    "@hrbr/registry": "workspace:*",
+    "@hrbr/runs": "workspace:*",
+    "@hrbr/source-core": "workspace:*",
+    "@hrbr/source-credentials": "workspace:*",
+    "@hrbr/source-policy": "workspace:*",
+    "@hrbr/tools": "workspace:*",
+    "@hrbr/orbit": "workspace:*",
+    "@hrbr/workflows": "workspace:*",
+    "@hrbr/workspaces": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "@types/bun": "^1.3.12",
+    "typescript": "catalog:"
+  }
+}

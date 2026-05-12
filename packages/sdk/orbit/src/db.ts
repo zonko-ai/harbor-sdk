@@ -1,6 +1,6 @@
-// orbit.db.* dashboard introspection contracts. These are read-only
-// endpoints intended for the Harbor dashboard to peek at the workspace
-// D1 binding (the same DB exposed to jobs as `__HRBR_WORKSPACE_DB`).
+// orbit.db.* control-plane introspection contracts. These are read-only
+// endpoints intended for a host runtime to inspect the workspace D1 binding
+// (the same DB exposed to jobs as `__HRBR_WORKSPACE_DB`).
 //
 // They are deliberately separate from the in-sandbox `orbit.db.query` /
 // `orbit.db.exec` operations consumed by job code — those run via the
@@ -13,7 +13,7 @@ import { OrbitWorkspaceId } from "./common"
 
 // SQLite identifiers in user space. We never echo back arbitrary names
 // from sqlite_master into a query string; the API enforces this regex
-// before touching D1, so the dashboard can rely on the same shape.
+// before touching D1, so host runtimes can rely on the same shape.
 export const OrbitDbTableName = Schema.NonEmptyString.check(
   Schema.isMaxLength(128),
   Schema.isPattern(/^[a-zA-Z_][a-zA-Z0-9_-]{0,127}$/),

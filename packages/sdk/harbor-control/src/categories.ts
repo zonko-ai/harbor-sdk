@@ -15,7 +15,7 @@ export type {
 } from "@hrbr/registry";
 
 // Human-friendly labels. LLM tool descriptions use these verbatim so users
-// see "Observability" not "observability" in dashboards/chat UIs.
+// see "Observability" not "observability" in catalog/chat surfaces.
 export const CATEGORY_LABELS: Record<string, string> = {
   search: "Search",
   ai: "AI",

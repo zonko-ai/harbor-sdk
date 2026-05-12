@@ -98,7 +98,7 @@ describe("@hrbr/sources contracts", () => {
         reconnect: async () => ({ authorization_url: "https://provider.example.com/oauth", state: "state-2" }),
         setupHints: async () => ({
           display_name: "Provider",
-          redirect_uri: "https://api.tryharbor.ai/oauth/callback",
+          redirect_uri: "https://harbor.test/oauth/callback",
           register_url: null,
           register_url_source: "none",
           scopes_supported: [],

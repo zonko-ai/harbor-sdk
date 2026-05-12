@@ -338,7 +338,6 @@ describe('registry CLI entries', () => {
       'openai-api': 'https://app.stainless.com/api/spec/documented/openai/openapi.documented.yml',
       'xai-api': 'https://api.x.ai/api-docs/openapi.json',
       'perplexity-api': 'https://docs.perplexity.ai/openapi.json',
-      'x-api': 'https://api.tryharbor.ai/openapi/x-api-v2.json',
       'open-meteo-api': 'https://raw.githubusercontent.com/open-meteo/open-meteo/main/openapi.yml',
       'polymarket-gamma-api': 'https://gamma-api.polymarket.com/openapi.json',
       'kalshi-api': 'https://docs.kalshi.com/openapi.yaml',
@@ -366,6 +365,13 @@ describe('registry CLI entries', () => {
       // spec is the single source of truth for the tool surface.
       expect(entry?.manifest?.tools).toBeUndefined()
     }
+
+    const xEntry = getRegistryEntry('x-api')
+    expect(xEntry?.kind).toBe('api')
+    expect(xEntry?.config.api_protocol).toBe('openapi')
+    expect(xEntry?.config.api_base_url).toBe('https://api.x.com')
+    expect(xEntry?.config.api_allowed_hosts).toEqual(['api.x.com'])
+    expect(xEntry?.config.api_spec_url).toBe(xEntry?.api_setup.spec_url)
 
     const graphqlEntries = {
       'linear-graphql': 'https://api.linear.app/graphql',

@@ -165,7 +165,7 @@ const PluginRegistryEntryFields = {
    * Pre-registered OAuth client seed (for providers that don't support
    * RFC 7591 dynamic registration but expose a public proxy client).
    * PostHog's remote MCP, for example, ships with a fixed public client_id
-   * and a hardcoded redirect_uri.
+   * and a fixed redirect_uri.
    */
   oauth_client: Schema.optional(Schema.Struct({
     client_id: Schema.optional(Schema.NonEmptyString),
@@ -181,14 +181,14 @@ const PluginRegistryEntryFields = {
   })),
   default_namespace: RegistryNamespace,
   /**
-   * Hand-tuned popularity score used to rank the catalog in the dashboard.
+   * Hand-tuned popularity score used to rank catalog surfaces.
    * Higher = more likely to be surfaced first. Values typically fall on a
    * 0..100 scale. Decorated by `listRegistryEntries()` from a central
    * POPULARITY map so the canonical catalog JSON stays free of churn.
    *
    * Will eventually be replaced / supplemented by a workspace-scoped
    * usage-metric popularity (live telemetry), but this hard-coded seed is
-   * what the UI reads today.
+   * what catalog hosts can read today.
    */
   popularity: Schema.optional(Schema.Number),
   /**

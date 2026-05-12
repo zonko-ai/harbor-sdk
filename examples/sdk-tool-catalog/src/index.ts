@@ -1,9 +1,18 @@
 import { createHarborClient } from "@hrbr/client"
 
+const apiUrl = process.env.HRBR_API_URL
+if (!apiUrl) throw new Error("HRBR_API_URL is required")
+
+const apiKey = process.env.HRBR_API_KEY
+if (!apiKey) throw new Error("HRBR_API_KEY is required")
+
+const workspaceId = process.env.HRBR_WORKSPACE_ID
+if (!workspaceId) throw new Error("HRBR_WORKSPACE_ID is required")
+
 const harbor = createHarborClient({
-  apiUrl: process.env.HRBR_API_URL ?? "https://api.tryharbor.ai",
-  apiKey: process.env.HRBR_API_KEY ?? "replace-me",
-  workspaceId: process.env.HRBR_WORKSPACE_ID ?? "11111111-1111-4111-8111-111111111111",
+  apiUrl,
+  apiKey,
+  workspaceId,
 })
 
 const matches = await harbor.tools.search({

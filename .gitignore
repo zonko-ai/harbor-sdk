@@ -7,3 +7,5 @@ docs/api
 .env
 .env.*
 !.env.example
+!apps/harbor-backend/.env.dev.example
+!apps/harbor-backend/.env.staging.example
