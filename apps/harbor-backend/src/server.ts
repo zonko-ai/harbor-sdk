@@ -647,7 +647,9 @@ async function handleRoute(
 
   if (path === ROUTES.orbit.apps.open) {
     const name = stringField(body, "name") ?? "sdk-dashboard"
-    return apiJson({ name, url: `http://localhost:8787/orbit/apps/${name}${stringField(body, "path") ?? ""}` })
+    const app = state.orbitApps.get(name)
+    if (!app) return errorResponse("Orbit app is not registered.", 404)
+    return apiJson({ name, url: `${app.url}${stringField(body, "path") ?? ""}` })
   }
 
   if (path === ROUTES.orbit.apps.disable) {

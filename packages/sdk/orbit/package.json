@@ -16,6 +16,8 @@
     "./db": "./src/db.ts",
     "./readiness": "./src/readiness.ts",
     "./branding": "./src/branding.ts",
+    "./platform": "./src/platform.ts",
+    "./cloudflare": "./src/cloudflare.ts",
     "./bundler": "./src/bundler/index.ts",
     "./app-ui": "./src/app-ui/index.ts",
     "./app-ui/templates/feedback-board": "./src/app-ui/templates/feedback-board.ts",

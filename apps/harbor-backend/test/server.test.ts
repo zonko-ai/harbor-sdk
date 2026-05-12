@@ -133,7 +133,7 @@ test("serves Harbor dashboard routes from SDK state", async () => {
   expect(apps.data).toMatchObject({ count: 1 })
 
   const jobs = await post("orbit/jobs/list")
-  expect(jobs.data).toMatchObject({ count: 2 })
+  expect(jobs.data).toMatchObject({ count: 3 })
 
   const run = await post("orbit/jobs/run", {
     name: "sdk-ping",

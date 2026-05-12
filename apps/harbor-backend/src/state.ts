@@ -552,6 +552,36 @@ function seedOrbitJobs(): Map<string, OrbitJobDetail> {
   const createdAt = now()
   return new Map([
     [
+      "sdk-dashboard-job",
+      {
+        name: "sdk-dashboard-job",
+        description: "Cloudflare-deployed SDK Orbit job used by the sample app.",
+        latest_version: "v1",
+        status: "ready",
+        kind: "task",
+        tags: ["sdk", "cloudflare"],
+        capabilities: ["data"],
+        input_schema: {
+          type: "object",
+          additionalProperties: true,
+        },
+        output_schema: {
+          type: "object",
+          properties: { ok: { type: "boolean" } },
+        },
+        versions: [
+          {
+            version: "v1",
+            status: "ready",
+            lane: "worker_platform",
+            capabilities: ["data"],
+            created_at: createdAt,
+            error_message: null,
+          },
+        ],
+      },
+    ],
+    [
       "sdk-ping",
       {
         name: "sdk-ping",
@@ -616,33 +646,36 @@ function seedOrbitJobs(): Map<string, OrbitJobDetail> {
 
 function seedOrbitApps(): Map<string, OrbitAppDetail> {
   const createdAt = now()
+  const isStaging = process.env["HARBOR_SDK_BACKEND_ENV"] === "staging"
+  const workspaceId = isStaging ? STAGING_WORKSPACE_ID : DEV_WORKSPACE_ID
+  const appsBaseUrl = (process.env["ORBIT_APPS_BASE_URL"] ?? (isStaging ? "https://apps.stag.tryharbor.ai" : "https://apps.tryharbor.ai")).replace(/\/+$/, "")
   return new Map([
     [
       "sdk-dashboard",
       {
         name: "sdk-dashboard",
-        description: "SDK-hosted sample app proving the dashboard can run without the Harbor API repo.",
+        description: "SDK-backed Orbit app deployed through Cloudflare.",
         latest_version: "v1",
         status: "ready",
-        url: "http://localhost:8787/orbit/apps/sdk-dashboard",
-        access: "workspace_member",
+        url: `${appsBaseUrl}/${encodeURIComponent(workspaceId)}/sdk-dashboard`,
+        access: "public",
         routes: [
           {
             id: "home",
             title: "Home",
             method: "GET",
             path: "/",
-            auth: "workspace_member",
+            auth: "public",
             input: "none",
             output: "html",
-            job: "sdk-ping",
+            static_html: "<!doctype html><title>SDK Dashboard</title><h1>SDK Dashboard</h1>",
           },
         ],
         jobs: {
-          home: {
-            name: "sdk-ping",
+          sdk: {
+            name: "sdk-dashboard-job",
             version: "v1",
-            description: "Render the SDK dashboard surface.",
+            description: "Backs the SDK dashboard surface.",
           },
         },
         versions: [
