@@ -418,6 +418,44 @@ Add local job actions to `hrbr_local` using JSON job manifests and the SDK job r
 4. Run jobs through `runHarborLocalJob`.
 5. Retest add/list/run/delete through Beach, plus schema validation failure.
 
+### Iteration 6: Local Apps Through Beach
+
+- Test project: `/tmp/harbor-sdk-beach-iter6-apps.OBuUEJ`
+- Beach command shape: `mcporter ... node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct`
+- Status: bugs documented before fixes.
+
+### BUG-15: Beach local runtime has no local app actions
+
+- Scenario: List/create/preview/delete local apps through Beach after bootstrapping a fresh local runtime.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=app_list`.
+- Expected: Beach exposes local app actions backed by the SDK local app route runner.
+- Actual: MCP validation rejected the action because no local app action exists.
+- Evidence: Validation error listed bootstrap/status/credential/plugin/tool/exec/job actions only.
+- Suspected cause: `runHarborLocalAppRoute` exists in `@hrbr/runtime-local`, but Beach has not exposed app refs or previews.
+- Fix status: fixed. `hrbr_local` now supports `app_list`, `app_add`, `app_delete`, and `app_preview`.
+- Retest:
+  - Created `/tmp/harbor-sdk-beach-iter6-apps.OBuUEJ/demo-app.json`.
+  - `app_add path=demo-app.json name="Demo App"` returned app metadata with `/` and `/html` routes.
+  - Sequential `app_list` returned one app.
+  - `app_preview app_id=demo-app route_path=/` returned JSON body `{ ok: true, route: "/" }` and an app trace.
+  - `app_preview app_id=demo-app route_path=/html` returned `contentType: "text/html"` and HTML body.
+  - Missing route preview failed with `Local app route not found: GET /missing`.
+  - `app_delete path=demo-app.json` returned `deleted: true`, and `app_list` returned `count: 0`.
+
+## Iteration 6 Fix Plan
+
+Add local app actions to `hrbr_local` using JSON app manifests and the SDK app route runner.
+
+1. Extend `hrbr_local` schema with:
+   - `app_list`
+   - `app_add`
+   - `app_delete`
+   - `app_preview`
+2. Store app refs in `.harbor/registry-dev-refs.json` with `kind=app`.
+3. Support JSON app manifests with `id` and `routes[]` containing `method`, `path`, and `code`.
+4. Preview routes through `runHarborLocalAppRoute`.
+5. Retest add/list/preview/delete through Beach, plus missing-route error.
+
 ## Iteration 1 Fix Plan
 
 Implement the local runtime as an explicit Beach target instead of mixing it silently into the existing cloud workspace behavior.
