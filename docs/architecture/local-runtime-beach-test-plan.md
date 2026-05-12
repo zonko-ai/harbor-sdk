@@ -503,6 +503,42 @@ Add local app actions to `hrbr_local` using JSON app manifests and the SDK app r
   - `package_workflow path=package-workflow.json package_name=workflow-demo owner_name=Kushagra` returned a valid workflow package manifest, validation/security checklist, and submission snapshot files.
   - `package_validate path=bad-package.json` returned expected errors for package name, version, owner, README, changelog, and missing tools.
 
+### Iteration 9: Persistence, Restart, and Recovery
+
+- Test project: `/tmp/harbor-sdk-beach-iter9-recovery.skbmXI`
+- Beach command shape: `mcporter ... node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct`
+- Status: bugs documented before fixes.
+
+### BUG-18: Parallel first-use local actions can race on registry file creation
+
+- Scenario: Run bootstrap, plugin add, and credential set concurrently in a fresh local project.
+- Beach command/tool call: parallel `hrbr_local action=bootstrap`, `plugin_add`, and `credential_set`.
+- Expected: First-use project initialization is idempotent and safe when multiple Beach calls initialize `.harbor/` concurrently.
+- Actual: `plugin_add` failed with `EEXIST: file already exists, open '.../.harbor/registry-dev-refs.json'`.
+- Suspected cause: `writeJsonIfMissing` checks for file existence and then writes with `flag: "wx"` without treating `EEXIST` as a benign concurrent creator.
+- Fix status: fixed. `writeJsonIfMissing` now treats `EEXIST` as a successful concurrent create.
+- Retest: In `/tmp/harbor-sdk-beach-iter9-retest.RQxzVD`, parallel first-use `bootstrap`, `plugin_add`, and `credential_set` all completed without `EEXIST`.
+
+### BUG-19: Corrupt registry refs return a generic JSON parse error
+
+- Scenario: Corrupt `.harbor/registry-dev-refs.json` and list local plugins through Beach.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=plugin_list`.
+- Expected: Beach reports the corrupted local registry file and gives an actionable recovery path.
+- Actual: Beach returned generic `Unexpected end of JSON input`.
+- Suspected cause: `readHarborRegistryDevRefs` lets JSON parse errors escape without adding file/recovery context.
+- Fix status: fixed. `readHarborRegistryDevRefs` now wraps parse failures with the exact path and recovery guidance.
+- Retest: Corrupt registry now returns `Invalid local registry refs JSON at .../.harbor/registry-dev-refs.json. Restore the file from backup or delete it and run hrbr_local action=bootstrap to recreate an empty registry.`
+
+## Iteration 9 Fix Plan
+
+Make local project initialization concurrency-safe and retest persistence/recovery.
+
+1. Update `writeJsonIfMissing` to treat `EEXIST` as success after a concurrent writer wins the race.
+2. Apply the same runtime-local fix in the SDK repo and the Harbor Beach test copy.
+3. Retest parallel first-use bootstrap/plugin/credential actions.
+4. Retest status, plugin list/search, and credential metadata from a fresh Beach process.
+5. Retest corrupted registry/runtime errors after the race fix.
+
 ## Iteration 8 Fix Plan
 
 Add package submission actions to `hrbr_local` over the SDK package/submission helpers.

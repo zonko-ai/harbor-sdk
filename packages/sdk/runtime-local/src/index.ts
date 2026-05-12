@@ -266,7 +266,12 @@ async function pathExists(path: string): Promise<boolean> {
 
 async function writeJsonIfMissing(path: string, value: unknown): Promise<void> {
   if (await pathExists(path)) return
-  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" })
+  try {
+    await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return
+    throw error
+  }
 }
 
 export async function ensureHarborGitignore(projectRoot: string): Promise<boolean> {

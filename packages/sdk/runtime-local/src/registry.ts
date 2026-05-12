@@ -44,6 +44,9 @@ export async function readHarborRegistryDevRefs(
     return JSON.parse(await readFile(paths.registryRefs, "utf8")) as HarborRegistryDevRefsFile
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return emptyRefs()
+    if (error instanceof SyntaxError) {
+      throw new Error(`Invalid local registry refs JSON at ${paths.registryRefs}. Restore the file from backup or delete it and run hrbr_local action=bootstrap to recreate an empty registry.`)
+    }
     throw error
   }
 }
