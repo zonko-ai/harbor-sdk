@@ -167,6 +167,20 @@ test("streams agent chat events as SSE", async () => {
   expect(await stream.text()).toContain("event: agent_chat_event")
 })
 
+test("serves browser-openable backend and Orbit app pages", async () => {
+  const server = createHarborSdkBackendServer({ env: "staging" })
+
+  const root = await server.fetch(new Request("http://sdk-backend.local/"))
+  expect(root.status).toBe(200)
+  expect(root.headers.get("content-type")).toContain("text/html")
+  expect(await root.text()).toContain("Harbor SDK Backend")
+
+  const app = await server.fetch(new Request("http://sdk-backend.local/orbit/apps/sdk-dashboard"))
+  expect(app.status).toBe(200)
+  expect(app.headers.get("content-type")).toContain("text/html")
+  expect(await app.text()).toContain("sdk-dashboard")
+})
+
 test("loads backend env files and exposes redacted Cloudflare readiness", async () => {
   const loaded = await loadBackendEnvFile({ env: "staging" })
   expect(loaded.path.endsWith("apps/harbor-backend/.env.staging")).toBe(true)

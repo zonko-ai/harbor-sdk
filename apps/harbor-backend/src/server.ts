@@ -36,6 +36,15 @@ function json(payload: unknown, init?: ResponseInit): Response {
   })
 }
 
+function html(body: string, init?: ResponseInit): Response {
+  return new Response(body, {
+    status: init?.status ?? 200,
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+    },
+  })
+}
+
 function apiJson(data: unknown, init?: ResponseInit): Response {
   return json({ success: true, data }, init)
 }
@@ -129,6 +138,80 @@ function textResponseFor(message: string): string {
   return `SDK backend received: ${message}`
 }
 
+function dashboardHtml(state: BackendState): string {
+  const sources = listSources(state).data
+  const apps = listOrbitAppSummaries(state)
+  const jobs = listOrbitJobSummaries(state)
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>Harbor SDK Backend</title>
+    <style>
+      :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      body { margin: 0; padding: 40px; background: Canvas; color: CanvasText; }
+      main { max-width: 880px; margin: 0 auto; }
+      h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }
+      p { color: color-mix(in srgb, CanvasText 72%, transparent); line-height: 1.5; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 24px 0; }
+      .card { border: 1px solid color-mix(in srgb, CanvasText 16%, transparent); border-radius: 8px; padding: 16px; }
+      .value { display: block; font-size: 24px; font-weight: 700; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+      a { color: LinkText; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Harbor SDK Backend</h1>
+      <p>This SDK-backed Harbor API is running in <code>${state.env}</code> mode for workspace <code>${state.workspaceProfile.slug}</code>.</p>
+      <div class="grid">
+        <div class="card"><span class="value">${sources.length}</span><span>connected sources</span></div>
+        <div class="card"><span class="value">${sources.reduce((sum, source) => sum + source.tool_count, 0)}</span><span>tools</span></div>
+        <div class="card"><span class="value">${apps.length}</span><span>Orbit apps</span></div>
+        <div class="card"><span class="value">${jobs.length}</span><span>Orbit jobs</span></div>
+      </div>
+      <p>Use the Harbor frontend at <a href="http://localhost:3000/dashboard">http://localhost:3000/dashboard</a>. API health is available at <a href="/health">/health</a>.</p>
+    </main>
+  </body>
+</html>`
+}
+
+function orbitAppHtml(state: BackendState, path: string): Response {
+  const name = decodeURIComponent(path.slice("/orbit/apps/".length).split("/")[0] ?? "")
+  const app = state.orbitApps.get(name)
+  if (!app) return html("<!doctype html><title>Not found</title><h1>Orbit app not found</h1>", { status: 404 })
+  return html(`<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>${app.name}</title>
+    <style>
+      :root { color-scheme: light dark; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      body { margin: 0; padding: 40px; background: Canvas; color: CanvasText; }
+      main { max-width: 760px; margin: 0 auto; }
+      h1 { margin: 0 0 8px; font-size: 28px; letter-spacing: 0; }
+      p, li { color: color-mix(in srgb, CanvasText 72%, transparent); line-height: 1.5; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>${app.name}</h1>
+      <p>${app.description ?? "SDK-backed Orbit app"}</p>
+      <ul>
+        <li>Status: <code>${app.status}</code></li>
+        <li>Version: <code>${app.latest_version ?? "none"}</code></li>
+        <li>Access: <code>${app.access}</code></li>
+        <li>Routes: <code>${app.routes.length}</code></li>
+        <li>Jobs: <code>${Object.keys(app.jobs).length}</code></li>
+      </ul>
+    </main>
+  </body>
+</html>`)
+}
+
 function sourceKind(value: unknown): "mcp" | "cli" | "api" {
   if (value === "mcp" || value === "cli" || value === "api") return value
   return "api"
@@ -143,8 +226,13 @@ function routeRequest(request: Request): Promise<JsonRequest> {
   return (async () => {
     const url = new URL(request.url)
     const gettablePaths = new Set(["/health", "/cloudflare/staging", ROUTES.agentChat.events.stream])
-    if (request.method !== "POST" && !gettablePaths.has(url.pathname)) {
+    const browserGet = request.method === "GET" &&
+      (url.pathname === "/" || url.pathname === "/favicon.ico" || url.pathname.startsWith("/orbit/apps/"))
+    if (request.method !== "POST" && !gettablePaths.has(url.pathname) && !browserGet) {
       throw new Response("Method not allowed", { status: 405 })
+    }
+    if (url.pathname === "/" || url.pathname === "/favicon.ico" || url.pathname.startsWith("/orbit/apps/")) {
+      return { path: url.pathname, body: {}, headers: request.headers }
     }
     if (url.pathname === "/health") {
       return { path: url.pathname, body: {}, headers: request.headers }
@@ -171,6 +259,10 @@ async function handleRoute(
   runIds: string[],
 ): Promise<Response> {
   const { path, body, headers } = request
+
+  if (path === "/") return html(dashboardHtml(state))
+
+  if (path === "/favicon.ico") return new Response(null, { status: 204 })
 
   if (path === "/health") {
     return json({
@@ -1187,6 +1279,8 @@ async function handleRoute(
   if (path === ROUTES.runs.graph) {
     return apiJson(await runGraph(state.traces, stringField(body, "run_id") ?? ""))
   }
+
+  if (path.startsWith("/orbit/apps/")) return orbitAppHtml(state, path)
 
   return errorResponse(`Route "${path}" is not implemented by the SDK backend.`, 404)
 }
