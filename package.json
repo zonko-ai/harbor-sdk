@@ -4,14 +4,16 @@
   "type": "module",
   "packageManager": "bun@1.3.11",
   "workspaces": [
+    "apps/*",
     "packages/*",
     "packages/sdk/*",
     "examples/*"
   ],
   "scripts": {
-    "typecheck": "bun run typecheck:packages && bun run typecheck:examples",
+    "typecheck": "bun run typecheck:packages && bun run typecheck:examples && bun run typecheck:apps",
     "typecheck:packages": "bun run --filter '@hrbr/*' typecheck",
     "typecheck:examples": "bun run --filter './examples/*' typecheck",
+    "typecheck:apps": "bun run --filter './apps/*' typecheck",
     "test": "bun test packages/sdk/*/test packages/workflows/test",
     "docs:api": "typedoc --options typedoc.json",
     "example:custom-source": "bun run examples/sdk-custom-source/src/index.ts",

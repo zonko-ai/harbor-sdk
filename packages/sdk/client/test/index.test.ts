@@ -41,6 +41,36 @@ describe("@hrbr/client", () => {
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({ limit: 20 })
   })
 
+  it("unwraps Harbor success envelopes before decoding responses", async () => {
+    const fetchImpl: HarborClientFetch = async () =>
+      jsonResponse({
+        success: true,
+        data: {
+          data: [{
+            id: "11111111-1111-4111-8111-111111111111",
+            name: "Envelope Demo",
+            slug: "envelope-demo",
+            role: "owner",
+            onboarded_at: null,
+          }],
+          limit: 20,
+          offset: 0,
+          hasMore: false,
+        },
+      })
+
+    const harbor = createHarborClient({
+      apiUrl: "https://api.tryharbor.ai",
+      apiKey: "test-key",
+      workspaceId: "22222222-2222-4222-8222-222222222222",
+      fetch: fetchImpl,
+    })
+
+    const result = await harbor.workspaces.list({ limit: 20 })
+
+    expect(result.data[0]?.slug).toBe("envelope-demo")
+  })
+
   it("posts run graph requests to the hosted Harbor runs route", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     const fetchImpl: HarborClientFetch = async (url, init) => {
