@@ -290,6 +290,8 @@ Status: complete for the package boundary: `@hrbr/runtime-cloudflare` exposes a 
 
 ## 15. Cloudflare Provisioning
 
+Status: complete for initial SDK provisioning flow: desired resources plus existing lock generate create/noop/delete plans, mutations require confirmation, read-only status returns without confirmation, local daemon exposes `/control/cloudflare/plan`, `/control/cloudflare/apply`, and `/control/cloudflare/status`, and apply writes `.harbor/cloudflare.lock.json`. Direct Cloudflare API client calls are represented by an injectable provisioning client boundary for the daemon to implement with real provider calls. Verified with `bun test packages/sdk/runtime-local/test packages/sdk/runtime-cloudflare/test` and `bun run typecheck:packages`.
+
 - Use direct Cloudflare API calls first.
 - Generate a plan for resources to create/change/delete.
 - Require confirmation for mutations.

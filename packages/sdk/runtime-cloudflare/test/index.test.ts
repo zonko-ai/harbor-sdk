@@ -1,6 +1,8 @@
 import { describe, expect, it } from "bun:test"
 import {
+  applyCloudflareProvisioningPlan,
   cloudflareCredentialEnvImportConfig,
+  createCloudflareProvisioningPlan,
   createCloudflareRuntimeAdapter,
   CLOUDFLARE_CREDENTIAL_ENV,
 } from "../src/index"
@@ -69,5 +71,54 @@ describe("@hrbr/runtime-cloudflare", () => {
         account_id: CLOUDFLARE_CREDENTIAL_ENV.accountId,
       },
     })
+  })
+
+  it("plans create/noop/delete changes and applies them into a lock", async () => {
+    const plan = createCloudflareProvisioningPlan({
+      account: { accountId: "acct-1" },
+      desiredResources: [
+        { kind: "r2_bucket", name: "artifacts" },
+        { kind: "kv_namespace", name: "cache", id: "kv-1" },
+      ],
+      currentLock: {
+        account: { accountId: "acct-1" },
+        resources: [
+          { kind: "kv_namespace", name: "cache", id: "kv-1" },
+          { kind: "d1_database", name: "old-db", id: "d1-old" },
+        ],
+        updatedAt: "2026-05-11T00:00:00.000Z",
+      },
+    })
+
+    expect(plan).toMatchObject({
+      requiresConfirmation: true,
+      items: [
+        { action: "create", resource: { kind: "r2_bucket", name: "artifacts" }, destructive: false },
+        { action: "noop", resource: { kind: "kv_namespace", name: "cache", id: "kv-1" }, destructive: false },
+        { action: "delete", resource: { kind: "d1_database", name: "old-db", id: "d1-old" }, destructive: true },
+      ],
+    })
+    await expect(applyCloudflareProvisioningPlan({ plan, confirmed: false })).rejects.toThrow("requires confirmation")
+
+    const deleted: string[] = []
+    await expect(applyCloudflareProvisioningPlan({
+      plan,
+      confirmed: true,
+      now: () => new Date("2026-05-12T00:00:00.000Z"),
+      client: {
+        createResource: (resource) => ({ ...resource, id: `${resource.kind}-created` }),
+        deleteResource: (resource) => {
+          deleted.push(resource.name)
+        },
+      },
+    })).resolves.toEqual({
+      account: { accountId: "acct-1" },
+      resources: [
+        { kind: "r2_bucket", name: "artifacts", id: "r2_bucket-created" },
+        { kind: "kv_namespace", name: "cache", id: "kv-1" },
+      ],
+      updatedAt: "2026-05-12T00:00:00.000Z",
+    })
+    expect(deleted).toEqual(["old-db"])
   })
 })

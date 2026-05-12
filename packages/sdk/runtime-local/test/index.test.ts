@@ -177,6 +177,68 @@ describe("@hrbr/runtime-local daemon", () => {
       }
     })
   })
+
+  it("plans, applies, persists, and reports Cloudflare provisioning through control routes", async () => {
+    await withTempProject(async (projectRoot) => {
+      const daemon = await startHarborLocalDaemon({
+        projectRoot,
+        token: "test-token",
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+      })
+      try {
+        const headers = {
+          authorization: `Bearer ${daemon.token}`,
+          "content-type": "application/json",
+        }
+        const body = JSON.stringify({
+          account: { accountId: "acct-1" },
+          desiredResources: [{ kind: "r2_bucket", name: "artifacts" }],
+        })
+        const plan = await fetch(`${daemon.origin}/control/cloudflare/plan`, {
+          method: "POST",
+          headers,
+          body,
+        })
+        await expect(plan.json()).resolves.toMatchObject({
+          account: { accountId: "acct-1" },
+          items: [{ action: "create", resource: { kind: "r2_bucket", name: "artifacts" } }],
+          requiresConfirmation: true,
+        })
+
+        const rejected = await fetch(`${daemon.origin}/control/cloudflare/apply`, {
+          method: "POST",
+          headers,
+          body,
+        })
+        expect(rejected.status).toBe(500)
+
+        const applied = await fetch(`${daemon.origin}/control/cloudflare/apply`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            account: { accountId: "acct-1" },
+            desiredResources: [{ kind: "r2_bucket", name: "artifacts" }],
+            confirmed: true,
+          }),
+        })
+        await expect(applied.json()).resolves.toMatchObject({
+          resources: [{ kind: "r2_bucket", name: "artifacts" }],
+          updatedAt: "2026-05-12T00:00:00.000Z",
+        })
+        await expect(readFile(harborLocalPaths(projectRoot).cloudflareLock, "utf8"))
+          .resolves.toContain("\"r2_bucket\"")
+
+        const status = await fetch(`${daemon.origin}/control/cloudflare/status`, {
+          headers: { authorization: `Bearer ${daemon.token}` },
+        })
+        await expect(status.json()).resolves.toMatchObject({
+          resources: [{ kind: "r2_bucket", name: "artifacts" }],
+        })
+      } finally {
+        await daemon.close()
+      }
+    })
+  })
 })
 
 describe("@hrbr/runtime-local registry dev refs", () => {

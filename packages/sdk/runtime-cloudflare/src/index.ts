@@ -40,6 +40,18 @@ export interface CloudflareProvisioningLock {
   readonly updatedAt: string
 }
 
+export interface CloudflareProvisioningClient {
+  readonly createResource?: (resource: CloudflareOrbitResourceRef) => Promise<CloudflareOrbitResourceRef> | CloudflareOrbitResourceRef
+  readonly deleteResource?: (resource: CloudflareOrbitResourceRef) => Promise<void> | void
+}
+
+export interface ApplyCloudflareProvisioningPlanInput {
+  readonly plan: CloudflareProvisioningPlan
+  readonly confirmed: boolean
+  readonly client?: CloudflareProvisioningClient | undefined
+  readonly now?: (() => Date) | undefined
+}
+
 export interface CloudflareRuntimeAdapter {
   readonly plan: () => Promise<CloudflareProvisioningPlan>
   readonly apply: (input: { readonly confirmed: boolean }) => Promise<CloudflareProvisioningLock>
@@ -67,6 +79,77 @@ export const CLOUDFLARE_CREDENTIAL_ENV = {
   apiToken: "CLOUDFLARE_API_TOKEN",
   accountId: "CLOUDFLARE_ACCOUNT_ID",
 } as const
+
+function resourceKey(resource: CloudflareOrbitResourceRef): string {
+  return `${resource.kind}:${resource.name}`
+}
+
+export function createCloudflareProvisioningPlan(input: {
+  readonly account: CloudflareAccountRef
+  readonly desiredResources: readonly CloudflareOrbitResourceRef[]
+  readonly currentLock?: CloudflareProvisioningLock | null | undefined
+}): CloudflareProvisioningPlan {
+  const current = new Map((input.currentLock?.resources ?? []).map((resource) => [resourceKey(resource), resource]))
+  const desired = new Map(input.desiredResources.map((resource) => [resourceKey(resource), resource]))
+  const items: CloudflareProvisioningPlanItem[] = []
+
+  for (const resource of input.desiredResources) {
+    const existing = current.get(resourceKey(resource))
+    items.push({
+      action: existing ? "noop" : "create",
+      resource: existing ?? resource,
+      reason: existing ? "Resource is already present in the Cloudflare lock" : "Resource is required by the desired Orbit runtime",
+      destructive: false,
+    })
+  }
+  for (const resource of current.values()) {
+    if (!desired.has(resourceKey(resource))) {
+      items.push({
+        action: "delete",
+        resource,
+        reason: "Resource exists in the lock but is no longer desired",
+        destructive: true,
+      })
+    }
+  }
+
+  return {
+    account: input.account,
+    items,
+    requiresConfirmation: items.some((item) => item.action !== "noop"),
+  }
+}
+
+export async function applyCloudflareProvisioningPlan(
+  input: ApplyCloudflareProvisioningPlanInput
+): Promise<CloudflareProvisioningLock> {
+  if (input.plan.requiresConfirmation && !input.confirmed) {
+    throw new Error("Cloudflare provisioning requires confirmation")
+  }
+  const resources: CloudflareOrbitResourceRef[] = []
+  for (const item of input.plan.items) {
+    if (item.action === "delete") {
+      await input.client?.deleteResource?.(item.resource)
+      continue
+    }
+    if (item.action === "create") {
+      resources.push(await input.client?.createResource?.(item.resource) ?? item.resource)
+      continue
+    }
+    if (item.action === "noop") resources.push(item.resource)
+  }
+  return {
+    account: input.plan.account,
+    resources,
+    updatedAt: (input.now ?? (() => new Date()))().toISOString(),
+  }
+}
+
+export function cloudflareProvisioningStatus(
+  lock: CloudflareProvisioningLock | null
+): CloudflareProvisioningLock | null {
+  return lock
+}
 
 async function readJson<T>(response: Response): Promise<T> {
   if (!response.ok) {
