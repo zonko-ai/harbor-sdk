@@ -60,6 +60,17 @@
         "typescript": "catalog:",
       },
     },
+    "examples/sdk-platform-runtime": {
+      "name": "sdk-platform-runtime-example",
+      "dependencies": {
+        "@hrbr/runtime-cloudflare": "workspace:*",
+        "@hrbr/runtime-local": "workspace:*",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
     "examples/sdk-tool-catalog": {
       "name": "sdk-tool-catalog-example",
       "dependencies": {
@@ -581,6 +592,8 @@
     "sdk-custom-source-example": ["sdk-custom-source-example@workspace:examples/sdk-custom-source"],
 
     "sdk-orbit-runtime-example": ["sdk-orbit-runtime-example@workspace:examples/sdk-orbit-runtime"],
+
+    "sdk-platform-runtime-example": ["sdk-platform-runtime-example@workspace:examples/sdk-platform-runtime"],
 
     "sdk-tool-catalog-example": ["sdk-tool-catalog-example@workspace:examples/sdk-tool-catalog"],
 

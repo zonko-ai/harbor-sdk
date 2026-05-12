@@ -19,6 +19,7 @@
     "example:custom-source": "bun run examples/sdk-custom-source/src/index.ts",
     "example:tool-catalog": "bun run examples/sdk-tool-catalog/src/index.ts",
     "example:orbit-runtime": "bun run examples/sdk-orbit-runtime/src/index.ts",
+    "example:platform-runtime": "bun run examples/sdk-platform-runtime/src/index.ts",
     "example:linear-notion": "bun run examples/tool-registry-linear-notion/src/index.ts"
   },
   "catalog": {

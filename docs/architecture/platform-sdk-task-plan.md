@@ -351,6 +351,8 @@ Status: complete for the current SDK buildout: focused runtime-local/runtime-clo
 
 ## 19. Examples
 
+Status: complete for an SDK platform runtime example in `examples/sdk-platform-runtime`: demonstrates local daemon setup/Beach connection metadata, local tool index, local job run, local workflow run, plugin package manifest, workflow package manifest, Git submission snapshot/validation, and Cloudflare plan preview through the daemon-backed adapter. Verified with `bun run typecheck:examples`, `bun run example:platform-runtime`, `bun test`, and `bun run typecheck`.
+
 - Local source adapter.
 - Local plugin package.
 - Local workflow package.
