@@ -317,6 +317,8 @@ Status: complete for initial adapter contracts: Cloudflare-backed Orbit calls ma
 
 ## 17. Security and Confirmation Layer
 
+Status: complete for initial SDK-owned security primitives: destructive action metadata, reusable confirmation enforcement, daemon Cloudflare mutation confirmation, and static checks for secret leakage, broad auth scopes, destructive policies, and missing network policy declarations. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Mark destructive actions in the MCP/control API.
 - Require confirmation before:
   - deleting local data

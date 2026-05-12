@@ -2,6 +2,16 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  harborLocalSecurityAction,
+  requireHarborLocalConfirmation,
+  runHarborLocalStaticSecurityChecks,
+  type HarborLocalConfirmationInput,
+  type HarborLocalSecurityAction,
+  type HarborLocalSecurityActionKind,
+  type HarborLocalStaticCheck,
+} from "./security"
+
+export {
   createHarborLocalSubmissionSecurityChecklist,
   createHarborLocalSubmissionSnapshot,
   harborLocalSubmissionLayout,

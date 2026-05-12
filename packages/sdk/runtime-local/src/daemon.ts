@@ -16,6 +16,7 @@ import {
   type HarborLocalJobDefinition,
   type HarborLocalTraceRecord,
 } from "./jobs-apps"
+import { harborLocalSecurityAction, requireHarborLocalConfirmation } from "./security"
 import {
   ensureHarborLocalProject,
   harborLocalPaths,
@@ -215,6 +216,14 @@ export async function startHarborLocalDaemon(
           account: body.account,
           desiredResources: body.desiredResources,
           currentLock: await readCloudflareLock(input.projectRoot),
+        })
+        requireHarborLocalConfirmation({
+          action: harborLocalSecurityAction({
+            kind: "cloudflare.mutate",
+            title: "Apply Cloudflare provisioning plan",
+            destructive: plan.requiresConfirmation,
+          }),
+          confirmed: body.confirmed === true,
         })
         const lock = await applyCloudflareProvisioningPlan({
           plan,

@@ -14,6 +14,7 @@ import {
   generateHarborLocalWorkflowManifest,
   generateHarborLocalPluginPackageManifest,
   generateHarborLocalWorkflowPackageManifest,
+  harborLocalSecurityAction,
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_SCHEMA_VERSION,
   importHarborLocalCredentialsFromEnv,
@@ -27,10 +28,12 @@ import {
   runHarborLocalJob,
   runHarborLocalWorkflow,
   runHarborLocalMigrations,
+  runHarborLocalStaticSecurityChecks,
   startHarborLocalDaemon,
   upsertHarborRegistryDevRef,
   validateHarborLocalPackageManifest,
   validateHarborLocalSubmission,
+  requireHarborLocalConfirmation,
   watchHarborRegistryDevRefs,
   writeHarborLocalCredentials,
   LOCAL_WORKSPACE_ID,
@@ -859,5 +862,52 @@ describe("@hrbr/runtime-local submission flow", () => {
         { id: "tests-declared", status: "warn" },
       ],
     })
+  })
+})
+
+describe("@hrbr/runtime-local security", () => {
+  it("requires confirmation for destructive actions", () => {
+    const action = harborLocalSecurityAction({
+      kind: "credentials.change",
+      title: "Rotate token",
+    })
+    expect(action).toMatchObject({
+      destructive: true,
+      requiresConfirmation: true,
+    })
+    expect(() => requireHarborLocalConfirmation({ action, confirmed: false }))
+      .toThrow("Confirmation required")
+    expect(() => requireHarborLocalConfirmation({ action, confirmed: true })).not.toThrow()
+  })
+
+  it("reports static security checks for package manifests", () => {
+    const manifest = generateHarborLocalPluginPackageManifest({
+      name: "github-tools",
+      version: "1.0.0",
+      owner: { name: "Harbor Dev" },
+      source: { kind: "local", path: "plugins/github" },
+      docs: { readme: "# GitHub Tools" },
+      auth: { required: true, slots: ["GITHUB_TOKEN=secret"] },
+      scopes: ["admin:*"],
+      policies: ["delete:issues"],
+      tests: ["bun test"],
+      changelog: ["1.0.0 initial submission"],
+      tools: [{
+        id: "tool-1",
+        workspaceId: "local",
+        sourceRefId: "source-github",
+        namespace: "github",
+        name: "delete_issue",
+        displayName: "Delete Issue",
+        searchText: "github issue delete",
+      }],
+    })
+
+    expect(runHarborLocalStaticSecurityChecks(manifest)).toEqual([
+      expect.objectContaining({ id: "secret-leakage", status: "fail" }),
+      expect.objectContaining({ id: "unsafe-auth-scopes", status: "warn" }),
+      expect.objectContaining({ id: "destructive-policy", status: "warn" }),
+      expect.objectContaining({ id: "network-policy", status: "warn" }),
+    ])
   })
 })
