@@ -3,6 +3,13 @@ import { readFile, writeFile } from "node:fs/promises"
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import {
+  runHarborLocalAppRoute,
+  runHarborLocalJob,
+  type HarborLocalAppDefinition,
+  type HarborLocalJobDefinition,
+  type HarborLocalTraceRecord,
+} from "./jobs-apps"
+import {
   ensureHarborLocalProject,
   harborLocalPaths,
   LOCAL_WORKSPACE_ID,
@@ -16,6 +23,10 @@ export interface StartHarborLocalDaemonInput {
   readonly runtimeVersion?: string | undefined
   readonly token?: string | undefined
   readonly now?: (() => Date) | undefined
+  readonly jobs?: readonly HarborLocalJobDefinition[] | undefined
+  readonly apps?: readonly HarborLocalAppDefinition[] | undefined
+  readonly artifacts?: Readonly<Record<string, string>> | undefined
+  readonly traceSink?: HarborLocalTraceRecord[] | undefined
 }
 
 export interface HarborLocalDaemonHandle {
@@ -41,10 +52,28 @@ function json(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body))
 }
 
+function html(res: ServerResponse, status: number, body: string): void {
+  res.writeHead(status, { "content-type": "text/html; charset=utf-8" })
+  res.end(body)
+}
+
 function bearerToken(req: IncomingMessage): string | null {
   const header = req.headers.authorization
   if (!header?.startsWith("Bearer ")) return null
   return header.slice("Bearer ".length)
+}
+
+async function readJsonBody(req: IncomingMessage): Promise<unknown> {
+  const chunks: Buffer[] = []
+  for await (const chunk of req) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk))
+  }
+  if (chunks.length === 0) return null
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"))
+}
+
+function isAuthed(req: IncomingMessage, token: string): boolean {
+  return bearerToken(req) === token
 }
 
 export function hashHarborLocalToken(token: string): string {
@@ -105,24 +134,86 @@ export async function startHarborLocalDaemon(
   const runtimeVersion = input.runtimeVersion ?? "0.0.0-dev"
   let info: HarborLocalRuntimeInfo
 
+  const jobs = new Map((input.jobs ?? []).map((job) => [job.id, job]))
+  const apps = new Map((input.apps ?? []).map((app) => [app.id, app]))
+
   const server = createServer((req, res) => {
-    if (req.url === "/health") {
-      json(res, 200, { ok: true, workspace_id: LOCAL_WORKSPACE_ID })
-      return
-    }
-    if (req.url === "/mcp") {
-      json(res, 501, { ok: false, code: "mcp_not_implemented" })
-      return
-    }
-    if (req.url === "/control/info") {
-      if (bearerToken(req) !== token) {
-        json(res, 401, { ok: false, code: "unauthorized" })
+    void (async () => {
+      const url = new URL(req.url ?? "/", "http://127.0.0.1")
+      if (url.pathname === "/health") {
+        json(res, 200, { ok: true, workspace_id: LOCAL_WORKSPACE_ID })
         return
       }
-      json(res, 200, { ok: true, runtime: info })
-      return
-    }
-    json(res, 404, { ok: false, code: "not_found" })
+      if (url.pathname === "/mcp") {
+        json(res, 501, { ok: false, code: "mcp_not_implemented" })
+        return
+      }
+      if (url.pathname === "/control/info") {
+        if (!isAuthed(req, token)) {
+          json(res, 401, { ok: false, code: "unauthorized" })
+          return
+        }
+        json(res, 200, { ok: true, runtime: info })
+        return
+      }
+      const jobMatch = url.pathname.match(/^\/jobs\/([^/]+)\/run$/)
+      if (jobMatch?.[1]) {
+        if (!isAuthed(req, token)) {
+          json(res, 401, { ok: false, code: "unauthorized" })
+          return
+        }
+        const job = jobs.get(decodeURIComponent(jobMatch[1]))
+        if (!job) {
+          json(res, 404, { ok: false, code: "job_not_found" })
+          return
+        }
+        const body = await readJsonBody(req)
+        const run = await runHarborLocalJob({ job, input: body, now })
+        input.traceSink?.push(run.trace)
+        json(res, 200, { ok: true, output: run.output, trace: run.trace })
+        return
+      }
+      const appMatch = url.pathname.match(/^\/apps\/([^/]+)(\/.*)?$/)
+      if (appMatch?.[1]) {
+        const app = apps.get(decodeURIComponent(appMatch[1]))
+        if (!app) {
+          json(res, 404, { ok: false, code: "app_not_found" })
+          return
+        }
+        const appResponse = await runHarborLocalAppRoute({
+          app,
+          now,
+          request: {
+            appId: app.id,
+            method: req.method ?? "GET",
+            path: appMatch[2] ?? "/",
+            query: Object.fromEntries(url.searchParams.entries()),
+            body: req.method === "GET" ? undefined : await readJsonBody(req),
+          },
+        })
+        input.traceSink?.push(appResponse.trace)
+        if (appResponse.contentType === "text/html") {
+          html(res, appResponse.status, String(appResponse.body ?? ""))
+          return
+        }
+        json(res, appResponse.status, appResponse.body)
+        return
+      }
+      const artifactMatch = url.pathname.match(/^\/artifacts\/(.+)$/)
+      if (artifactMatch?.[1]) {
+        const artifact = input.artifacts?.[decodeURIComponent(artifactMatch[1])]
+        if (artifact === undefined) {
+          json(res, 404, { ok: false, code: "artifact_not_found" })
+          return
+        }
+        res.writeHead(200, { "content-type": "application/octet-stream" })
+        res.end(artifact)
+        return
+      }
+      json(res, 404, { ok: false, code: "not_found" })
+    })().catch((error: unknown) => {
+      json(res, 500, { ok: false, code: "runtime_error", message: (error as Error).message })
+    })
   })
 
   const port = await listen(server)

@@ -18,6 +18,7 @@ import {
   readHarborRegistryDevRefs,
   removeHarborRegistryDevRef,
   runHarborLocalQuickJS,
+  runHarborLocalJob,
   runHarborLocalMigrations,
   startHarborLocalDaemon,
   upsertHarborRegistryDevRef,
@@ -430,5 +431,102 @@ describe("@hrbr/runtime-local QuickJS execution", () => {
         payload: { key: "lastIssue" },
       },
     ])
+  })
+})
+
+describe("@hrbr/runtime-local jobs and apps", () => {
+  it("runs local jobs over QuickJS with schema validation", async () => {
+    await expect(runHarborLocalJob({
+      job: {
+        id: "sum",
+        code: "({ total: __harborInput.a + __harborInput.b })",
+        inputSchema: {
+          type: "object",
+          required: ["a", "b"],
+          properties: {
+            a: { type: "number" },
+            b: { type: "number" },
+          },
+        },
+        outputSchema: {
+          type: "object",
+          required: ["total"],
+          properties: { total: { type: "number" } },
+        },
+      },
+      input: { a: 4, b: 8 },
+      now: () => new Date("2026-05-12T00:00:00.000Z"),
+    })).resolves.toMatchObject({
+      jobId: "sum",
+      output: { total: 12 },
+      trace: { kind: "job", targetId: "sum", status: "ok" },
+    })
+
+    await expect(runHarborLocalJob({
+      job: {
+        id: "sum",
+        code: "null",
+        inputSchema: { type: "object", required: ["a"] },
+      },
+      input: {},
+    })).rejects.toThrow("input.a is required")
+  })
+
+  it("serves local job, app, and artifact routes on one daemon port", async () => {
+    await withTempProject(async (projectRoot) => {
+      const traces = []
+      const daemon = await startHarborLocalDaemon({
+        projectRoot,
+        token: "test-token",
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+        jobs: [{
+          id: "echo",
+          code: "({ echoed: __harborInput.message })",
+          inputSchema: {
+            type: "object",
+            required: ["message"],
+            properties: { message: { type: "string" } },
+          },
+        }],
+        apps: [{
+          id: "hello",
+          routes: [{
+            path: "/",
+            code: "({ contentType: 'text/html', body: `<h1>Hello ${__harborInput.query.name}</h1>` })",
+          }],
+        }],
+        artifacts: { "reports/one.txt": "report-one" },
+        traceSink: traces,
+      })
+      try {
+        const job = await fetch(`${daemon.origin}/jobs/echo/run`, {
+          method: "POST",
+          headers: {
+            authorization: `Bearer ${daemon.token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ message: "hi" }),
+        })
+        await expect(job.json()).resolves.toMatchObject({
+          ok: true,
+          output: { echoed: "hi" },
+          trace: { kind: "job", targetId: "echo", status: "ok" },
+        })
+
+        const app = await fetch(`${daemon.origin}/apps/hello/?name=Harbor`)
+        expect(app.headers.get("content-type")).toContain("text/html")
+        await expect(app.text()).resolves.toBe("<h1>Hello Harbor</h1>")
+
+        const artifact = await fetch(`${daemon.origin}/artifacts/reports%2Fone.txt`)
+        await expect(artifact.text()).resolves.toBe("report-one")
+
+        expect(traces).toEqual([
+          expect.objectContaining({ kind: "job", targetId: "echo", status: "ok" }),
+          expect.objectContaining({ kind: "app", targetId: "hello", status: "ok" }),
+        ])
+      } finally {
+        await daemon.close()
+      }
+    })
   })
 })

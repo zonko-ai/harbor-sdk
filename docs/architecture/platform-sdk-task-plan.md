@@ -219,6 +219,8 @@ Status: complete for the SDK-owned QuickJS-ng execution wrapper: bundled JavaScr
 
 ## 10. Local Jobs and Apps
 
+Status: complete for SDK-owned local job/app primitives: QuickJS-backed job runner, minimal JSON schema validation, daemon `POST /jobs/:job/run`, daemon `/apps/:app/*` JSON/HTML preview routes, daemon `/artifacts/*` serving, single-port routing, and in-memory trace emission for job/app invocations. SQLite persistence and richer route matching remain later hardening. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Add local job runner over QuickJS.
 - Validate job input/output schemas.
 - Add local app preview routes on the daemon HTTP server.

@@ -2,6 +2,22 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  matchHarborLocalAppRoute,
+  runHarborLocalAppRoute,
+  runHarborLocalJob,
+  validateHarborLocalJsonSchema,
+  type HarborLocalAppDefinition,
+  type HarborLocalAppRequest,
+  type HarborLocalAppResponse,
+  type HarborLocalAppRouteDefinition,
+  type HarborLocalJobDefinition,
+  type HarborLocalJobRunInput,
+  type HarborLocalJobRunResult,
+  type HarborLocalJsonSchema,
+  type HarborLocalTraceRecord,
+} from "./jobs-apps"
+
+export {
   runHarborLocalQuickJS,
   type HarborLocalQuickJSExecutionInput,
   type HarborLocalQuickJSExecutionResult,
