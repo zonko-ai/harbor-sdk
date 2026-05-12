@@ -246,6 +246,8 @@ Status: complete for SDK-owned local workflow primitives: workflow metadata, inp
 
 ## 12. Plugin and Workflow Package Format
 
+Status: complete for SDK-owned portable package manifest primitives: plugin/workflow manifest shape, owner/maintainer/source/tool/auth/scope/policy/docs/tests/compatibility/changelog metadata, manifest generation from local tool/workflow definitions, and local validation for schema/package quality. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Define manifest format for community submissions.
 - Include:
   - package name

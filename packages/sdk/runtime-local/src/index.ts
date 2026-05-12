@@ -2,6 +2,20 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  generateHarborLocalPluginPackageManifest,
+  generateHarborLocalWorkflowPackageManifest,
+  validateHarborLocalPackageManifest,
+  type HarborLocalPackageAuthRequirement,
+  type HarborLocalPackageCompatibility,
+  type HarborLocalPackageDocs,
+  type HarborLocalPackageManifest,
+  type HarborLocalPackageOwner,
+  type HarborLocalPackageSourceMetadata,
+  type HarborLocalPackageToolMetadata,
+  type HarborLocalPackageValidationResult,
+} from "./package-format"
+
+export {
   createHarborLocalWorkflowReplayFixture,
   generateHarborLocalWorkflowManifest,
   runHarborLocalWorkflow,

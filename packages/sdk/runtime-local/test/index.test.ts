@@ -10,6 +10,8 @@ import {
   harborLocalDaemonConnection,
   harborLocalPaths,
   generateHarborLocalWorkflowManifest,
+  generateHarborLocalPluginPackageManifest,
+  generateHarborLocalWorkflowPackageManifest,
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_SCHEMA_VERSION,
   importHarborLocalCredentialsFromEnv,
@@ -25,6 +27,7 @@ import {
   runHarborLocalMigrations,
   startHarborLocalDaemon,
   upsertHarborRegistryDevRef,
+  validateHarborLocalPackageManifest,
   watchHarborRegistryDevRefs,
   writeHarborLocalCredentials,
   LOCAL_WORKSPACE_ID,
@@ -633,5 +636,82 @@ describe("@hrbr/runtime-local workflows", () => {
       tools,
       installedSourceRefIds: [],
     })).rejects.toThrow("Required workflow tool is missing")
+  })
+})
+
+describe("@hrbr/runtime-local package format", () => {
+  it("generates and validates plugin package manifests", () => {
+    const manifest = generateHarborLocalPluginPackageManifest({
+      name: "github-tools",
+      version: "1.0.0",
+      owner: { name: "Harbor Dev", email: "dev@example.com" },
+      source: { kind: "local", path: "plugins/github" },
+      docs: { readme: "# GitHub Tools", examples: ["examples/create-issue.json"] },
+      auth: { required: true, slots: ["GITHUB_TOKEN"] },
+      scopes: ["issues:write"],
+      policies: ["network:github.com"],
+      tests: ["bun test"],
+      compatibility: { sdk: ">=0.1.0", runtimeLocal: ">=0.1.0" },
+      changelog: ["1.0.0 initial submission"],
+      tools: [{
+        id: "tool-1",
+        workspaceId: "local",
+        sourceRefId: "source-github",
+        namespace: "github",
+        name: "create_issue",
+        displayName: "Create Issue",
+        description: "Create a GitHub issue",
+        inputSchema: { type: "object", required: ["title"] },
+        outputSchema: { type: "object" },
+        searchText: "github issue create",
+      }],
+    })
+
+    expect(manifest).toMatchObject({
+      manifestVersion: 1,
+      kind: "plugin",
+      name: "github-tools",
+      tools: [{ namespace: "github", name: "create_issue" }],
+      auth: { required: true, slots: ["GITHUB_TOKEN"] },
+    })
+    expect(validateHarborLocalPackageManifest(manifest)).toEqual({
+      ok: true,
+      errors: [],
+      warnings: [],
+    })
+  })
+
+  it("generates workflow package manifests and reports quality errors", () => {
+    const workflow = {
+      id: "triage",
+      title: "Triage",
+      requiredTools: ["github.create_issue"],
+      steps: [],
+    }
+    const manifest = generateHarborLocalWorkflowPackageManifest({
+      name: "triage-workflow",
+      version: "1.0.0",
+      owner: { name: "Harbor Dev" },
+      source: { kind: "local", path: "workflows/triage.ts" },
+      workflow,
+      docs: { readme: "# Triage" },
+      tests: ["bun test"],
+      changelog: ["1.0.0 initial submission"],
+    })
+    expect(validateHarborLocalPackageManifest(manifest).ok).toBe(true)
+
+    expect(validateHarborLocalPackageManifest({
+      ...manifest,
+      name: "Bad Name",
+      changelog: [],
+      docs: { readme: "" },
+    })).toMatchObject({
+      ok: false,
+      errors: [
+        "name must be a portable package slug",
+        "docs.readme is required",
+        "changelog must include at least one entry",
+      ],
+    })
   })
 })
