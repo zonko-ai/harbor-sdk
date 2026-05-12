@@ -6,8 +6,13 @@ import { getLocalIcon, isLocalIconUrl } from './index'
 describe('@hrbr/registry local icon helpers', () => {
   it('recognizes canonical Harbor plugin icon paths', () => {
     assert.equal(isLocalIconUrl('/plugin-icons/github-mcp.svg'), true)
-    assert.equal(isLocalIconUrl('https://tryharbor.ai/plugin-icons/github-mcp.svg'), true)
-    assert.equal(isLocalIconUrl('https://stag.tryharbor.ai/plugin-icons/github-mcp.svg'), true)
+    assert.equal(isLocalIconUrl('https://assets.example.com/plugin-icons/github-mcp.svg'), false)
+    assert.equal(
+      isLocalIconUrl('https://assets.example.com/plugin-icons/github-mcp.svg', {
+        allowedHosts: ['assets.example.com'],
+      }),
+      true,
+    )
     assert.equal(isLocalIconUrl('https://example.com/favicon.ico'), false)
     assert.equal(isLocalIconUrl(undefined), false)
   })

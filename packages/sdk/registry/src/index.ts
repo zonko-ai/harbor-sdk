@@ -60,17 +60,26 @@ export function getLocalIconStyle(slug: string): LocalIconStyle | 'themed' | und
   return icon.kind === 'themed' ? 'themed' : icon.style
 }
 
-export function isLocalIconUrl(url?: string | null): url is string {
+export interface IsLocalIconUrlOptions {
+  /**
+   * Absolute hosts that should be treated as serving this package's local icon
+   * namespace. Relative /plugin-icons/* paths are always accepted.
+   */
+  readonly allowedHosts?: ReadonlyArray<string> | undefined
+}
+
+export function isLocalIconUrl(
+  url?: string | null,
+  options: IsLocalIconUrlOptions = {},
+): url is string {
   if (typeof url !== 'string') return false
   if (url.startsWith('/plugin-icons/')) return true
   const match = /^https?:\/\/([^/?#]+)(\/[^?#]*)/i.exec(url)
   if (!match) return false
   const host = match[1]?.toLowerCase()
   const pathname = match[2] ?? ''
-  return (
-    (host === 'tryharbor.ai' || host === 'stag.tryharbor.ai')
-    && pathname.startsWith('/plugin-icons/')
-  )
+  const allowedHosts = new Set((options.allowedHosts ?? []).map((value) => value.toLowerCase()))
+  return Boolean(host && allowedHosts.has(host) && pathname.startsWith('/plugin-icons/'))
 }
 
 export { LOCAL_ICONS, LOCAL_ICON_PATHS } from "./local-icons"
@@ -115,7 +124,7 @@ function deriveIconUrl(entry: PluginRegistryEntry): string | undefined {
 
 // ── Popularity seed ───────────────────────────────────────────────────
 // Hand-tuned relative popularity. Higher = rank higher in the 'Popularity'
-// sort on the dashboard catalog. Missing entries default to
+// sort on catalog surfaces. Missing entries default to
 // POPULARITY_DEFAULT. This map is the UI's only dependency for 'popular'
 // today; later we'll layer workspace-scoped usage metrics on top.
 const registryPopularity = REGISTRY_CATALOG_POPULARITY as {

@@ -18,14 +18,7 @@
     "./branding": "./src/branding.ts",
     "./platform": "./src/platform.ts",
     "./cloudflare": "./src/cloudflare.ts",
-    "./bundler": "./src/bundler/index.ts",
-    "./app-ui": "./src/app-ui/index.ts",
-    "./app-ui/templates/feedback-board": "./src/app-ui/templates/feedback-board.ts",
-    "./app-ui/templates/intake-board": "./src/app-ui/templates/intake-board.ts",
-    "./app-ui/templates/status-page": "./src/app-ui/templates/status-page.ts",
-    "./app-ui/templates/list-page": "./src/app-ui/templates/list-page.ts",
-    "./app-ui/templates/hero-cta": "./src/app-ui/templates/hero-cta.ts",
-    "./app-ui/schemas/*": "./src/app-ui/schemas/*"
+    "./bundler": "./src/bundler/index.ts"
   },
   "scripts": { "build": "tsc --noEmit", "typecheck": "tsc --noEmit", "test": "bun test test" },
   "dependencies": {

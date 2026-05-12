@@ -350,7 +350,6 @@ export type OrbitJobInvocationGetResponse = typeof OrbitJobInvocationGetResponse
 // itself doesn't need it (the WFP wrapper injects job context dynamically)
 // — it exists purely so authors can write
 //   export default defineOrbitJob({ name: 'x', handler() { ... } })
-// and get TypeScript narrowing on the definition shape. Mirrors the
-// `defineOrbitApp` and `defineOrbitJob` identities in @hrbr/orbit/app-ui.
+// and get TypeScript narrowing on the definition shape.
 
 export const defineOrbitJob = <T>(definition: T): T => definition

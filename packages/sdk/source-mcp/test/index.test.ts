@@ -159,4 +159,99 @@ describe('@hrbr/source-mcp', () => {
     } satisfies Partial<McpSourceError>)
     expect(called).toBe(false)
   })
+
+  it('rejects local endpoints unless explicitly allowed', () => {
+    expect(() =>
+      createMcpHttpSourceAdapter({
+        namespace: 'local',
+        displayName: 'Local MCP',
+        endpoint: 'http://127.0.0.1:7331/mcp',
+      })
+    ).toThrow(/allowLocalNetwork/)
+
+    expect(() =>
+      createMcpHttpSourceAdapter({
+        namespace: 'local',
+        displayName: 'Local MCP',
+        endpoint: 'http://127.0.0.1:7331/mcp',
+        allowLocalNetwork: true,
+      })
+    ).not.toThrow()
+  })
+
+  it('rejects invalid timeouts during adapter construction', () => {
+    expect(() =>
+      createMcpHttpSourceAdapter({
+        namespace: 'timeout',
+        displayName: 'Timeout MCP',
+        endpoint: 'https://timeout.example.com/mcp',
+        timeoutMs: 0,
+      })
+    ).toThrow(/timeoutMs must be a positive number/)
+  })
+
+  it('uses caller abort signals for MCP requests', async () => {
+    const controller = new AbortController()
+    const seen: AbortSignal[] = []
+    const source = createMcpHttpSourceAdapter({
+      namespace: 'abortable',
+      displayName: 'Abortable MCP',
+      endpoint: 'https://abortable.example.com/mcp',
+      fetch: async (_url, init) => {
+        seen.push(init?.signal as AbortSignal)
+        return json({
+          jsonrpc: '2.0',
+          id: 1,
+          result: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+          },
+        })
+      },
+    })
+
+    await source.listTools({ signal: controller.signal })
+
+    expect(seen[0]).toBeDefined()
+    expect(seen[0]).not.toBe(controller.signal)
+  })
+
+  it('does not follow MCP endpoint redirects', async () => {
+    const redirects: Array<RequestRedirect | undefined> = []
+    const source = createMcpHttpSourceAdapter({
+      namespace: 'redirect',
+      displayName: 'Redirect MCP',
+      endpoint: 'https://redirect.example.com/mcp',
+      fetch: async (_url, init) => {
+        redirects.push(init?.redirect)
+        return json({
+          jsonrpc: '2.0',
+          id: 1,
+          result: {
+            protocolVersion: '2025-03-26',
+            capabilities: {},
+          },
+        })
+      },
+    })
+
+    await source.listTools()
+
+    expect(redirects[0]).toBe('error')
+  })
+
+  it('wraps invalid JSON responses as MCP source errors', async () => {
+    const source = createMcpHttpSourceAdapter({
+      namespace: 'invalid',
+      displayName: 'Invalid JSON MCP',
+      endpoint: 'https://invalid.example.com/mcp',
+      fetch: async () => new Response('not-json', { headers: { 'content-type': 'application/json' } }),
+    })
+
+    await expect(source.listTools()).rejects.toMatchObject({
+      name: 'McpSourceError',
+      method: 'initialize',
+      message: 'MCP initialize response was not valid JSON.',
+    } satisfies Partial<McpSourceError>)
+  })
 })

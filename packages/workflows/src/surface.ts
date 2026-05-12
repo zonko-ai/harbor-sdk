@@ -127,5 +127,5 @@ export function workflowCatalogMap(entries: ReadonlyArray<WorkflowListEntryWire>
 }
 
 export function workflowUnavailableMessage(skillId: string): string {
-  return `Skill ${skillId} is not available to this workspace. Request access from the skill owner in the dashboard.`
+  return `Skill ${skillId} is not available to this workspace. Request access from the skill owner.`
 }

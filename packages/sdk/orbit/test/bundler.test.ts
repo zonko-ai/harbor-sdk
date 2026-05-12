@@ -2,7 +2,7 @@ import { describe, expect, it } from 'bun:test'
 import { bundleOrbitSource, OrbitBundleError } from '../src/bundler'
 
 const appSource = `
-import { Page, render, response } from "@hrbr/orbit/app-ui"
+import { defineOrbitApp } from "@hrbr/orbit/apps"
 
 export default defineOrbitApp({
   name: "hello-app",
@@ -11,9 +11,8 @@ export default defineOrbitApp({
     path: "/",
     auth: "public",
     input: "none",
-    output: "html",
+    output: "json",
     job: "hello",
-    render: () => response(Page({ title: "Hello" }, [])),
   }],
 })
 `
@@ -27,7 +26,7 @@ export default defineOrbitJob({
 `
 
 describe('orbit bundler', () => {
-  it('bundles Orbit app sources with @hrbr/orbit/app-ui imports', async () => {
+  it('bundles Orbit app sources with SDK runtime imports', async () => {
     const result = await bundleOrbitSource({
       kind: 'app',
       source: appSource,
@@ -38,7 +37,7 @@ describe('orbit bundler', () => {
 
     expect(result.runtime).toBe('bundled')
     expect(result.kind).toBe('app')
-    expect(result.code).toContain('Hello')
+    expect(result.code).toContain('hello-app')
     expect(result.gzip_bytes).toBeGreaterThan(0)
     expect(result.metafile).toBeDefined()
   })
@@ -50,13 +49,11 @@ describe('orbit bundler', () => {
     expect(result.code).toContain('ok')
   })
 
-  it('allows app-ui imports from jobs (HTML artifact rendering)', async () => {
-    const result = await bundleOrbitSource({
+  it('rejects app-ui imports because frontend rendering is outside the SDK', async () => {
+    await expect(bundleOrbitSource({
       kind: 'job',
       source: 'import { Page, render } from "@hrbr/orbit/app-ui"; export default { build: () => render(Page({ title: "hi" }, [])) }',
-    })
-    expect(result.kind).toBe('job')
-    expect(result.code.length).toBeGreaterThan(50)
+    })).rejects.toBeInstanceOf(OrbitBundleError)
   })
 
   it('rejects Node built-in imports', async () => {
