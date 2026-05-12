@@ -201,6 +201,8 @@ Status: complete for in-process local tool index helpers with BM25-style lexical
 
 ## 9. QuickJS-ng Execution
 
+Status: complete for the first SDK-owned QuickJS-ng execution wrapper: bundled JavaScript validation, injected JSON input, sync result extraction, memory/stack/time limits, no default network API, and direct import rejection. Approved host calls for tools/storage/cache/db/artifacts/traces remain the next execution-layer slice. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Add QuickJS-ng WASM runtime integration.
 - Execute bundled JavaScript only.
 - Disallow direct npm imports at runtime.

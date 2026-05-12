@@ -17,6 +17,7 @@ import {
   redactHarborSecret,
   readHarborRegistryDevRefs,
   removeHarborRegistryDevRef,
+  runHarborLocalQuickJS,
   runHarborLocalMigrations,
   startHarborLocalDaemon,
   upsertHarborRegistryDevRef,
@@ -361,5 +362,37 @@ describe("@hrbr/runtime-local tool search", () => {
       toolId: "github.missing",
       input: {},
     })).rejects.toThrow("Unknown local tool")
+  })
+})
+
+describe("@hrbr/runtime-local QuickJS execution", () => {
+  it("runs bundled JavaScript with injected input inside QuickJS-ng", async () => {
+    await expect(runHarborLocalQuickJS({
+      code: "({ ok: true, total: __harborInput.a + __harborInput.b })",
+      input: { a: 2, b: 3 },
+    })).resolves.toEqual({
+      ok: true,
+      value: { ok: true, total: 5 },
+    })
+  })
+
+  it("rejects direct imports and leaves network APIs unavailable by default", async () => {
+    await expect(runHarborLocalQuickJS({
+      code: "import value from 'left-pad'; value",
+    })).rejects.toThrow("bundled JavaScript")
+
+    await expect(runHarborLocalQuickJS({
+      code: "typeof fetch",
+    })).resolves.toEqual({
+      ok: true,
+      value: "undefined",
+    })
+  })
+
+  it("interrupts long-running code", async () => {
+    await expect(runHarborLocalQuickJS({
+      code: "for (;;) {}",
+      timeoutMs: 10,
+    })).rejects.toThrow()
   })
 })

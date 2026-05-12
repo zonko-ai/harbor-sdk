@@ -11,8 +11,10 @@
     "test": "bun test test"
   },
   "dependencies": {
+    "@jitl/quickjs-ng-wasmfile-release-sync": "^0.32.0",
     "@hrbr/orbit": "workspace:*",
-    "@hrbr/tools": "workspace:*"
+    "@hrbr/tools": "workspace:*",
+    "quickjs-emscripten-core": "^0.32.0"
   },
   "devDependencies": {
     "@hrbr/tsconfig": "workspace:*",

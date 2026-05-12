@@ -2,6 +2,12 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  runHarborLocalQuickJS,
+  type HarborLocalQuickJSExecutionInput,
+  type HarborLocalQuickJSExecutionResult,
+} from "./quickjs"
+
+export {
   createHarborLocalToolIndex,
   type HarborLocalToolDescription,
   type HarborLocalToolIndex,
