@@ -2,6 +2,16 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  createHarborLocalToken,
+  hashHarborLocalToken,
+  readHarborLocalRuntimeManifest,
+  startHarborLocalDaemon,
+  type HarborLocalDaemonHandle,
+  type HarborLocalDaemonManifestReadResult,
+  type StartHarborLocalDaemonInput,
+} from "./daemon"
+
+export {
   expectedHarborLocalTables,
   HARBOR_LOCAL_MIGRATIONS,
   HARBOR_LOCAL_SCHEMA_VERSION,

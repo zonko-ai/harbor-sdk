@@ -95,6 +95,8 @@ Status: complete for initial schema/migration definitions and repository-facing 
 
 ## 4. Local Daemon
 
+Status: complete for MVP daemon skeleton with localhost binding, runtime manifest writing, token-protected control info, health endpoint, and placeholder MCP endpoint. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Implement one daemon per project.
 - Bind only to `127.0.0.1`.
 - Allocate a dynamic port and write it to `.harbor/runtime.json`.

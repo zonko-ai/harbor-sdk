@@ -8,7 +8,10 @@ import {
   harborLocalPaths,
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_SCHEMA_VERSION,
+  hashHarborLocalToken,
+  readHarborLocalRuntimeManifest,
   runHarborLocalMigrations,
+  startHarborLocalDaemon,
   LOCAL_WORKSPACE_ID,
   type HarborRegistryDevRefsFile,
 } from "../src/index"
@@ -87,5 +90,64 @@ describe("@hrbr/runtime-local sqlite schema", () => {
     expect(statements).toHaveLength(1)
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS local_workspace")
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS cloudflare_resources")
+  })
+})
+
+describe("@hrbr/runtime-local daemon", () => {
+  it("starts on localhost, writes runtime metadata, and protects control routes", async () => {
+    await withTempProject(async (projectRoot) => {
+      const daemon = await startHarborLocalDaemon({
+        projectRoot,
+        token: "test-token",
+        runtimeVersion: "test",
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+      })
+      try {
+        expect(daemon.info.host).toBe("127.0.0.1")
+        expect(daemon.info.workspaceId).toBe("local")
+        expect(daemon.origin).toBe(`http://127.0.0.1:${daemon.info.port}`)
+
+        await expect(fetch(`${daemon.origin}/health`).then((res) => res.json())).resolves.toEqual({
+          ok: true,
+          workspace_id: "local",
+        })
+
+        await expect(fetch(`${daemon.origin}/control/info`)).resolves.toMatchObject({
+          status: 401,
+        })
+
+        const authed = await fetch(`${daemon.origin}/control/info`, {
+          headers: { authorization: `Bearer ${daemon.token}` },
+        })
+        await expect(authed.json()).resolves.toMatchObject({
+          ok: true,
+          runtime: { host: "127.0.0.1", status: "running", runtimeVersion: "test" },
+        })
+
+        const runtime = await readHarborLocalRuntimeManifest(projectRoot)
+        expect(runtime.manifest).toMatchObject({
+          workspaceId: "local",
+          host: "127.0.0.1",
+          port: daemon.info.port,
+          tokenHash: hashHarborLocalToken("test-token"),
+          runtimeVersion: "test",
+        })
+      } finally {
+        await daemon.close()
+      }
+    })
+  })
+
+  it("exposes the placeholder MCP endpoint on the daemon port", async () => {
+    await withTempProject(async (projectRoot) => {
+      const daemon = await startHarborLocalDaemon({ projectRoot, token: "test-token" })
+      try {
+        const response = await fetch(`${daemon.origin}/mcp`)
+        expect(response.status).toBe(501)
+        await expect(response.json()).resolves.toEqual({ ok: false, code: "mcp_not_implemented" })
+      } finally {
+        await daemon.close()
+      }
+    })
   })
 })
