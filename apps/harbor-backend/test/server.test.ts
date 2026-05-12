@@ -87,6 +87,86 @@ test("can add a dynamic source without changing the Harbor repo", async () => {
   expect(result.result).toEqual({ source: "custom_ops", payload: { payload: { ok: true } } })
 })
 
+test("serves Harbor dashboard routes from SDK state", async () => {
+  const server = createHarborSdkBackendServer({ env: "dev" })
+  const workspaceId = server.state.workspace.id
+
+  async function post(path: string, body: Record<string, unknown> = {}) {
+    const response = await server.fetch(
+      new Request(`http://sdk-backend.local/${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ workspace_id: workspaceId, ...body }),
+      }),
+    )
+    expect(response.status).toBe(200)
+    return response.json() as Promise<{ readonly success: true; readonly data: unknown }>
+  }
+
+  const summary = await post("home/summary")
+  expect(summary.data).toMatchObject({
+    connected_plugins_count: 2,
+    agents_connected_count: 1,
+  })
+
+  const members = await post("workspaces/members/list")
+  expect(members.data).toMatchObject({ total: 1 })
+
+  const invite = await post("workspaces/invites/send", {
+    email: "teammate@example.com",
+    role: "member",
+  })
+  expect(invite.data).toMatchObject({
+    email: "teammate@example.com",
+    status: "pending",
+  })
+
+  const workflows = await post("workflows/list", { scope: "native" })
+  const workflowList = workflows.data as { readonly workflows: readonly { readonly id: string }[] }
+  expect(Array.isArray(workflowList.workflows)).toBe(true)
+  expect(workflowList.workflows.length).toBeGreaterThan(0)
+
+  const workflow = await post("workflows/get", { id: workflowList.workflows[0]?.id })
+  expect(workflow.data).toHaveProperty("body_markdown")
+
+  const apps = await post("orbit/apps/list")
+  expect(apps.data).toMatchObject({ count: 1 })
+
+  const jobs = await post("orbit/jobs/list")
+  expect(jobs.data).toMatchObject({ count: 2 })
+
+  const run = await post("orbit/jobs/run", {
+    name: "sdk-ping",
+    input: { message: "hello" },
+  })
+  expect(run.data).toMatchObject({ ok: true, job: "sdk-ping" })
+
+  const chat = await post("agent-chat/messages/send", { message: "hello" })
+  expect(chat.data).toMatchObject({
+    thread: { status: "completed" },
+  })
+})
+
+test("streams agent chat events as SSE", async () => {
+  const server = createHarborSdkBackendServer({ env: "dev" })
+  const send = await server.fetch(
+    new Request("http://sdk-backend.local/agent-chat/messages/send", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ workspace_id: server.state.workspace.id, message: "stream me" }),
+    }),
+  )
+  const body = await send.json() as {
+    readonly data: { readonly thread: { readonly id: string } }
+  }
+  const stream = await server.fetch(
+    new Request(`http://sdk-backend.local/agent-chat/events/stream?thread_id=${body.data.thread.id}`),
+  )
+  expect(stream.status).toBe(200)
+  expect(stream.headers.get("content-type")).toContain("text/event-stream")
+  expect(await stream.text()).toContain("event: agent_chat_event")
+})
+
 test("loads backend env files and exposes redacted Cloudflare readiness", async () => {
   const loaded = await loadBackendEnvFile({ env: "staging" })
   expect(loaded.path.endsWith("apps/harbor-backend/.env.staging")).toBe(true)

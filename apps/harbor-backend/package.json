@@ -19,6 +19,8 @@
     "@hrbr/source-credentials": "workspace:*",
     "@hrbr/source-policy": "workspace:*",
     "@hrbr/tools": "workspace:*",
+    "@hrbr/orbit": "workspace:*",
+    "@hrbr/workflows": "workspace:*",
     "@hrbr/workspaces": "workspace:*"
   },
   "devDependencies": {

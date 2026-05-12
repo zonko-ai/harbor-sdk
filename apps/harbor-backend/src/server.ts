@@ -1,8 +1,20 @@
 import { ROUTES } from "@hrbr/harbor-control"
-import { createBackendState, addDynamicSource, listRuns, listSources, runGraph } from "./state"
-import type { BackendState, HarborSdkBackendEnv } from "./state"
+import {
+  createBackendState,
+  addDynamicSource,
+  getWorkflowDetail,
+  listOrbitAppSummaries,
+  listOrbitJobSummaries,
+  listRuns,
+  listSources,
+  listWorkflowEntries,
+  runGraph,
+  sdkDbTables,
+} from "./state"
+import type { AgentChatEvent, AgentChatMessage, AgentChatState, BackendState, HarborSdkBackendEnv } from "./state"
 import { parseBackendEnv } from "./env"
 import { checkCloudflareStagingConnection } from "./cloudflare"
+import type { OrbitJobInvocationDetail, OrbitStorageObject } from "@hrbr/orbit"
 
 export interface HarborSdkBackendServer {
   readonly state: BackendState
@@ -61,6 +73,62 @@ function stringArrayField(body: Record<string, unknown>, key: string): readonly 
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []
 }
 
+function id(prefix: string): string {
+  return `${prefix}-${crypto.randomUUID()}`
+}
+
+function asRole(value: unknown): "owner" | "admin" | "member" | "viewer" {
+  if (value === "owner" || value === "admin" || value === "member" || value === "viewer") return value
+  return "member"
+}
+
+function titleFromMessage(message: string): string {
+  const title = message.trim().replace(/\s+/g, " ").slice(0, 48)
+  return title || "Harbor chat"
+}
+
+function activeWorkspace(state: BackendState): string {
+  return state.workspaceProfile.id
+}
+
+function ensureAgentThread(
+  state: BackendState,
+  input: { readonly threadId?: string | undefined; readonly message?: string | undefined },
+): AgentChatState {
+  const existing = input.threadId ? state.agentThreads.get(input.threadId) : undefined
+  if (existing) return existing
+  const at = new Date().toISOString()
+  const threadId = input.threadId && input.threadId.trim() ? input.threadId : id("agent-thread")
+  const next: AgentChatState = {
+    thread: {
+      id: threadId,
+      workspace_id: activeWorkspace(state),
+      created_by: state.userProfile.id,
+      agent_id: "sdk-dashboard-agent",
+      title: titleFromMessage(input.message ?? "Harbor chat"),
+      status: "idle",
+      model: "sdk-local",
+      metadata: { backend: "harbor-sdk" },
+      last_message_at: at,
+      created_at: at,
+      updated_at: at,
+    },
+    messages: [],
+    events: [],
+  }
+  state.agentThreads.set(threadId, next)
+  return next
+}
+
+function updateAgentThread(state: BackendState, next: AgentChatState): AgentChatState {
+  state.agentThreads.set(next.thread.id, next)
+  return next
+}
+
+function textResponseFor(message: string): string {
+  return `SDK backend received: ${message}`
+}
+
 function sourceKind(value: unknown): "mcp" | "cli" | "api" {
   if (value === "mcp" || value === "cli" || value === "api") return value
   return "api"
@@ -74,12 +142,19 @@ function visibility(value: unknown): "personal" | "workspace" | undefined {
 function routeRequest(request: Request): Promise<JsonRequest> {
   return (async () => {
     const url = new URL(request.url)
-    const gettablePaths = new Set(["/health", "/cloudflare/staging"])
+    const gettablePaths = new Set(["/health", "/cloudflare/staging", ROUTES.agentChat.events.stream])
     if (request.method !== "POST" && !gettablePaths.has(url.pathname)) {
       throw new Response("Method not allowed", { status: 405 })
     }
     if (url.pathname === "/health") {
       return { path: url.pathname, body: {}, headers: request.headers }
+    }
+    if (url.pathname === ROUTES.agentChat.events.stream) {
+      return {
+        path: url.pathname,
+        body: Object.fromEntries(url.searchParams.entries()),
+        headers: request.headers,
+      }
     }
     const payload = (await request.json().catch(() => ({}))) as unknown
     const body =
@@ -130,7 +205,67 @@ async function handleRoute(
   }
 
   if (path === ROUTES.users.me) {
-    return apiJson(state.user)
+    return apiJson(state.userProfile)
+  }
+
+  if (path === ROUTES.users.update) {
+    const name = stringField(body, "name")
+    state.userProfile = {
+      ...state.userProfile,
+      ...(name !== undefined ? { name } : {}),
+    }
+    const current = state.members.find((member) => member.is_current_user)
+    if (current && name !== undefined) {
+      const index = state.members.indexOf(current)
+      state.members[index] = { ...current, name }
+    }
+    return apiJson(state.userProfile)
+  }
+
+  if (path === ROUTES.home.summary) {
+    const connectedPlugins = listSources(state).data.map((source) => ({
+      id: source.id,
+      display_name: source.display_name,
+      namespace: source.namespace,
+      kind: source.kind,
+      status: source.status,
+      tool_count: source.tool_count,
+      category: source.category,
+      icon_url: source.icon_url,
+      registry_slug: source.registry_slug,
+    }))
+    return apiJson({
+      connected_plugins: connectedPlugins,
+      connected_plugins_count: connectedPlugins.length,
+      connected_tools_count: connectedPlugins.reduce((sum, source) => sum + source.tool_count, 0),
+      agents_connected_count: 1,
+      agent_identities: {
+        "sdk-dashboard-agent": {
+          id: "sdk-dashboard-agent",
+          family: "sdk",
+          alias: "dashboard",
+          label: "SDK Dashboard Agent",
+          icon: { path: "/agents/codex.svg", style: "mono" },
+          status: "connected",
+          last_seen_at: new Date().toISOString(),
+          origin_confidence: "high",
+        },
+      },
+      dock_agents: [
+        {
+          slug: "sdk-dashboard-agent",
+          label: "SDK Dashboard Agent",
+          kind: "local",
+          icon: { path: "/agents/codex.svg", style: "mono" },
+          status: "connected",
+        },
+      ],
+      invocation_count: 0,
+      success_count: 0,
+      error_count: 0,
+      agent_hourly_invocations: [],
+      today_label: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+    })
   }
 
   if (path === ROUTES.workspaces.list) {
@@ -146,14 +281,500 @@ async function handleRoute(
 
   if (path === ROUTES.workspaces.get) {
     const workspaceId = stringField(body, "workspace_id")
-    if (workspaceId && workspaceId !== state.workspace.id) {
+    if (workspaceId && workspaceId !== state.workspaceProfile.id) {
       return errorResponse(`Workspace "${workspaceId}" is not registered.`, 404)
     }
-    return apiJson(state.workspace)
+    return apiJson(state.workspaceProfile)
   }
 
   if (path === ROUTES.workspaces.create) {
-    return apiJson(state.workspace)
+    return apiJson(state.workspaceProfile)
+  }
+
+  if (path === ROUTES.workspaces.update) {
+    state.workspaceProfile = {
+      ...state.workspaceProfile,
+      ...(stringField(body, "name") ? { name: stringField(body, "name") as string } : {}),
+      ...(stringField(body, "slug") ? { slug: stringField(body, "slug") as string } : {}),
+      updated_at: new Date().toISOString(),
+    }
+    return apiJson(state.workspaceProfile)
+  }
+
+  if (path === ROUTES.workspaces.delete) {
+    return apiJson({ workspace_id: stringField(body, "workspace_id") ?? state.workspaceProfile.id, deleted: false })
+  }
+
+  if (path === ROUTES.workspaces.completeOnboarding) {
+    state.workspaceProfile = {
+      ...state.workspaceProfile,
+      onboarded_at: state.workspaceProfile.onboarded_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    return apiJson(state.workspaceProfile)
+  }
+
+  if (path === ROUTES.workspaces.members.list) {
+    return apiJson({ data: state.members, total: state.members.length, limit: state.members.length || 50, offset: 0, hasMore: false })
+  }
+
+  if (path === ROUTES.workspaces.members.updateRole) {
+    const memberId = stringField(body, "member_id")
+    const member = state.members.find((row) => row.id === memberId)
+    if (!member) return errorResponse(`Member "${memberId ?? ""}" is not registered.`, 404)
+    const index = state.members.indexOf(member)
+    state.members[index] = { ...member, role: asRole(body["role"]) }
+    return apiJson(state.members[index])
+  }
+
+  if (path === ROUTES.workspaces.members.remove) {
+    const memberId = stringField(body, "member_id")
+    const index = state.members.findIndex((row) => row.id === memberId)
+    if (index < 0) return errorResponse(`Member "${memberId ?? ""}" is not registered.`, 404)
+    const [removed] = state.members.splice(index, 1)
+    return apiJson({ member_id: removed?.id ?? memberId, removed: true })
+  }
+
+  if (path === ROUTES.workspaces.invites.list) {
+    return apiJson({ data: state.invites, total: state.invites.length, limit: state.invites.length || 50, offset: 0, hasMore: false })
+  }
+
+  if (path === ROUTES.workspaces.invites.send) {
+    const at = new Date().toISOString()
+    const invite = {
+      id: id("invite"),
+      email: stringField(body, "email") ?? "member@example.com",
+      role: asRole(body["role"]),
+      invited_by_name: state.userProfile.name,
+      status: "pending" as const,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      created_at: at,
+      invite_token: id("sdk-invite"),
+    }
+    state.invites.push(invite)
+    return apiJson(invite)
+  }
+
+  if (path === ROUTES.workspaces.invites.resend) {
+    const inviteId = stringField(body, "invite_id")
+    const invite = state.invites.find((row) => row.id === inviteId)
+    if (!invite) return errorResponse(`Invite "${inviteId ?? ""}" is not registered.`, 404)
+    return apiJson(invite)
+  }
+
+  if (path === ROUTES.workspaces.invites.revoke) {
+    const inviteId = stringField(body, "invite_id")
+    const invite = state.invites.find((row) => row.id === inviteId)
+    if (!invite) return errorResponse(`Invite "${inviteId ?? ""}" is not registered.`, 404)
+    const index = state.invites.indexOf(invite)
+    state.invites[index] = { ...invite, status: "revoked" }
+    return apiJson(state.invites[index])
+  }
+
+  if (path === ROUTES.invites.mine) {
+    return apiJson({ data: state.invites.filter((invite) => invite.email === state.userProfile.email), total: 0, limit: 50, offset: 0, hasMore: false })
+  }
+
+  if (path === ROUTES.invites.accept) {
+    const token = stringField(body, "invite_token")
+    const invite = state.invites.find((row) => row.invite_token === token)
+    if (!invite) return errorResponse(`Invite token "${token ?? ""}" is not registered.`, 404)
+    const index = state.invites.indexOf(invite)
+    state.invites[index] = { ...invite, status: "accepted" }
+    return apiJson({ workspace: state.workspaceProfile, invite: state.invites[index] })
+  }
+
+  if (path === ROUTES.agents.announce) {
+    return apiJson({
+      agent_id: stringField(body, "agent_id") ?? "sdk-dashboard-agent",
+      status: "connected",
+      workspace_id: activeWorkspace(state),
+      last_seen_at: new Date().toISOString(),
+    })
+  }
+
+  if (path === ROUTES.agents.list) {
+    return apiJson({
+      data: [
+        {
+          id: "sdk-dashboard-agent",
+          family: "sdk",
+          alias: "dashboard",
+          label: "SDK Dashboard Agent",
+          status: "connected",
+          last_seen_at: new Date().toISOString(),
+        },
+      ],
+      total: 1,
+    })
+  }
+
+  if (path === ROUTES.agents.update) {
+    return apiJson({ agent_id: stringField(body, "agent_id") ?? "sdk-dashboard-agent", updated: true })
+  }
+
+  if (path === ROUTES.workflows.list) {
+    const scopeValue = stringField(body, "scope")
+    const scope = scopeValue === "personal" || scopeValue === "workspace" ? scopeValue : "native"
+    return apiJson({ workflows: listWorkflowEntries(scope) })
+  }
+
+  if (path === ROUTES.workflows.get) {
+    const workflow = getWorkflowDetail(stringField(body, "id") ?? stringField(body, "workflow_id") ?? "")
+    if (!workflow) return errorResponse("Workflow is not registered.", 404)
+    return apiJson(workflow)
+  }
+
+  if (path === ROUTES.workflows.clone) {
+    const workflow = getWorkflowDetail(stringField(body, "workflow_id") ?? stringField(body, "id") ?? "")
+    if (!workflow) return errorResponse("Workflow is not registered.", 404)
+    return apiJson({ ...workflow, id: `${workflow.id}-copy`, workflow_scope: "personal" })
+  }
+
+  if (path === ROUTES.workflows.access.list) {
+    return apiJson({ requests: state.workflowAccessRequests })
+  }
+
+  if (path === ROUTES.workflows.access.request) {
+    const at = new Date().toISOString()
+    const workflowId = stringField(body, "workflow_id") ?? ""
+    const workflow = getWorkflowDetail(workflowId)
+    const request = {
+      id: id("workflow-access"),
+      workflow_id: workflowId,
+      workflow_title: workflow?.title ?? null,
+      requester_id: state.userProfile.id,
+      owner_id: workflow?.owner_id ?? state.userProfile.id,
+      status: "pending" as const,
+      message: stringField(body, "message") ?? null,
+      response_message: null,
+      cloned_workflow_id: null,
+      created_at: at,
+      updated_at: at,
+    }
+    state.workflowAccessRequests.push(request)
+    return apiJson(request)
+  }
+
+  if (path === ROUTES.workflows.access.decide || path === ROUTES.workflows.access.cancel) {
+    const requestId = stringField(body, "request_id")
+    const request = state.workflowAccessRequests.find((row) => row.id === requestId)
+    if (!request) return errorResponse(`Workflow access request "${requestId ?? ""}" is not registered.`, 404)
+    const index = state.workflowAccessRequests.indexOf(request)
+    const status = path === ROUTES.workflows.access.cancel ? "cancelled" : body["decision"] === "reject" ? "rejected" : "approved"
+    state.workflowAccessRequests[index] = {
+      ...request,
+      status,
+      response_message: stringField(body, "response_message") ?? request.response_message,
+      updated_at: new Date().toISOString(),
+    }
+    return apiJson(state.workflowAccessRequests[index])
+  }
+
+  if (path === ROUTES.workflows.changeRequests.list) {
+    return apiJson({ change_requests: state.workflowChangeRequests })
+  }
+
+  if (path === ROUTES.workflows.changeRequests.propose) {
+    const at = new Date().toISOString()
+    const request = {
+      id: id("workflow-change"),
+      workflow_id: stringField(body, "workflow_id") ?? null,
+      request_type: body["request_type"] === "create_workspace" ? "create_workspace" as const : "update_workspace" as const,
+      status: "pending" as const,
+      title: stringField(body, "title") ?? "SDK workflow change",
+      description: stringField(body, "description") ?? "",
+      proposed_version_name: stringField(body, "proposed_version_name") ?? null,
+      change_summary: stringField(body, "change_summary") ?? null,
+      created_by: state.userProfile.id,
+      reviewed_by: null,
+      created_at: at,
+      updated_at: at,
+    }
+    state.workflowChangeRequests.push(request)
+    return apiJson(request)
+  }
+
+  if (path === ROUTES.workflows.changeRequests.decide || path === ROUTES.workflows.changeRequests.cancel) {
+    const requestId = stringField(body, "request_id")
+    const request = state.workflowChangeRequests.find((row) => row.id === requestId)
+    if (!request) return errorResponse(`Workflow change request "${requestId ?? ""}" is not registered.`, 404)
+    const index = state.workflowChangeRequests.indexOf(request)
+    const status = path === ROUTES.workflows.changeRequests.cancel ? "cancelled" : body["decision"] === "reject" ? "rejected" : "approved"
+    state.workflowChangeRequests[index] = {
+      ...request,
+      status,
+      reviewed_by: state.userProfile.id,
+      updated_at: new Date().toISOString(),
+    }
+    return apiJson(state.workflowChangeRequests[index])
+  }
+
+  if (path === ROUTES.orbit.apps.list) {
+    const apps = listOrbitAppSummaries(state)
+    return apiJson({ apps, count: apps.length })
+  }
+
+  if (path === ROUTES.orbit.apps.inspect) {
+    const app = state.orbitApps.get(stringField(body, "name") ?? "")
+    if (!app) return errorResponse("Orbit app is not registered.", 404)
+    return apiJson({ app })
+  }
+
+  if (path === ROUTES.orbit.apps.publish) {
+    const name = stringField(body, "name")
+    if (!name) return errorResponse("name is required.", 400)
+    const at = new Date().toISOString()
+    const existing = state.orbitApps.get(name)
+    const nextVersion = `v${(existing?.versions.length ?? 0) + 1}`
+    const routes = Array.isArray(body["routes"]) ? body["routes"] as never[] : []
+    const jobs = objectField(body, "jobs")
+    state.orbitApps.set(name, {
+      name,
+      description: stringField(body, "description") ?? existing?.description ?? null,
+      latest_version: nextVersion,
+      status: "ready",
+      url: `http://localhost:8787/orbit/apps/${name}`,
+      access: existing?.access ?? "workspace_member",
+      routes,
+      jobs: jobs as never,
+      versions: [
+        ...(existing?.versions ?? []),
+        {
+          version: nextVersion,
+          status: "ready",
+          route_count: routes.length,
+          job_count: Object.keys(jobs).length,
+          created_at: at,
+          error_message: null,
+        },
+      ],
+    })
+    return apiJson({ app: { name, version: nextVersion, status: "ready", url: `http://localhost:8787/orbit/apps/${name}` } })
+  }
+
+  if (path === ROUTES.orbit.apps.open) {
+    const name = stringField(body, "name") ?? "sdk-dashboard"
+    return apiJson({ name, url: `http://localhost:8787/orbit/apps/${name}${stringField(body, "path") ?? ""}` })
+  }
+
+  if (path === ROUTES.orbit.apps.disable) {
+    const name = stringField(body, "name") ?? ""
+    const app = state.orbitApps.get(name)
+    if (!app) return errorResponse("Orbit app is not registered.", 404)
+    state.orbitApps.set(name, { ...app, status: "disabled" })
+    return apiJson({ name, version: app.latest_version, disabled: true })
+  }
+
+  if (path === ROUTES.orbit.apps.access.update) {
+    const name = stringField(body, "name") ?? ""
+    const access = body["access"] === "public" ? "public" : "workspace_member"
+    const app = state.orbitApps.get(name)
+    if (!app) return errorResponse("Orbit app is not registered.", 404)
+    state.orbitApps.set(name, { ...app, access })
+    return apiJson({ name, access, routes_updated: app.routes.length })
+  }
+
+  if (path === ROUTES.orbit.apps.activity.list) {
+    const appName = stringField(body, "name") ?? "sdk-dashboard"
+    return apiJson({
+      activity: [
+        {
+          id: id("app-activity"),
+          kind: "version_change",
+          type: "published",
+          activity: `${appName} is served by the SDK backend`,
+          created_at: new Date().toISOString(),
+        },
+      ],
+      next_cursor: null,
+    })
+  }
+
+  if (path === ROUTES.orbit.apps.invocations.list) {
+    return apiJson({ invocations: [...state.orbitAppInvocations.values()].map((row) => row.invocation), next_cursor: null })
+  }
+
+  if (path === ROUTES.orbit.apps.invocations.get) {
+    const invocation = state.orbitAppInvocations.get(stringField(body, "invocation_id") ?? "")
+    if (!invocation) return errorResponse("Orbit app invocation is not registered.", 404)
+    return apiJson({ invocation: invocation.invocation, job_calls: invocation.jobCalls })
+  }
+
+  if (path === ROUTES.orbit.jobs.list) {
+    const jobs = listOrbitJobSummaries(state)
+    return apiJson({ jobs, count: jobs.length })
+  }
+
+  if (path === ROUTES.orbit.jobs.inspect) {
+    const job = state.orbitJobs.get(stringField(body, "name") ?? "")
+    if (!job) return errorResponse("Orbit job is not registered.", 404)
+    return apiJson({ job })
+  }
+
+  if (path === ROUTES.orbit.jobs.versions) {
+    const name = stringField(body, "name") ?? ""
+    const job = state.orbitJobs.get(name)
+    if (!job) return errorResponse("Orbit job is not registered.", 404)
+    return apiJson({ name, versions: job.versions })
+  }
+
+  if (path === ROUTES.orbit.jobs.publish) {
+    const name = stringField(body, "name")
+    if (!name) return errorResponse("name is required.", 400)
+    const at = new Date().toISOString()
+    const existing = state.orbitJobs.get(name)
+    const version = `v${(existing?.versions.length ?? 0) + 1}`
+    const capabilities = stringArrayField(body, "capabilities").filter((capability) =>
+      ["storage", "cache", "ai", "plugins", "memory", "data", "workflow", "sessions", "socket"].includes(capability),
+    ) as never[]
+    state.orbitJobs.set(name, {
+      name,
+      description: stringField(body, "description") ?? existing?.description ?? null,
+      latest_version: version,
+      status: "ready",
+      kind: body["kind"] === "query" || body["kind"] === "mutation" ? body["kind"] : "task",
+      tags: stringArrayField(body, "tags") as string[],
+      capabilities,
+      input_schema: objectField(body, "input_schema"),
+      output_schema: objectField(body, "output_schema"),
+      versions: [
+        ...(existing?.versions ?? []),
+        { version, status: "ready", lane: "dynamic_worker", capabilities, created_at: at, error_message: null },
+      ],
+    })
+    return apiJson({ job: { name, version, status: "ready", lane: "dynamic_worker", capabilities } })
+  }
+
+  if (path === ROUTES.orbit.jobs.run) {
+    const name = stringField(body, "name") ?? "sdk-ping"
+    const job = state.orbitJobs.get(name)
+    if (!job) return errorResponse("Orbit job is not registered.", 404)
+    const run = await state.traces.startRun({
+      workspaceId: activeWorkspace(state),
+      agentId: headers.get("X-Hrbr-Agent-Id") ?? state.userProfile.id,
+      trigger: "orbit.job",
+      input: { job: name, input: body["input"] ?? null },
+    })
+    await state.traces.finishRun({
+      runId: run.id,
+      status: "completed",
+      output: { ok: true, job: name, input: body["input"] ?? null },
+    })
+    if (!runIds.includes(run.id)) runIds.push(run.id)
+    const at = new Date().toISOString()
+    const invocation: OrbitJobInvocationDetail = {
+      id: id("job-invocation"),
+      job: name,
+      version: job.latest_version ?? "v1",
+      status: "completed",
+      caller_kind: "user",
+      caller_id: state.userProfile.id,
+      lane_used: "dynamic_worker",
+      deployment_id: null,
+      run_id: run.id,
+      duration_ms: 1,
+      error_code: null,
+      error_message: null,
+      created_at: at,
+      finished_at: at,
+      input: body["input"] ?? null,
+      output: { ok: true, job: name },
+      output_ref: null,
+    }
+    state.orbitJobInvocations.unshift(invocation)
+    return apiJson({
+      ok: true,
+      job: name,
+      version: invocation.version,
+      run_id: run.id,
+      duration_ms: 1,
+      output: invocation.output,
+      artifacts: [],
+      lane_used: "dynamic_worker",
+      deployment_id: null,
+    })
+  }
+
+  if (path === ROUTES.orbit.jobs.disable) {
+    const name = stringField(body, "name") ?? ""
+    const job = state.orbitJobs.get(name)
+    if (!job) return errorResponse("Orbit job is not registered.", 404)
+    state.orbitJobs.set(name, { ...job, status: "disabled" })
+    return apiJson({ name, version: job.latest_version, disabled: true })
+  }
+
+  if (path === ROUTES.orbit.jobs.invocations.list) {
+    const name = stringField(body, "name")
+    const invocations = state.orbitJobInvocations
+      .filter((row) => !name || row.job === name)
+      .map(({ input: _input, output: _output, output_ref: _outputRef, ...summary }) => summary)
+    return apiJson({ invocations, next_cursor: null })
+  }
+
+  if (path === ROUTES.orbit.jobs.invocations.get) {
+    const invocation = state.orbitJobInvocations.find((row) => row.id === stringField(body, "invocation_id"))
+    if (!invocation) return errorResponse("Orbit job invocation is not registered.", 404)
+    return apiJson({ invocation })
+  }
+
+  if (path === ROUTES.orbit.db.tables) {
+    return apiJson({
+      workspace_database_id: "sdk-memory-db",
+      workspace_database_name: "SDK in-memory workspace DB",
+      status: "ready",
+      tables: sdkDbTables(),
+    })
+  }
+
+  if (path === ROUTES.orbit.db.peek) {
+    const table = stringField(body, "table") ?? "sdk_events"
+    return apiJson({ table, columns: ["id", "kind", "created_at"], rows: [], truncated: false, total_rows: 0 })
+  }
+
+  if (path === ROUTES.orbit.storage.list) {
+    return apiJson({ objects: [...state.orbitStorageObjects.values()], truncated: false })
+  }
+
+  if (path === ROUTES.orbit.storage.put) {
+    const key = stringField(body, "key")
+    if (!key) return errorResponse("key is required.", 400)
+    const at = new Date().toISOString()
+    const object: OrbitStorageObject & { readonly data?: unknown } = {
+      key,
+      size: JSON.stringify(body["data"] ?? "").length,
+      uploaded: at,
+      content_type: stringField(body, "content_type") ?? "application/json",
+      download_url: `http://localhost:8787/orbit/storage/${encodeURIComponent(key)}`,
+      expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      expires_in_seconds: 3600,
+      data: body["data"] ?? null,
+    }
+    state.orbitStorageObjects.set(key, object)
+    return apiJson(object)
+  }
+
+  if (path === ROUTES.orbit.storage.get) {
+    const object = state.orbitStorageObjects.get(stringField(body, "key") ?? "")
+    return apiJson(object ? { ...object, encoding: "json" } : null)
+  }
+
+  if (path === ROUTES.orbit.storage.url) {
+    const key = stringField(body, "key")
+    if (!key) return errorResponse("key is required.", 400)
+    const object = state.orbitStorageObjects.get(key)
+    return apiJson({
+      key,
+      download_url: object?.download_url ?? `http://localhost:8787/orbit/storage/${encodeURIComponent(key)}`,
+      expires_at: object?.expires_at ?? new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+      expires_in_seconds: object?.expires_in_seconds ?? 3600,
+    })
+  }
+
+  if (path === ROUTES.orbit.storage.delete) {
+    const key = stringField(body, "key")
+    const deleted = key ? state.orbitStorageObjects.delete(key) : false
+    return apiJson({ key: key ?? "", deleted })
   }
 
   if (path === ROUTES.plugins.sources.list) {
@@ -347,6 +968,51 @@ async function handleRoute(
     })
   }
 
+  if (path === ROUTES.plugins.oauth.workspaceClients.list) {
+    return apiJson({ data: [], total: 0, limit: 50, offset: 0, hasMore: false })
+  }
+
+  if (path === ROUTES.plugins.oauth.workspaceClients.set) {
+    return apiJson({
+      source_id: stringField(body, "source_id") ?? null,
+      client_id: stringField(body, "client_id") ?? null,
+      configured: true,
+      redacted: true,
+    })
+  }
+
+  if (path === ROUTES.plugins.oauth.workspaceClients.delete) {
+    return apiJson({ source_id: stringField(body, "source_id") ?? null, deleted: true })
+  }
+
+  if (
+    path === ROUTES.plugins.skills.list ||
+    path === ROUTES.plugins.skills.installed.list
+  ) {
+    return apiJson({ data: [], total: 0, limit: 50, offset: 0, hasMore: false })
+  }
+
+  if (path === ROUTES.plugins.skills.check) {
+    return apiJson({ installed: false, missing_sources: [], missing_tools: [] })
+  }
+
+  if (path === ROUTES.plugins.skills.get) {
+    return errorResponse(`Skill "${stringField(body, "skill_id") ?? ""}" is not registered.`, 404)
+  }
+
+  if (path === ROUTES.plugins.skills.install.record || path === ROUTES.plugins.skills.uninstall.record) {
+    return apiJson({ recorded: true })
+  }
+
+  if (path === ROUTES.plugins.meta.search) {
+    const query = stringField(body, "query") ?? ""
+    const tools = await state.registry.search({ query, limit: numberField(body, "limit") ?? 10 })
+    const registry = state.registryEntries
+      .filter((entry) => !query || `${entry.slug} ${entry.display_name} ${entry.description}`.toLowerCase().includes(query.toLowerCase()))
+      .slice(0, numberField(body, "limit") ?? 10)
+    return apiJson({ tools: tools.hits, registry })
+  }
+
   if (path === ROUTES.plugins.tools.list) {
     return apiJson(
       await state.registry.list({
@@ -357,6 +1023,83 @@ async function handleRoute(
         cursor: stringField(body, "cursor"),
       }),
     )
+  }
+
+  if (path === ROUTES.agentChat.threads.get) {
+    return apiJson(ensureAgentThread(state, { threadId: stringField(body, "thread_id") }))
+  }
+
+  if (path === ROUTES.agentChat.messages.send) {
+    const message = stringField(body, "message")
+    if (!message) return errorResponse("message is required.", 400)
+    const current = ensureAgentThread(state, {
+      threadId: stringField(body, "thread_id"),
+      message,
+    })
+    const at = new Date().toISOString()
+    const userMessage: AgentChatMessage = {
+      id: id("agent-message"),
+      workspace_id: activeWorkspace(state),
+      thread_id: current.thread.id,
+      role: "user",
+      content: message,
+      status: "completed",
+      metadata: {},
+      created_at: at,
+    }
+    const assistantMessage: AgentChatMessage = {
+      id: id("agent-message"),
+      workspace_id: activeWorkspace(state),
+      thread_id: current.thread.id,
+      role: "assistant",
+      content: textResponseFor(message),
+      status: "completed",
+      metadata: { backend: "harbor-sdk" },
+      created_at: at,
+    }
+    const sequence = current.events.length
+    const event: AgentChatEvent = {
+      id: id("agent-event"),
+      workspace_id: activeWorkspace(state),
+      thread_id: current.thread.id,
+      message_id: assistantMessage.id,
+      run_id: null,
+      sequence: sequence + 1,
+      type: "final",
+      payload: {
+        text: assistantMessage.content,
+        in_response_to: userMessage.id,
+      },
+      created_at: at,
+    }
+    return apiJson(
+      updateAgentThread(state, {
+        thread: {
+          ...current.thread,
+          status: "completed",
+          last_message_at: at,
+          updated_at: at,
+        },
+        messages: [...current.messages, userMessage, assistantMessage],
+        events: [...current.events, event],
+      }),
+    )
+  }
+
+  if (path === ROUTES.agentChat.events.stream) {
+    const stateForThread = ensureAgentThread(state, { threadId: stringField(body, "thread_id") })
+    const afterSequence = numberField(body, "after_sequence") ?? Number(stringField(body, "after_sequence") ?? 0)
+    const events = stateForThread.events.filter((event) => event.sequence > afterSequence)
+    const payload = events
+      .map((event) => `event: agent_chat_event\ndata: ${JSON.stringify(event)}\n\n`)
+      .join("")
+    return new Response(payload, {
+      status: 200,
+      headers: {
+        "content-type": "text/event-stream",
+        "cache-control": "no-cache",
+      },
+    })
   }
 
   if (path === ROUTES.plugins.tools.search) {

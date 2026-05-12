@@ -9,8 +9,31 @@ import {
 import { createToolPolicy } from "@hrbr/source-policy"
 import { createToolRegistry, type ToolRegistry } from "@hrbr/tools"
 import type { PluginSource, SourceStatus, SourceVisibility } from "@hrbr/plugins"
-import type { ListWorkspacesResult, Workspace } from "@hrbr/workspaces"
+import type {
+  Invite,
+  ListWorkspacesResult,
+  Member,
+  Workspace,
+} from "@hrbr/workspaces"
 import type { UserProfile } from "@hrbr/common"
+import { getWorkflow, listWorkflows } from "@hrbr/workflows"
+import type {
+  Workflow,
+  WorkflowCatalogEntry,
+  WorkflowGetResponse,
+} from "@hrbr/workflows"
+import type {
+  OrbitAppDetail,
+  OrbitAppInvocationSummary,
+  OrbitAppJobCallSummary,
+  OrbitAppSummary,
+  OrbitDbTableSummary,
+  OrbitJobDetail,
+  OrbitJobInvocationDetail,
+  OrbitJobInvocationSummary,
+  OrbitJobSummary,
+  OrbitStorageObject,
+} from "@hrbr/orbit"
 
 export type HarborSdkBackendEnv = "dev" | "staging"
 
@@ -23,8 +46,23 @@ export interface BackendState {
   readonly env: HarborSdkBackendEnv
   readonly workspace: Workspace
   readonly user: UserProfile
+  userProfile: UserProfile
+  workspaceProfile: Workspace
+  readonly members: Member[]
+  readonly invites: Invite[]
+  readonly workflowAccessRequests: WorkflowAccessRequest[]
+  readonly workflowChangeRequests: WorkflowChangeRequest[]
+  readonly orbitApps: Map<string, OrbitAppDetail>
+  readonly orbitJobs: Map<string, OrbitJobDetail>
+  readonly orbitJobInvocations: OrbitJobInvocationDetail[]
+  readonly orbitAppInvocations: Map<string, {
+    readonly invocation: OrbitAppInvocationSummary
+    readonly jobCalls: readonly OrbitAppJobCallSummary[]
+  }>
+  readonly orbitStorageObjects: Map<string, OrbitStorageObject & { readonly data?: unknown }>
+  readonly agentThreads: Map<string, AgentChatState>
   readonly traces: TraceWriter
-  readonly registry: ToolRegistry
+  registry: ToolRegistry
   readonly sources: Map<string, SourceRecord>
   readonly sourceOrder: string[]
   readonly registryEntries: readonly PluginRegistryPublicEntry[]
@@ -35,6 +73,78 @@ export interface BackendState {
     readonly includeTotal?: boolean | undefined
   }) => ListWorkspacesResult
   readonly rebuildRegistry: () => void
+}
+
+export interface WorkflowAccessRequest {
+  readonly id: string
+  readonly workflow_id: string
+  readonly workflow_title: string | null
+  readonly requester_id: string
+  readonly owner_id: string
+  readonly status: "pending" | "approved" | "rejected" | "cancelled"
+  readonly message: string | null
+  readonly response_message: string | null
+  readonly cloned_workflow_id: string | null
+  readonly created_at: string
+  readonly updated_at: string
+}
+
+export interface WorkflowChangeRequest {
+  readonly id: string
+  readonly workflow_id: string | null
+  readonly request_type: "create_workspace" | "update_workspace"
+  readonly status: "pending" | "approved" | "rejected" | "cancelled"
+  readonly title: string
+  readonly description: string
+  readonly proposed_version_name: string | null
+  readonly change_summary: string | null
+  readonly created_by: string
+  readonly reviewed_by: string | null
+  readonly created_at: string
+  readonly updated_at: string
+}
+
+export interface AgentChatThread {
+  readonly id: string
+  readonly workspace_id: string
+  readonly created_by: string
+  readonly agent_id: string
+  readonly title: string
+  readonly status: "idle" | "running" | "completed" | "failed" | "cancelled" | string
+  readonly model: string | null
+  readonly metadata: Record<string, unknown>
+  readonly last_message_at: string
+  readonly created_at: string
+  readonly updated_at: string
+}
+
+export interface AgentChatMessage {
+  readonly id: string
+  readonly workspace_id: string
+  readonly thread_id: string
+  readonly role: "user" | "assistant" | "system" | "tool"
+  readonly content: string
+  readonly status: string
+  readonly metadata: Record<string, unknown>
+  readonly created_at: string
+}
+
+export interface AgentChatEvent {
+  readonly id: string
+  readonly workspace_id: string
+  readonly thread_id: string
+  readonly message_id: string | null
+  readonly run_id: string | null
+  readonly sequence: number
+  readonly type: string
+  readonly payload: unknown
+  readonly created_at: string
+}
+
+export interface AgentChatState {
+  readonly thread: AgentChatThread
+  readonly messages: AgentChatMessage[]
+  readonly events: AgentChatEvent[]
 }
 
 const DEV_WORKSPACE_ID = "11111111-1111-4111-8111-111111111111"
@@ -350,7 +460,6 @@ function pluginSource(input: {
 
 function registryEntries(): readonly PluginRegistryPublicEntry[] {
   return listRegistryEntries()
-    .filter((entry) => entry.slug === "sentry-api" || entry.slug === "open-meteo-api")
     .map((entry) => ({
       ...entry,
       availability: {
@@ -359,6 +468,211 @@ function registryEntries(): readonly PluginRegistryPublicEntry[] {
         hiddenInOnboarding: false,
       },
     }))
+}
+
+function workflowEntry(workflow: Workflow, scope: "native" | "personal" | "workspace" = "native"): WorkflowCatalogEntry {
+  return {
+    id: workflow.id,
+    title: workflow.title,
+    description: workflow.description,
+    category: workflow.category,
+    content_hash: workflow.contentHash,
+    workflow_scope: scope,
+    workspace_id: scope === "native" ? null : undefined,
+    owner_kind: scope === "native" ? "system" : scope === "workspace" ? "workspace" : "user",
+    owner_id: scope === "native" ? null : DEFAULT_AGENT_ID,
+    owner_user: scope === "native" ? null : sdkUserSummary(),
+    updated_by_user: sdkUserSummary(),
+    source_visibility: scope === "personal" ? "personal" : "workspace",
+    latest_version_id: `${workflow.id}-v1`,
+    version_name: "v1",
+    version_number: 1,
+    version_sequence: 1,
+    last_published_at: now(),
+    last_published_by: DEFAULT_AGENT_ID,
+    created_by: DEFAULT_AGENT_ID,
+    updated_by: DEFAULT_AGENT_ID,
+    created_at: now(),
+    updated_at: now(),
+    plugin_requirements: [
+      ...workflow.defaultTools.map((slot) => ({ slug: slot.slug })),
+      ...workflow.optionalTools.map((slot) => ({ slug: slot.slug, optional: true })),
+    ],
+    source_bindings: [],
+    access_request_status: null,
+    redacted: false,
+    runnable: true,
+    default_tools: workflow.defaultTools,
+    or_groups: workflow.orGroups,
+    optional_tools: workflow.optionalTools,
+  }
+}
+
+function workflowDetail(workflow: Workflow): WorkflowGetResponse {
+  return {
+    ...workflowEntry(workflow),
+    body_markdown: workflow.bodyMarkdown,
+  }
+}
+
+function sdkUserSummary(): {
+  readonly id: string
+  readonly name: string | null
+  readonly email: string | null
+  readonly avatar_url: string | null
+} {
+  return {
+    id: DEFAULT_AGENT_ID,
+    name: "SDK Harbor",
+    email: "sdk@tryharbor.local",
+    avatar_url: null,
+  }
+}
+
+function seedMembers(workspace: Workspace): Member[] {
+  return [
+    {
+      id: DEFAULT_AGENT_ID,
+      user_id: DEFAULT_AGENT_ID,
+      name: workspace.current_user_name ?? "SDK Harbor",
+      email: workspace.current_user_email ?? "sdk@tryharbor.local",
+      avatar_url: workspace.current_user_avatar ?? null,
+      role: "owner",
+      joined_at: workspace.created_at ?? now(),
+      is_current_user: true,
+    },
+  ]
+}
+
+function seedInvites(): Invite[] {
+  return []
+}
+
+function seedOrbitJobs(): Map<string, OrbitJobDetail> {
+  const createdAt = now()
+  return new Map([
+    [
+      "sdk-ping",
+      {
+        name: "sdk-ping",
+        description: "Deterministic SDK-backed function used by the Harbor dashboard.",
+        latest_version: "v1",
+        status: "ready",
+        kind: "task",
+        tags: ["sdk", "diagnostic"],
+        capabilities: ["plugins", "data"],
+        input_schema: {
+          type: "object",
+          properties: { message: { type: "string" } },
+        },
+        output_schema: {
+          type: "object",
+          properties: { ok: { type: "boolean" }, message: { type: "string" } },
+        },
+        versions: [
+          {
+            version: "v1",
+            status: "ready",
+            lane: "dynamic_worker",
+            capabilities: ["plugins", "data"],
+            created_at: createdAt,
+            error_message: null,
+          },
+        ],
+      },
+    ],
+    [
+      "sdk-summary",
+      {
+        name: "sdk-summary",
+        description: "Small summary function that exercises Orbit job metadata.",
+        latest_version: "v1",
+        status: "ready",
+        kind: "query",
+        tags: ["sdk", "summary"],
+        capabilities: ["data", "storage"],
+        input_schema: {
+          type: "object",
+          properties: { text: { type: "string" } },
+        },
+        output_schema: {
+          type: "object",
+          properties: { summary: { type: "string" } },
+        },
+        versions: [
+          {
+            version: "v1",
+            status: "ready",
+            lane: "dynamic_worker",
+            capabilities: ["data", "storage"],
+            created_at: createdAt,
+            error_message: null,
+          },
+        ],
+      },
+    ],
+  ])
+}
+
+function seedOrbitApps(): Map<string, OrbitAppDetail> {
+  const createdAt = now()
+  return new Map([
+    [
+      "sdk-dashboard",
+      {
+        name: "sdk-dashboard",
+        description: "SDK-hosted sample app proving the dashboard can run without the Harbor API repo.",
+        latest_version: "v1",
+        status: "ready",
+        url: "http://localhost:8787/orbit/apps/sdk-dashboard",
+        access: "workspace_member",
+        routes: [
+          {
+            id: "home",
+            title: "Home",
+            method: "GET",
+            path: "/",
+            auth: "workspace_member",
+            input: "none",
+            output: "html",
+            job: "sdk-ping",
+          },
+        ],
+        jobs: {
+          home: {
+            name: "sdk-ping",
+            version: "v1",
+            description: "Render the SDK dashboard surface.",
+          },
+        },
+        versions: [
+          {
+            version: "v1",
+            status: "ready",
+            route_count: 1,
+            job_count: 1,
+            created_at: createdAt,
+            error_message: null,
+          },
+        ],
+      },
+    ],
+  ])
+}
+
+function seedDbTables(): OrbitDbTableSummary[] {
+  return [
+    {
+      name: "sdk_events",
+      type: "table",
+      row_count: 0,
+      columns: [
+        { name: "id", type: "TEXT", notnull: true, pk: true },
+        { name: "kind", type: "TEXT", notnull: true, pk: false },
+        { name: "created_at", type: "TEXT", notnull: true, pk: false },
+      ],
+    },
+  ]
 }
 
 function bindings(workspaceId: string): readonly CredentialBinding[] {
@@ -420,6 +734,8 @@ export function createBackendState(env: HarborSdkBackendEnv): BackendState {
   })
   const sources = new Map<string, SourceRecord>()
   const sourceOrder: string[] = []
+  const orbitJobs = seedOrbitJobs()
+  const orbitApps = seedOrbitApps()
 
   function addRecord(record: SourceRecord): void {
     sources.set(record.source.id, record)
@@ -458,17 +774,30 @@ export function createBackendState(env: HarborSdkBackendEnv): BackendState {
     }),
   })
 
-  const state = {
+  let state: BackendState
+  state = {
     env,
     workspace,
     user,
+    userProfile: user,
+    workspaceProfile: workspace,
+    members: seedMembers(workspace),
+    invites: seedInvites(),
+    workflowAccessRequests: [],
+    workflowChangeRequests: [],
+    orbitApps,
+    orbitJobs,
+    orbitJobInvocations: [],
+    orbitAppInvocations: new Map(),
+    orbitStorageObjects: new Map(),
+    agentThreads: new Map(),
     traces,
     sources,
     sourceOrder,
     registryEntries: registryEntries(),
     registry: buildRegistry({ workspaceId: workspace.id, traces, sources: sources.values() }),
-    listWorkspaces: (input) => {
-      const result = page([workspace], input)
+    listWorkspaces: (input): ListWorkspacesResult => {
+      const result = page([state.workspaceProfile], input)
       return {
         data: [...result.data],
         ...(result.total !== undefined ? { total: result.total } : {}),
@@ -485,7 +814,7 @@ export function createBackendState(env: HarborSdkBackendEnv): BackendState {
         sources: sources.values(),
       })
     },
-  } satisfies BackendState
+  }
 
   return state
 }
@@ -605,4 +934,41 @@ export async function listRuns(
 
 export async function runGraph(traces: TraceWriter, runId: string): Promise<RunGraph> {
   return traces.graph(runId)
+}
+
+export function listWorkflowEntries(scope?: "native" | "personal" | "workspace"): readonly WorkflowCatalogEntry[] {
+  const workflows = listWorkflows().map((workflow) => workflowEntry(workflow, scope ?? "native"))
+  return workflows
+}
+
+export function getWorkflowDetail(id: string): WorkflowGetResponse | undefined {
+  const workflow = getWorkflow(id)
+  return workflow ? workflowDetail(workflow) : undefined
+}
+
+export function listOrbitAppSummaries(state: BackendState): readonly OrbitAppSummary[] {
+  return [...state.orbitApps.values()].map((app) => ({
+    name: app.name,
+    description: app.description,
+    latest_version: app.latest_version,
+    status: app.status,
+    url: app.url,
+    access: app.access,
+  }))
+}
+
+export function listOrbitJobSummaries(state: BackendState): readonly OrbitJobSummary[] {
+  return [...state.orbitJobs.values()].map((job) => ({
+    name: job.name,
+    description: job.description,
+    latest_version: job.latest_version,
+    status: job.status,
+    kind: job.kind,
+    tags: job.tags,
+    capabilities: job.capabilities,
+  }))
+}
+
+export function sdkDbTables(): readonly OrbitDbTableSummary[] {
+  return seedDbTables()
 }

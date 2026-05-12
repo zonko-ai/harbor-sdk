@@ -13,6 +13,7 @@
 export const ROUTES = {
   users: {
     me: "/users/me",
+    update: "/users/update",
   },
   auth: {
     device: "/auth/device",
@@ -34,11 +35,23 @@ export const ROUTES = {
     list: "/workspaces/list",
     create: "/workspaces/create",
     get: "/workspaces/get",
+    update: "/workspaces/update",
+    delete: "/workspaces/delete",
+    completeOnboarding: "/workspaces/complete-onboarding",
+    members: {
+      list: "/workspaces/members/list",
+      updateRole: "/workspaces/members/update-role",
+      remove: "/workspaces/members/remove",
+    },
     invites: {
       list: "/workspaces/invites/list",
       send: "/workspaces/invites/send",
+      resend: "/workspaces/invites/resend",
       revoke: "/workspaces/invites/revoke",
     },
+  },
+  home: {
+    summary: "/home/summary",
   },
   agents: {
     announce: "/agents/announce",
@@ -62,6 +75,16 @@ export const ROUTES = {
       publish: "/orbit/apps/publish",
       open: "/orbit/apps/open",
       disable: "/orbit/apps/disable",
+      access: {
+        update: "/orbit/apps/access/update",
+      },
+      activity: {
+        list: "/orbit/apps/activity/list",
+      },
+      invocations: {
+        list: "/orbit/apps/invocations/list",
+        get: "/orbit/apps/invocations/get",
+      },
     },
     jobs: {
       list: "/orbit/jobs/list",
@@ -70,11 +93,50 @@ export const ROUTES = {
       publish: "/orbit/jobs/publish",
       run: "/orbit/jobs/run",
       disable: "/orbit/jobs/disable",
+      invocations: {
+        list: "/orbit/jobs/invocations/list",
+        get: "/orbit/jobs/invocations/get",
+      },
+    },
+    db: {
+      tables: "/orbit/db/tables",
+      peek: "/orbit/db/peek",
+    },
+    storage: {
+      list: "/orbit/storage/list",
+      get: "/orbit/storage/get",
+      put: "/orbit/storage/put",
+      url: "/orbit/storage/url",
+      delete: "/orbit/storage/delete",
     },
   },
   workflows: {
     list: "/workflows/list",
     get: "/workflows/get",
+    clone: "/workflows/clone",
+    access: {
+      list: "/workflows/access/list",
+      request: "/workflows/access/request",
+      decide: "/workflows/access/decide",
+      cancel: "/workflows/access/cancel",
+    },
+    changeRequests: {
+      list: "/workflows/change-requests/list",
+      propose: "/workflows/change-requests/propose",
+      decide: "/workflows/change-requests/decide",
+      cancel: "/workflows/change-requests/cancel",
+    },
+  },
+  agentChat: {
+    threads: {
+      get: "/agent-chat/threads/get",
+    },
+    messages: {
+      send: "/agent-chat/messages/send",
+    },
+    events: {
+      stream: "/agent-chat/events/stream",
+    },
   },
   plugins: {
     invoke: "/plugins/invoke",
