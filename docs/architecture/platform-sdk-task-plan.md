@@ -235,6 +235,8 @@ Status: complete for SDK-owned local job/app primitives: QuickJS-backed job runn
 
 ## 11. Local Workflows
 
+Status: complete for SDK-owned local workflow primitives: workflow metadata, input/output schema validation, required tool/source validation, QuickJS job steps, local tool steps through the local tool index, replay fixture generation, and manifest generation for submission prep. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Add workflow package metadata.
 - Validate workflow input/output schemas.
 - Validate required tools/sources before run.

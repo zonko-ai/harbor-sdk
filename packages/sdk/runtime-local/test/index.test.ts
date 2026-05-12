@@ -6,8 +6,10 @@ import {
   ensureHarborLocalProject,
   expectedHarborLocalTables,
   createHarborLocalToolIndex,
+  createHarborLocalWorkflowReplayFixture,
   harborLocalDaemonConnection,
   harborLocalPaths,
+  generateHarborLocalWorkflowManifest,
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_SCHEMA_VERSION,
   importHarborLocalCredentialsFromEnv,
@@ -19,6 +21,7 @@ import {
   removeHarborRegistryDevRef,
   runHarborLocalQuickJS,
   runHarborLocalJob,
+  runHarborLocalWorkflow,
   runHarborLocalMigrations,
   startHarborLocalDaemon,
   upsertHarborRegistryDevRef,
@@ -528,5 +531,107 @@ describe("@hrbr/runtime-local jobs and apps", () => {
         await daemon.close()
       }
     })
+  })
+})
+
+describe("@hrbr/runtime-local workflows", () => {
+  it("runs local workflow job and tool steps with requirement validation", async () => {
+    const tools = createHarborLocalToolIndex([
+      {
+        id: "tool-1",
+        workspaceId: "local",
+        sourceRefId: "source-github",
+        namespace: "github",
+        name: "create_issue",
+        displayName: "Create Issue",
+        searchText: "github issue create",
+      },
+    ], {
+      callTool: (input) => ({
+        toolId: input.toolId,
+        output: { issueId: "ISSUE-1", title: (input.input as { title: string }).title },
+      }),
+    })
+    const workflow = {
+      id: "triage",
+      title: "Triage",
+      requiredTools: ["github.create_issue"],
+      requiredSources: ["source-github"],
+      inputSchema: {
+        type: "object" as const,
+        required: ["title"],
+        properties: { title: { type: "string" as const } },
+      },
+      outputSchema: {
+        type: "object" as const,
+        required: ["issueId"],
+        properties: { issueId: { type: "string" as const } },
+      },
+      steps: [
+        {
+          id: "normalize",
+          kind: "job" as const,
+          job: {
+            id: "normalize-title",
+            code: "({ title: String(__harborInput.title).trim() })",
+          },
+        },
+        {
+          id: "create",
+          kind: "tool" as const,
+          toolId: "github.create_issue",
+        },
+      ],
+    }
+
+    const result = await runHarborLocalWorkflow({
+      workflow,
+      input: { title: " Login broken " },
+      tools,
+      installedSourceRefIds: ["source-github"],
+      now: () => new Date("2026-05-12T00:00:00.000Z"),
+    })
+
+    expect(result).toEqual({
+      workflowId: "triage",
+      output: { issueId: "ISSUE-1", title: "Login broken" },
+      steps: [
+        { stepId: "normalize", kind: "job", output: { title: "Login broken" } },
+        { stepId: "create", kind: "tool", output: { issueId: "ISSUE-1", title: "Login broken" } },
+      ],
+    })
+    expect(generateHarborLocalWorkflowManifest(workflow)).toMatchObject({
+      id: "triage",
+      requiredTools: ["github.create_issue"],
+      requiredSources: ["source-github"],
+      steps: [
+        { id: "normalize", kind: "job" },
+        { id: "create", kind: "tool" },
+      ],
+    })
+    expect(createHarborLocalWorkflowReplayFixture({
+      workflowId: workflow.id,
+      input: { title: " Login broken " },
+      result,
+    })).toMatchObject({
+      workflowId: "triage",
+      output: { issueId: "ISSUE-1", title: "Login broken" },
+    })
+  })
+
+  it("rejects workflows when required local tools or sources are missing", async () => {
+    const tools = createHarborLocalToolIndex([])
+    await expect(runHarborLocalWorkflow({
+      workflow: {
+        id: "triage",
+        title: "Triage",
+        requiredTools: ["github.create_issue"],
+        requiredSources: ["source-github"],
+        steps: [],
+      },
+      input: {},
+      tools,
+      installedSourceRefIds: [],
+    })).rejects.toThrow("Required workflow tool is missing")
   })
 })
