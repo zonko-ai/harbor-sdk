@@ -335,6 +335,8 @@ Status: complete for initial SDK-owned security primitives: destructive action m
 
 ## 18. Tests
 
+Status: complete for the current SDK buildout: focused runtime-local/runtime-cloudflare tests cover local stores, migrations, credential vault redaction, registry indexing/search, QuickJS sandboxing, daemon control routes, local jobs/apps/workflows, package/submission/security checks, Cloudflare provisioning, and Cloudflare Orbit adapters. Full repo verification also passes. Verified with `bun test` and `bun run typecheck:packages`.
+
 - Unit test runtime stores.
 - Unit test SQLite migrations.
 - Unit test credential vault redaction.
