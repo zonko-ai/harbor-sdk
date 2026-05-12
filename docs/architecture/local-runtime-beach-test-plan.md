@@ -336,6 +336,51 @@ Expose a narrow local plugin manifest format through `hrbr_local`, then index th
 5. Build the local tool index from plugin refs on demand. Avoid hidden cloud calls.
 6. Retest add/list/search/describe/schema/call/delete through `mcporter`.
 
+### Iteration 4: Local QuickJS Exec Through Beach
+
+- Test project: `/tmp/harbor-sdk-beach-iter4-exec.7OmizW`
+- Beach command shape: `mcporter ... node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct`
+- Status: bugs documented before fixes.
+
+### BUG-12: Beach local runtime has no QuickJS exec action
+
+- Scenario: Run bundled JavaScript through Beach against the local runtime.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local --args '{"action":"exec","code":"return { ok: true }"}'`.
+- Expected: Beach executes bundled JavaScript with QuickJS-ng through `@hrbr/runtime-local`, without using Harbor cloud exec.
+- Actual: MCP validation rejected the action because no local exec action exists.
+- Evidence: Validation error listed only bootstrap/status/credential/plugin/tool actions.
+- Suspected cause: `runHarborLocalQuickJS` exists in the SDK package, but Beach has not exposed it through `hrbr_local`.
+- Fix status: fixed. `hrbr_local` now supports `action=exec` and runs bundled JavaScript through `runHarborLocalQuickJS`.
+- Retest:
+  - Successful exec returned `{ ok: true, input: { hello: "world" }, fetchType: "undefined" }`.
+  - Import code was rejected with `QuickJS local execution only accepts bundled JavaScript without import/export`.
+  - Infinite loop with `timeout_ms=25` returned `interrupted`.
+  - Local tool host call `harbor.tools.call("execdemo.answer", { q: 1 })` returned static plugin output `{ ok: true, answer: 42 }`.
+  - Artifact host call wrote `.harbor/artifacts/result.json`.
+
+### BUG-13: Beach build does not stage the QuickJS WASM asset
+
+- Scenario: Run local QuickJS exec through the built Beach `dist/index.js`.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local --args '{"action":"exec","code":"({ ok: true })"}'`.
+- Expected: Built Beach can load QuickJS-ng's WASM runtime and execute bundled code.
+- Actual: Runtime failed with `ENOENT: no such file or directory, open '.../apps/beach/dist/emscripten-module.wasm'`.
+- Suspected cause: Bun bundles the JavaScript loader into `dist/index.js`, but the QuickJS package's adjacent `emscripten-module.wasm` asset is not copied into Beach `dist`.
+- Fix status: fixed. Beach build now runs `scripts/copy-quickjs-wasm.mjs` after bundling to stage `dist/emscripten-module.wasm`.
+- Retest: Rebuilt Beach with `bun run --cwd apps/beach build`; local exec through `node apps/beach/dist/index.js stdio-direct` loaded QuickJS successfully.
+
+## Iteration 4 Fix Plan
+
+Add a local `exec` action to `hrbr_local` over the SDK QuickJS runner.
+
+1. Extend `hrbr_local` schema with `action=exec`, `code`, `input`, and `timeout_ms`.
+2. Execute bundled JavaScript only through `runHarborLocalQuickJS`.
+3. Keep direct imports and `fetch` unavailable by relying on the SDK QuickJS validator/bootstrap.
+4. Provide approved local host calls for:
+   - static local tool calls from plugin manifests
+   - in-memory storage/cache for smoke testing
+   - artifact and trace writes under `.harbor/artifacts` and `.harbor/traces`
+5. Retest successful exec, rejected import, unavailable `fetch`, timeout, and a host tool call.
+
 ## Iteration 1 Fix Plan
 
 Implement the local runtime as an explicit Beach target instead of mixing it silently into the existing cloud workspace behavior.
