@@ -456,6 +456,48 @@ Add local app actions to `hrbr_local` using JSON app manifests and the SDK app r
 4. Preview routes through `runHarborLocalAppRoute`.
 5. Retest add/list/preview/delete through Beach, plus missing-route error.
 
+### Iteration 7: Local Workflows Through Beach
+
+- Test project: `/tmp/harbor-sdk-beach-iter7-workflows.GRNo9Z`
+- Beach command shape: `mcporter ... node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct`
+- Status: bugs documented before fixes.
+
+### BUG-16: Beach local runtime has no local workflow actions
+
+- Scenario: List/create/run/delete local workflows through Beach after bootstrapping a fresh local runtime.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=workflow_list`.
+- Expected: Beach exposes local workflow actions backed by the SDK local workflow runner.
+- Actual: MCP validation rejected the action because no local workflow action exists.
+- Evidence: Validation error listed bootstrap/status/credential/plugin/tool/exec/job/app actions only.
+- Suspected cause: `runHarborLocalWorkflow` exists in `@hrbr/runtime-local`, but Beach has not exposed workflow refs or runs.
+- Fix status: fixed. `hrbr_local` now supports `workflow_list`, `workflow_add`, `workflow_delete`, `workflow_run`, `workflow_manifest`, and `workflow_replay`.
+- Retest:
+  - Created `/tmp/harbor-sdk-beach-iter7-workflows.GRNo9Z/workflow-plugin.json` and `demo-workflow.json`.
+  - `plugin_add` installed tool `wf.lookup`.
+  - `workflow_add path=demo-workflow.json name="Demo Workflow"` returned workflow metadata.
+  - `workflow_list` returned one workflow.
+  - `workflow_run workflow_id=demo-workflow` returned final output `{ ok: true, final: "from-tool" }` and both tool/job step outputs.
+  - `workflow_manifest` returned required tools, schema, and step metadata.
+  - `workflow_replay` returned replay input, output, and steps.
+  - After deleting the plugin, workflow run failed with `Required workflow tool is missing: wf.lookup`.
+  - `workflow_delete path=demo-workflow.json` returned `deleted: true`.
+
+## Iteration 7 Fix Plan
+
+Add local workflow actions to `hrbr_local` using JSON workflow manifests and the SDK workflow runner.
+
+1. Extend `hrbr_local` schema with:
+   - `workflow_list`
+   - `workflow_add`
+   - `workflow_delete`
+   - `workflow_run`
+   - `workflow_manifest`
+   - `workflow_replay`
+2. Store workflow refs in `.harbor/registry-dev-refs.json` with `kind=workflow`.
+3. Support JSON workflow manifests matching `HarborLocalWorkflowDefinition`.
+4. Run workflows through `runHarborLocalWorkflow` using the local tool index.
+5. Retest add/list/run/manifest/replay/delete and missing required tool behavior.
+
 ## Iteration 1 Fix Plan
 
 Implement the local runtime as an explicit Beach target instead of mixing it silently into the existing cloud workspace behavior.
