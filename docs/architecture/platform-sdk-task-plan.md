@@ -51,6 +51,8 @@ Status: complete in `@hrbr/sdk`, `@hrbr/runtime-local`, and `@hrbr/runtime-cloud
 
 ## 2. Local Project Layout
 
+Status: complete in `@hrbr/runtime-local` for MVP layout helpers. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Create `.harbor/` on first Beach/runtime use.
 - Auto-add `.harbor/` to `.gitignore`.
 - Use this MVP layout:

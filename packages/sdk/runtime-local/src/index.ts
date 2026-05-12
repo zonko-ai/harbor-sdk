@@ -1,3 +1,6 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises"
+import { join } from "node:path"
+
 export const LOCAL_WORKSPACE_ID = "local"
 export const HARBOR_LOCAL_DIR = ".harbor"
 export const HARBOR_RUNTIME_FILE = "runtime.json"
@@ -65,16 +68,98 @@ export interface HarborLocalRuntime {
 }
 
 export function harborLocalPaths(projectRoot: string): HarborLocalRuntimePaths {
-  const join = (path: string) => `${projectRoot.replace(/\/$/, "")}/${path}`
+  const root = projectRoot.replace(/\/$/, "")
+  const resolve = (path: string) => join(root, path)
   return {
-    root: join(HARBOR_LOCAL_LAYOUT.root),
-    runtime: join(HARBOR_LOCAL_LAYOUT.runtime),
-    sqlite: join(HARBOR_LOCAL_LAYOUT.sqlite),
-    credentials: join(HARBOR_LOCAL_LAYOUT.credentials),
-    registryRefs: join(HARBOR_LOCAL_LAYOUT.registryRefs),
-    artifacts: join(HARBOR_LOCAL_LAYOUT.artifacts),
-    traces: join(HARBOR_LOCAL_LAYOUT.traces),
-    cache: join(HARBOR_LOCAL_LAYOUT.cache),
-    cloudflareLock: join(HARBOR_LOCAL_LAYOUT.cloudflareLock),
+    root: resolve(HARBOR_LOCAL_LAYOUT.root),
+    runtime: resolve(HARBOR_LOCAL_LAYOUT.runtime),
+    sqlite: resolve(HARBOR_LOCAL_LAYOUT.sqlite),
+    credentials: resolve(HARBOR_LOCAL_LAYOUT.credentials),
+    registryRefs: resolve(HARBOR_LOCAL_LAYOUT.registryRefs),
+    artifacts: resolve(HARBOR_LOCAL_LAYOUT.artifacts),
+    traces: resolve(HARBOR_LOCAL_LAYOUT.traces),
+    cache: resolve(HARBOR_LOCAL_LAYOUT.cache),
+    cloudflareLock: resolve(HARBOR_LOCAL_LAYOUT.cloudflareLock),
+  }
+}
+
+export interface HarborRegistryDevRefsFile {
+  readonly version: 1
+  readonly workspaceId: typeof LOCAL_WORKSPACE_ID
+  readonly refs: readonly HarborRegistryDevRef[]
+}
+
+export interface HarborRegistryDevRef {
+  readonly kind: "source" | "plugin" | "workflow" | "job" | "app"
+  readonly path: string
+  readonly name?: string | undefined
+}
+
+export interface EnsureHarborLocalProjectInput {
+  readonly projectRoot: string
+  readonly updateGitignore?: boolean | undefined
+}
+
+export interface EnsureHarborLocalProjectResult {
+  readonly workspaceId: typeof LOCAL_WORKSPACE_ID
+  readonly paths: HarborLocalRuntimePaths
+  readonly gitignoreUpdated: boolean
+}
+
+const DEFAULT_REGISTRY_REFS: HarborRegistryDevRefsFile = {
+  version: 1,
+  workspaceId: LOCAL_WORKSPACE_ID,
+  refs: [],
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await readFile(path)
+    return true
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw error
+  }
+}
+
+async function writeJsonIfMissing(path: string, value: unknown): Promise<void> {
+  if (await pathExists(path)) return
+  await writeFile(path, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx" })
+}
+
+export async function ensureHarborGitignore(projectRoot: string): Promise<boolean> {
+  const path = join(projectRoot, ".gitignore")
+  let existing = ""
+  try {
+    existing = await readFile(path, "utf8")
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error
+  }
+
+  const lines = existing.split(/\r?\n/).map((line) => line.trim())
+  if (lines.includes(`${HARBOR_LOCAL_DIR}/`) || lines.includes(HARBOR_LOCAL_DIR)) return false
+
+  const prefix = existing.length > 0 && !existing.endsWith("\n") ? "\n" : ""
+  await writeFile(path, `${existing}${prefix}${HARBOR_LOCAL_DIR}/\n`)
+  return true
+}
+
+export async function ensureHarborLocalProject(
+  input: EnsureHarborLocalProjectInput
+): Promise<EnsureHarborLocalProjectResult> {
+  const paths = harborLocalPaths(input.projectRoot)
+  await mkdir(paths.root, { recursive: true })
+  await mkdir(paths.artifacts, { recursive: true })
+  await mkdir(paths.traces, { recursive: true })
+  await mkdir(paths.cache, { recursive: true })
+  await writeJsonIfMissing(paths.registryRefs, DEFAULT_REGISTRY_REFS)
+
+  const gitignoreUpdated =
+    input.updateGitignore === false ? false : await ensureHarborGitignore(input.projectRoot)
+
+  return {
+    workspaceId: LOCAL_WORKSPACE_ID,
+    paths,
+    gitignoreUpdated,
   }
 }
