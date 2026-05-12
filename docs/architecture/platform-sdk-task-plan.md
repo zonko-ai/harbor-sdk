@@ -126,6 +126,8 @@ Status: complete for the SDK-side runtime boundary: the daemon writes reconnecta
 
 ## 6. Local Registry and Hot Reload
 
+Status: complete for dev-ref persistence and file-watch hot reload signals in `@hrbr/runtime-local`. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Store dev refs in `.harbor/registry-dev-refs.json`.
 - Reference source/plugin/workflow/job/app files by path during development.
 - Watch referenced files for changes.

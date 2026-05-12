@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { describe, expect, it } from "bun:test"
@@ -11,8 +11,12 @@ import {
   HARBOR_LOCAL_SCHEMA_VERSION,
   hashHarborLocalToken,
   readHarborLocalRuntimeManifest,
+  readHarborRegistryDevRefs,
+  removeHarborRegistryDevRef,
   runHarborLocalMigrations,
   startHarborLocalDaemon,
+  upsertHarborRegistryDevRef,
+  watchHarborRegistryDevRefs,
   LOCAL_WORKSPACE_ID,
   type HarborRegistryDevRefsFile,
 } from "../src/index"
@@ -155,6 +159,66 @@ describe("@hrbr/runtime-local daemon", () => {
       } finally {
         await daemon.close()
       }
+    })
+  })
+})
+
+describe("@hrbr/runtime-local registry dev refs", () => {
+  it("persists dev refs idempotently for local source paths", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+
+      await upsertHarborRegistryDevRef(projectRoot, {
+        kind: "source",
+        path: "sources/acme.ts",
+        name: "acme",
+      })
+      await upsertHarborRegistryDevRef(projectRoot, {
+        kind: "source",
+        path: "sources/acme.ts",
+        name: "acme",
+      })
+      await upsertHarborRegistryDevRef(projectRoot, {
+        kind: "workflow",
+        path: "workflows/triage.ts",
+      })
+
+      await expect(readHarborRegistryDevRefs(projectRoot)).resolves.toEqual({
+        version: 1,
+        workspaceId: "local",
+        refs: [
+          { kind: "source", path: "sources/acme.ts", name: "acme" },
+          { kind: "workflow", path: "workflows/triage.ts" },
+        ],
+      })
+
+      await removeHarborRegistryDevRef(projectRoot, { kind: "source", path: "sources/acme.ts" })
+      await expect(readHarborRegistryDevRefs(projectRoot)).resolves.toMatchObject({
+        refs: [{ kind: "workflow", path: "workflows/triage.ts" }],
+      })
+    })
+  })
+
+  it("watches dev ref paths for hot reload signals", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      await mkdir(join(projectRoot, "sources"), { recursive: true })
+      await writeFile(join(projectRoot, "sources/acme.ts"), "export default {}\n")
+      await upsertHarborRegistryDevRef(projectRoot, {
+        kind: "source",
+        path: "sources/acme.ts",
+        name: "acme",
+      })
+
+      const event = new Promise<string>((resolve) => {
+        watchHarborRegistryDevRefs(projectRoot, (item) => resolve(item.ref.path))
+          .then(async (watcher) => {
+            await writeFile(join(projectRoot, "sources/acme.ts"), "export default { changed: true }\n")
+            setTimeout(() => watcher.close(), 150)
+          })
+      })
+
+      await expect(event).resolves.toBe("sources/acme.ts")
     })
   })
 })

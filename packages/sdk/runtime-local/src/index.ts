@@ -2,6 +2,17 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  readHarborRegistryDevRefs,
+  removeHarborRegistryDevRef,
+  upsertHarborRegistryDevRef,
+  watchHarborRegistryDevRefs,
+  writeHarborRegistryDevRefs,
+  type HarborRegistryDevRefInput,
+  type HarborRegistryWatchEvent,
+  type HarborRegistryWatcher,
+} from "./registry"
+
+export {
   createHarborLocalToken,
   ensureHarborLocalDaemonConnection,
   hashHarborLocalToken,
