@@ -65,6 +65,9 @@ describe("@hrbr/runtime-local project layout", () => {
       const refs = JSON.parse(await readFile(paths.registryRefs, "utf8")) as HarborRegistryDevRefsFile
       expect(refs).toEqual({ version: 1, workspaceId: "local", refs: [] })
 
+      const sqlite = await readFile(paths.sqlite)
+      expect(sqlite.length).toBeGreaterThan(0)
+
       await expect(readFile(paths.artifacts, "utf8")).rejects.toThrow()
       await expect(readFile(paths.traces, "utf8")).rejects.toThrow()
       await expect(readFile(paths.cache, "utf8")).rejects.toThrow()

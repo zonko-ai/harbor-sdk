@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
+import { initializeHarborLocalSqlite } from "./sqlite"
 
 export {
   harborLocalSecurityAction,
@@ -130,6 +131,7 @@ export {
   HARBOR_LOCAL_MIGRATIONS,
   HARBOR_LOCAL_SCHEMA_VERSION,
   HARBOR_LOCAL_TABLES,
+  initializeHarborLocalSqlite,
   runHarborLocalMigrations,
   type HarborLocalMigration,
   type HarborLocalSqlExecutor,
@@ -300,6 +302,7 @@ export async function ensureHarborLocalProject(
   await mkdir(paths.traces, { recursive: true })
   await mkdir(paths.cache, { recursive: true })
   await writeJsonIfMissing(paths.registryRefs, DEFAULT_REGISTRY_REFS)
+  await initializeHarborLocalSqlite(paths.sqlite)
 
   const gitignoreUpdated =
     input.updateGitignore === false ? false : await ensureHarborGitignore(input.projectRoot)

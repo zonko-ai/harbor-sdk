@@ -170,7 +170,7 @@ When testing starts, record failures in this format:
 - Actual: Beach exposes Harbor cloud workspace tools and no `.harbor/` directory is created.
 - Evidence: `find /tmp/harbor-sdk-beach-iter1.366woT -maxdepth 2 -print` returned only the temp project directory.
 - Suspected cause: Beach currently starts the existing hrbr MCP sidecar over Coast/cloud APIs and has no integration with `@hrbr/runtime-local`.
-- Fix status: fixed for Beach local bootstrap/status. `hrbr_local` now creates `.harbor/`, starts the local daemon, and reports status. Full store/vault placeholder creation remains intentionally deferred under BUG-6 until real store/vault initialization.
+- Fix status: fixed for Beach local bootstrap/status. `hrbr_local` now creates `.harbor/`, starts the local daemon, reports status, and initializes the real local SQLite store and encrypted credential vault.
 - Retest: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=bootstrap` from `/tmp/harbor-sdk-beach-iter1-retest.BqLLwz` returned `status: "running"` and created `.gitignore`, `.harbor/runtime.json`, `.harbor/registry-dev-refs.json`, `.harbor/artifacts`, `.harbor/traces`, and `.harbor/cache`. Iteration 10 final acceptance also bootstrapped `/tmp/harbor-sdk-beach-reglock.VddcAs`.
 
 ### BUG-2: Beach MCP surface has no local runtime mode or local CRUD actions
@@ -229,8 +229,8 @@ When testing starts, record failures in this format:
 - Actual: Bootstrap created runtime, registry refs, artifacts, traces, and cache, but `files.sqlite`, `files.credentials`, and `files.cloudflareLock` were false.
 - Evidence: `find /tmp/harbor-sdk-beach-iter1-retest.BqLLwz -maxdepth 3 -print | sort` did not include `harbor.sqlite`, `credentials.enc`, or `cloudflare.lock.json`.
 - Suspected cause: `ensureHarborLocalProject` creates directories and registry refs only; SQLite, credential vault, and Cloudflare lock initialization are lazy or absent.
-- Fix status: deferred to the first store/vault implementation slice. Do not create fake `harbor.sqlite` or invalid `credentials.enc` placeholders; implement a real local store/vault initialization path before marking this fixed.
-- Retest: token retest project `/tmp/harbor-sdk-beach-iter1-token-retest.uwDLoF` still reports `sqlite: false`, `credentials: false`, and `cloudflareLock: false`, so this remains open for the next local store/vault iteration.
+- Fix status: fixed. `ensureHarborLocalProject` now initializes a real local SQLite database with the runtime migrations, and Beach bootstrap initializes an encrypted empty credential vault. `cloudflare.lock.json` remains intentionally lazy until user-owned Cloudflare provisioning is configured.
+- Retest: fresh Beach bootstrap in `/tmp/harbor-sdk-beach-bug6.CzkEBG` returned `files.sqlite: true`, `files.credentials: true`, `files.registryRefs: true`, `files.cloudflareLock: false`, and `status: "running"`. Filesystem checks confirmed non-empty `.harbor/harbor.sqlite` and `.harbor/credentials.enc`.
 
 ### BUG-7: Beach bootstrap response exposes the local daemon bearer token
 
@@ -585,13 +585,14 @@ Make local project initialization concurrency-safe and retest persistence/recove
 
 ### Iteration 10: Final Acceptance Pass
 
-- Test project: `/tmp/harbor-sdk-beach-reglock.VddcAs`
+- Test project: `/tmp/harbor-sdk-beach-final2.5a5YW1`
 - Beach command shape: `mcporter call --output json --stdio "node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct" hrbr_local --args ...`
 - Status: passed.
 
 Final acceptance evidence:
 
 - `bootstrap` created local runtime state and started a local daemon.
+- Bootstrap initialized `.harbor/harbor.sqlite` and `.harbor/credentials.enc`; `cloudflare.lock.json` stayed lazy until Cloudflare provisioning.
 - `credential_set` and `credential_list` stored a local credential and returned only redacted metadata.
 - Concurrent `plugin_add`, `job_add`, and `app_add` preserved all registry refs.
 - `tool_search`, `tool_describe`, `tool_schema`, and `tool_call` succeeded for `final.lookup`.
@@ -602,6 +603,7 @@ Final acceptance evidence:
 - `package_plugin` and `package_workflow` generated valid package manifests with no package validation errors.
 - A fresh Beach process `status` call reported the daemon as `running` via `runtime_manifest`.
 - Core job, app, and workflow calls succeeded again after reconnect.
+- Current-code final command sequence ended with `FINAL_ACCEPTANCE_OK project=/tmp/harbor-sdk-beach-final2.5a5YW1`.
 
 ## Iteration 8 Fix Plan
 

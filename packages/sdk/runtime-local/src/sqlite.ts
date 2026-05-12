@@ -1,3 +1,5 @@
+import { createRequire } from "node:module"
+
 export const HARBOR_LOCAL_SCHEMA_VERSION = 1
 
 export const HARBOR_LOCAL_TABLES = [
@@ -219,4 +221,73 @@ export async function runHarborLocalMigrations(
     latest = migration.version
   }
   return latest
+}
+
+interface SqlDatabase {
+  readonly exec: (sql: string) => void
+  readonly close: () => void
+}
+
+type SqlDatabaseCtor = new (filename: string) => SqlDatabase
+
+let DatabaseSync: SqlDatabaseCtor | null = null
+let warningPatched = false
+
+function loadSqliteDatabase(): SqlDatabaseCtor | null {
+  if (DatabaseSync) return DatabaseSync
+  if (!warningPatched) {
+    warningPatched = true
+    const original = process.emitWarning.bind(process)
+    process.emitWarning = ((warning, ...rest: unknown[]) => {
+      const text =
+        typeof warning === "string"
+          ? warning
+          : warning instanceof Error
+            ? warning.message
+            : String(warning)
+      if (/SQLite is an experimental feature/i.test(text)) return
+      return (original as (...args: unknown[]) => void)(warning as string, ...rest)
+    }) as typeof process.emitWarning
+  }
+  const req = createRequire(import.meta.url)
+  try {
+    DatabaseSync = (req("node:sqlite") as { DatabaseSync: SqlDatabaseCtor }).DatabaseSync
+    return DatabaseSync
+  } catch {
+    try {
+      const BunDb = (req("bun:sqlite") as { Database: new (filename: string) => unknown }).Database
+      DatabaseSync = class Adapted {
+        private readonly inner: SqlDatabase
+        constructor(filename: string) {
+          this.inner = new BunDb(filename) as SqlDatabase
+        }
+        exec(sql: string): void {
+          this.inner.exec(sql)
+        }
+        close(): void {
+          this.inner.close()
+        }
+      }
+      return DatabaseSync
+    } catch {
+      return null
+    }
+  }
+}
+
+export async function initializeHarborLocalSqlite(filename: string): Promise<number> {
+  const Database = loadSqliteDatabase()
+  if (!Database) {
+    throw new Error("Local SQLite initialization requires node:sqlite or bun:sqlite")
+  }
+  const db = new Database(filename)
+  try {
+    return await runHarborLocalMigrations({
+      exec: async (sql) => {
+        db.exec(sql)
+      },
+    })
+  } finally {
+    db.close()
+  }
 }
