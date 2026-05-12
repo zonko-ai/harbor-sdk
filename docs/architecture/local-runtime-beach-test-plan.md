@@ -482,6 +482,40 @@ Add local app actions to `hrbr_local` using JSON app manifests and the SDK app r
   - After deleting the plugin, workflow run failed with `Required workflow tool is missing: wf.lookup`.
   - `workflow_delete path=demo-workflow.json` returned `deleted: true`.
 
+### Iteration 8: Package Submission Flow Through Beach
+
+- Test project: `/tmp/harbor-sdk-beach-iter8-package.WxZvnS`
+- Beach command shape: `mcporter ... node /Users/kushagrakaushal/Desktop/Rough/zonko/harbor/apps/beach/dist/index.js stdio-direct`
+- Status: bugs documented before fixes.
+
+### BUG-17: Beach local runtime has no package submission actions
+
+- Scenario: Generate/validate plugin or workflow package artifacts through Beach after bootstrapping a fresh local runtime.
+- Beach command/tool call: `mcporter call --stdio "node .../apps/beach/dist/index.js stdio-direct" hrbr_local action=package_validate`.
+- Expected: Beach exposes package manifest generation, submission snapshot, and validation/security checks for local plugin/workflow submission prep.
+- Actual: MCP validation rejected the action because no package action exists.
+- Evidence: Validation error listed bootstrap/status/credential/plugin/tool/exec/job/app/workflow actions only.
+- Suspected cause: package/submission helpers exist in `@hrbr/runtime-local`, but Beach has not exposed them.
+- Fix status: fixed. `hrbr_local` now supports `package_plugin`, `package_workflow`, and `package_validate`.
+- Retest:
+  - Created `/tmp/harbor-sdk-beach-iter8-package.WxZvnS/package-plugin.json`, `package-workflow.json`, and `bad-package.json`.
+  - `package_plugin path=package-plugin.json package_name=pkg-demo owner_name=Kushagra` returned a valid plugin package manifest, validation/security checklist, and submission snapshot files.
+  - `package_workflow path=package-workflow.json package_name=workflow-demo owner_name=Kushagra` returned a valid workflow package manifest, validation/security checklist, and submission snapshot files.
+  - `package_validate path=bad-package.json` returned expected errors for package name, version, owner, README, changelog, and missing tools.
+
+## Iteration 8 Fix Plan
+
+Add package submission actions to `hrbr_local` over the SDK package/submission helpers.
+
+1. Extend `hrbr_local` schema with:
+   - `package_plugin`
+   - `package_workflow`
+   - `package_validate`
+2. Generate plugin package manifests from local plugin refs.
+3. Generate workflow package manifests from local workflow refs.
+4. Return submission snapshot files and validation/security checklist.
+5. Retest plugin package, workflow package, and invalid package validation through Beach.
+
 ## Iteration 7 Fix Plan
 
 Add local workflow actions to `hrbr_local` using JSON workflow manifests and the SDK workflow runner.
