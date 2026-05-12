@@ -24,7 +24,7 @@ export const tickets = defineSourceAdapter({
   invokeTool: async (name, input, ctx) => {
     if (name !== "create") throw new Error(`Unknown tool: ${name}`)
     const apiKey = ctx?.credentials?.require("api_key")
-    return { id: "ticket_123", title: input.title, authenticated: Boolean(apiKey) }
+    return { id: "ticket_123", title: input["title"], authenticated: Boolean(apiKey) }
   },
 })
 ```
