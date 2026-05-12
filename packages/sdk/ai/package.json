@@ -1,0 +1,17 @@
+{
+  "name": "@hrbr/ai",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./cloudflare": "./src/cloudflare.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

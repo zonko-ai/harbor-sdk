@@ -9,6 +9,7 @@
     "test": "bun test test"
   },
   "dependencies": {
+    "@hrbr/ai": "workspace:*",
     "@hrbr/client": "workspace:*",
     "@hrbr/common": "workspace:*",
     "@hrbr/harbor-control": "workspace:*",

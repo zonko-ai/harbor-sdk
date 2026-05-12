@@ -15,6 +15,7 @@ import type { AgentChatEvent, AgentChatMessage, AgentChatState, BackendState, Ha
 import { parseBackendEnv } from "./env"
 import { checkCloudflareStagingConnection } from "./cloudflare"
 import type { OrbitJobInvocationDetail, OrbitStorageObject } from "@hrbr/orbit"
+import { createCloudflareAiGateway, type AiGatewayMessage } from "@hrbr/ai/cloudflare"
 
 export interface HarborSdkBackendServer {
   readonly state: BackendState
@@ -134,8 +135,64 @@ function updateAgentThread(state: BackendState, next: AgentChatState): AgentChat
   return next
 }
 
-function textResponseFor(message: string): string {
-  return `SDK backend received: ${message}`
+function aiGatewayConfig(): {
+  readonly accountId: string
+  readonly gateway: string
+  readonly token: string
+  readonly model: string
+} | null {
+  const accountId = process.env["CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID"] ?? process.env["CLOUDFLARE_ACCOUNT_ID"]
+  const gateway = process.env["CLOUDFLARE_AI_GATEWAY_NAME"] ?? "default"
+  const token = process.env["CLOUDFLARE_AI_GATEWAY_TOKEN"] ?? process.env["CLOUDFLARE_API_TOKEN"] ?? process.env["CLOUDFLARE_TOKEN"]
+  const model = process.env["CLOUDFLARE_AI_GATEWAY_MODEL"] ?? process.env["HARBOR_AGENT_MODEL"] ?? "openai/gpt-5.2"
+  if (!accountId || !gateway || !token) return null
+  return { accountId, gateway, token, model }
+}
+
+async function textResponseFor(input: {
+  readonly state: BackendState
+  readonly current: AgentChatState
+  readonly message: string
+}): Promise<{ readonly content: string; readonly metadata: Record<string, unknown> }> {
+  const config = aiGatewayConfig()
+  if (!config) {
+    return {
+      content: `SDK backend received: ${input.message}`,
+      metadata: { backend: "harbor-sdk", ai_gateway: "not_configured" },
+    }
+  }
+
+  const history: AiGatewayMessage[] = [
+    {
+      role: "system",
+      content: [
+        "You are the Harbor SDK agent running inside the SDK backend.",
+        `This response is generated through Cloudflare AI Gateway "${config.gateway}" using model "${config.model}".`,
+        `Workspace: ${input.state.workspaceProfile.name} (${input.state.workspaceProfile.id}).`,
+        "Answer concisely and only claim access to SDK backend state exposed in this chat.",
+      ].join("\n"),
+    },
+    ...input.current.messages
+      .filter((message) => message.role === "user" || message.role === "assistant")
+      .slice(-12)
+      .map((message): AiGatewayMessage => ({
+        role: message.role === "assistant" ? "assistant" : "user",
+        content: message.content,
+      })),
+    { role: "user", content: input.message },
+  ]
+
+  const gateway = createCloudflareAiGateway(config)
+  const reply = await gateway.generateAgentReply({ messages: history })
+  return {
+    content: reply.text,
+    metadata: {
+      backend: "harbor-sdk",
+      provider: reply.provider,
+      model: reply.model,
+      gateway: reply.gateway,
+    },
+  }
 }
 
 function dashboardHtml(state: BackendState): string {
@@ -279,8 +336,10 @@ async function handleRoute(
         has_api_token: Boolean(process.env["CLOUDFLARE_API_TOKEN"]),
         has_account_id: Boolean(process.env["CLOUDFLARE_ACCOUNT_ID"]),
         has_ai_gateway_token: Boolean(process.env["CLOUDFLARE_AI_GATEWAY_TOKEN"]),
+        has_ai_gateway_auth_token: Boolean(process.env["CLOUDFLARE_AI_GATEWAY_TOKEN"] ?? process.env["CLOUDFLARE_API_TOKEN"] ?? process.env["CLOUDFLARE_TOKEN"]),
         ai_gateway_account_id: process.env["CLOUDFLARE_AI_GATEWAY_ACCOUNT_ID"] ?? null,
         ai_gateway_name: process.env["CLOUDFLARE_AI_GATEWAY_NAME"] ?? null,
+        ai_gateway_model: process.env["CLOUDFLARE_AI_GATEWAY_MODEL"] ?? process.env["HARBOR_AGENT_MODEL"] ?? "openai/gpt-5.2",
         d1_database_configured: Boolean(process.env["D1_DATABASE_ID"]),
         kv_namespace_configured: Boolean(process.env["KV_NAMESPACE_ID"]),
         r2_bucket_name: process.env["R2_BUCKET_NAME"] ?? null,
@@ -1141,14 +1200,15 @@ async function handleRoute(
       metadata: {},
       created_at: at,
     }
+    const assistantReply = await textResponseFor({ state, current, message })
     const assistantMessage: AgentChatMessage = {
       id: id("agent-message"),
       workspace_id: activeWorkspace(state),
       thread_id: current.thread.id,
       role: "assistant",
-      content: textResponseFor(message),
+      content: assistantReply.content,
       status: "completed",
-      metadata: { backend: "harbor-sdk" },
+      metadata: assistantReply.metadata,
       created_at: at,
     }
     const sequence = current.events.length
@@ -1171,6 +1231,7 @@ async function handleRoute(
         thread: {
           ...current.thread,
           status: "completed",
+          model: typeof assistantReply.metadata["model"] === "string" ? assistantReply.metadata["model"] : current.thread.model,
           last_message_at: at,
           updated_at: at,
         },

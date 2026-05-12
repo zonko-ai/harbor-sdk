@@ -13,6 +13,7 @@
     "apps/harbor-backend": {
       "name": "@hrbr/harbor-backend",
       "dependencies": {
+        "@hrbr/ai": "workspace:*",
         "@hrbr/client": "workspace:*",
         "@hrbr/common": "workspace:*",
         "@hrbr/harbor-control": "workspace:*",
@@ -78,6 +79,13 @@
         "@hrbr/source-policy": "workspace:*",
         "@hrbr/tools": "workspace:*",
       },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/sdk/ai": {
+      "name": "@hrbr/ai",
       "devDependencies": {
         "@hrbr/tsconfig": "workspace:*",
         "typescript": "catalog:",
@@ -382,6 +390,8 @@
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.27.7", "", { "os": "win32", "cpu": "x64" }, "sha512-56hiAJPhwQ1R4i+21FVF7V8kSD5zZTdHcVuRFMW0hn753vVfQN8xlx4uOPT4xoGH0Z/oVATuR82AiqSTDIpaHg=="],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.23.0", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.23.0", "@shikijs/langs": "^3.23.0", "@shikijs/themes": "^3.23.0", "@shikijs/types": "^3.23.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-bEMORlG0cqdjVyCEuU0cDQbORWX+kYCeo0kV1lbxF5bt4r7SID2l9bqsxJEM0zndaxpOUT7riCyIVEuqq/Ynxg=="],
+
+    "@hrbr/ai": ["@hrbr/ai@workspace:packages/sdk/ai"],
 
     "@hrbr/catalog": ["@hrbr/catalog@workspace:packages/sdk/catalog"],
 
