@@ -30,6 +30,50 @@ Beach is the only user-facing interface for this system. There is no Coast CLI d
 - Read-only Cloudflare status/health/plan preview does not require confirmation.
 - Vectorize and local-to-Cloudflare migration are post-MVP.
 
+## Technical Execution Details
+
+Build this in dependency order so each layer can be tested before the next one depends on it.
+
+1. Package the public SDK boundary first.
+   - Keep authoring APIs in `@hrbr/sdk`.
+   - Keep runtime-specific behavior in `@hrbr/runtime-local` and `@hrbr/runtime-cloudflare`.
+   - Do not make Beach or Coast a dependency of the SDK packages.
+
+2. Establish the local runtime substrate.
+   - Create `.harbor/` project state, `.gitignore` protection, local manifest files, and SQLite schema.
+   - Add repository/store interfaces before adding concrete execution behavior.
+   - Verify each substrate step with package typecheck and focused runtime-local tests.
+
+3. Add the local daemon and Beach connection contract.
+   - Daemon owns local HTTP routes, MCP endpoint, app/job preview routes, and control APIs.
+   - Beach should only need project discovery plus daemon connection metadata.
+   - The SDK should expose helper APIs that Beach can call, while actual Beach wiring stays outside this repo.
+
+4. Add developer-owned local extension loops.
+   - Registry dev refs point to local plugin, workflow, job, app, and source files.
+   - Watchers trigger re-indexing and validation.
+   - Credentials are encrypted locally and exposed through runtime APIs.
+
+5. Add local discovery before execution.
+   - Index tools from dev refs into the local tool index.
+   - Support search, describe, schema, schemas, and call dispatch boundaries.
+   - Keep vector search out of MVP; use BM25-style lexical ranking locally.
+
+6. Add execution after discovery is stable.
+   - QuickJS-ng runs bundled JavaScript only.
+   - Tool calls go through the local registry boundary.
+   - Storage, cache, db, artifacts, and traces are approved host calls.
+
+7. Add local jobs, apps, workflows, and package validation.
+   - Jobs/apps run locally through the daemon.
+   - Workflows validate required tools/sources before running.
+   - Package manifests and tests prepare submissions for Harbor review.
+
+8. Add Cloudflare as a second runtime, not a second product.
+   - Cloudflare operations route through the local daemon.
+   - Users own the Cloudflare account and resources.
+   - The same authoring model should target local first, then Cloudflare-backed Orbit adapters.
+
 ## 1. Public Package Boundary
 
 Status: complete in `@hrbr/sdk`, `@hrbr/runtime-local`, and `@hrbr/runtime-cloudflare` skeleton packages. Verified with `bun run typecheck:packages`.
@@ -146,6 +190,8 @@ Status: complete for encrypted local credential file helpers, env import, and re
 - Expose credential read/write through runtime APIs, not direct file access.
 
 ## 8. Local Tool Search
+
+Status: complete for in-process local tool index helpers with BM25-style lexical ranking, namespace filtering, describe/schema/schemas surfaces, and a runtime-injected call dispatch boundary. SQLite persistence target remains the Step 3 `tool_index` schema. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
 
 - Add durable local tool index in SQLite.
 - Implement lexical search first.

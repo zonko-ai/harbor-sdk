@@ -2,6 +2,21 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 export {
+  createHarborLocalToolIndex,
+  type HarborLocalToolDescription,
+  type HarborLocalToolIndex,
+  type HarborLocalToolIndexRecord,
+  type HarborLocalToolCallHandler,
+  type HarborLocalToolCallInput,
+  type HarborLocalToolCallResult,
+  type HarborLocalToolIndexOptions,
+  type HarborLocalToolSchema,
+  type HarborLocalToolSchemasInput,
+  type HarborLocalToolSearchHit,
+  type HarborLocalToolSearchInput,
+} from "./tool-search"
+
+export {
   importHarborLocalCredentialsFromEnv,
   readHarborLocalCredentials,
   redactHarborSecret,

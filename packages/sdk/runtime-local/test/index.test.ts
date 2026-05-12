@@ -5,6 +5,7 @@ import { describe, expect, it } from "bun:test"
 import {
   ensureHarborLocalProject,
   expectedHarborLocalTables,
+  createHarborLocalToolIndex,
   harborLocalDaemonConnection,
   harborLocalPaths,
   HARBOR_LOCAL_DIR,
@@ -277,5 +278,88 @@ describe("@hrbr/runtime-local credentials", () => {
       })
       expect(redactHarborSecret("sk_live_123456789")).toBe("sk_l...6789")
     })
+  })
+})
+
+describe("@hrbr/runtime-local tool search", () => {
+  it("ranks local tools with lexical BM25-style scoring and supports describe/schema", () => {
+    const index = createHarborLocalToolIndex([
+      {
+        id: "1",
+        workspaceId: "local",
+        sourceRefId: "source-1",
+        namespace: "github",
+        name: "create_issue",
+        displayName: "Create Issue",
+        description: "Create a GitHub issue",
+        inputSchema: { type: "object", required: ["title"] },
+        outputSchema: { type: "object" },
+        searchText: "github issue bug ticket create",
+      },
+      {
+        id: "2",
+        workspaceId: "local",
+        sourceRefId: "source-2",
+        namespace: "slack",
+        name: "post_message",
+        displayName: "Post Message",
+        description: "Send a Slack channel message",
+        searchText: "slack message channel post",
+      },
+    ])
+
+    expect(index.search({ query: "create bug issue" })[0]).toMatchObject({
+      toolId: "github.create_issue",
+      namespace: "github",
+      name: "create_issue",
+    })
+    expect(index.search({ query: "message", namespace: "github" })).toEqual([])
+    expect(index.describe("github.create_issue")).toMatchObject({
+      displayName: "Create Issue",
+      inputSchema: { type: "object", required: ["title"] },
+    })
+    expect(index.schema("github.create_issue")).toEqual({
+      toolId: "github.create_issue",
+      inputSchema: { type: "object", required: ["title"] },
+      outputSchema: { type: "object" },
+    })
+    expect(index.schemas({ namespace: "github" })).toEqual([{
+      toolId: "github.create_issue",
+      inputSchema: { type: "object", required: ["title"] },
+      outputSchema: { type: "object" },
+    }])
+  })
+
+  it("dispatches local calls through the configured runtime handler", async () => {
+    const index = createHarborLocalToolIndex([
+      {
+        id: "1",
+        workspaceId: "local",
+        sourceRefId: "source-1",
+        namespace: "github",
+        name: "create_issue",
+        displayName: "Create Issue",
+        inputSchema: { type: "object" },
+        outputSchema: { type: "object" },
+        searchText: "github issue create",
+      },
+    ], {
+      callTool: async (input, tool) => ({
+        toolId: input.toolId,
+        output: { ok: true, displayName: tool.displayName, input: input.input },
+      }),
+    })
+
+    await expect(index.call({
+      toolId: "github.create_issue",
+      input: { title: "Bug" },
+    })).resolves.toEqual({
+      toolId: "github.create_issue",
+      output: { ok: true, displayName: "Create Issue", input: { title: "Bug" } },
+    })
+    await expect(index.call({
+      toolId: "github.missing",
+      input: {},
+    })).rejects.toThrow("Unknown local tool")
   })
 })
