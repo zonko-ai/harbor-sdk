@@ -231,7 +231,7 @@ function routeRequest(request: Request): Promise<JsonRequest> {
     if (request.method !== "POST" && !gettablePaths.has(url.pathname) && !browserGet) {
       throw new Response("Method not allowed", { status: 405 })
     }
-    if (url.pathname === "/" || url.pathname === "/favicon.ico" || url.pathname.startsWith("/orbit/apps/")) {
+    if (request.method === "GET" && (url.pathname === "/" || url.pathname === "/favicon.ico" || url.pathname.startsWith("/orbit/apps/"))) {
       return { path: url.pathname, body: {}, headers: request.headers }
     }
     if (url.pathname === "/health") {

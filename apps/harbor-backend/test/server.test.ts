@@ -132,6 +132,13 @@ test("serves Harbor dashboard routes from SDK state", async () => {
   const apps = await post("orbit/apps/list")
   expect(apps.data).toMatchObject({ count: 1 })
 
+  const app = await post("orbit/apps/inspect", { name: "sdk-dashboard" })
+  expect(app.data).toMatchObject({ app: { name: "sdk-dashboard", status: "ready" } })
+
+  const openedApp = await post("orbit/apps/open", { name: "sdk-dashboard" })
+  expect(openedApp.data).toMatchObject({ name: "sdk-dashboard" })
+  expect((openedApp.data as { readonly url: string }).url).toContain("/sdk-dashboard")
+
   const jobs = await post("orbit/jobs/list")
   expect(jobs.data).toMatchObject({ count: 3 })
 
