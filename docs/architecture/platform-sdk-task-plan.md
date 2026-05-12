@@ -32,6 +32,8 @@ Beach is the only user-facing interface for this system. There is no Coast CLI d
 
 ## 1. Public Package Boundary
 
+Status: complete in `@hrbr/sdk`, `@hrbr/runtime-local`, and `@hrbr/runtime-cloudflare` skeleton packages. Verified with `bun run typecheck:packages`.
+
 - Add top-level `@hrbr/sdk` package.
 - Re-export stable authoring primitives:
   - sources

@@ -1,0 +1,34 @@
+{
+  "name": "@hrbr/sdk",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hrbr/ai": "workspace:*",
+    "@hrbr/client": "workspace:*",
+    "@hrbr/common": "workspace:*",
+    "@hrbr/orbit": "workspace:*",
+    "@hrbr/plugins": "workspace:*",
+    "@hrbr/runs": "workspace:*",
+    "@hrbr/runtime-cloudflare": "workspace:*",
+    "@hrbr/runtime-local": "workspace:*",
+    "@hrbr/source-core": "workspace:*",
+    "@hrbr/source-credentials": "workspace:*",
+    "@hrbr/source-mcp": "workspace:*",
+    "@hrbr/source-policy": "workspace:*",
+    "@hrbr/sources": "workspace:*",
+    "@hrbr/tools": "workspace:*",
+    "@hrbr/workflows": "workspace:*",
+    "@hrbr/workspaces": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

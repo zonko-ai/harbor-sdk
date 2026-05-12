@@ -208,10 +208,56 @@
         "typescript": "catalog:",
       },
     },
+    "packages/sdk/runtime-cloudflare": {
+      "name": "@hrbr/runtime-cloudflare",
+      "dependencies": {
+        "@hrbr/orbit": "workspace:*",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/sdk/runtime-local": {
+      "name": "@hrbr/runtime-local",
+      "dependencies": {
+        "@hrbr/orbit": "workspace:*",
+        "@hrbr/tools": "workspace:*",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
     "packages/sdk/sand": {
       "name": "@hrbr/sand",
       "dependencies": {
         "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/sdk/sdk": {
+      "name": "@hrbr/sdk",
+      "dependencies": {
+        "@hrbr/ai": "workspace:*",
+        "@hrbr/client": "workspace:*",
+        "@hrbr/common": "workspace:*",
+        "@hrbr/orbit": "workspace:*",
+        "@hrbr/plugins": "workspace:*",
+        "@hrbr/runs": "workspace:*",
+        "@hrbr/runtime-cloudflare": "workspace:*",
+        "@hrbr/runtime-local": "workspace:*",
+        "@hrbr/source-core": "workspace:*",
+        "@hrbr/source-credentials": "workspace:*",
+        "@hrbr/source-mcp": "workspace:*",
+        "@hrbr/source-policy": "workspace:*",
+        "@hrbr/sources": "workspace:*",
+        "@hrbr/tools": "workspace:*",
+        "@hrbr/workflows": "workspace:*",
+        "@hrbr/workspaces": "workspace:*",
       },
       "devDependencies": {
         "@hrbr/tsconfig": "workspace:*",
@@ -417,7 +463,13 @@
 
     "@hrbr/runs": ["@hrbr/runs@workspace:packages/sdk/runs"],
 
+    "@hrbr/runtime-cloudflare": ["@hrbr/runtime-cloudflare@workspace:packages/sdk/runtime-cloudflare"],
+
+    "@hrbr/runtime-local": ["@hrbr/runtime-local@workspace:packages/sdk/runtime-local"],
+
     "@hrbr/sand": ["@hrbr/sand@workspace:packages/sdk/sand"],
+
+    "@hrbr/sdk": ["@hrbr/sdk@workspace:packages/sdk/sdk"],
 
     "@hrbr/source-auth": ["@hrbr/source-auth@workspace:packages/sdk/source-auth"],
 
