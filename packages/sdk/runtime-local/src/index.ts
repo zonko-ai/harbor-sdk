@@ -3,9 +3,11 @@ import { join } from "node:path"
 
 export {
   createHarborLocalToken,
+  ensureHarborLocalDaemonConnection,
   hashHarborLocalToken,
   readHarborLocalRuntimeManifest,
   startHarborLocalDaemon,
+  type EnsureHarborLocalDaemonConnectionInput,
   type HarborLocalDaemonHandle,
   type HarborLocalDaemonManifestReadResult,
   type StartHarborLocalDaemonInput,
@@ -64,6 +66,7 @@ export interface HarborLocalRuntimeManifest {
   readonly projectRoot: string
   readonly host: "127.0.0.1"
   readonly port: number
+  readonly token: string
   readonly tokenHash: string
   readonly runtimeVersion: string
   readonly createdAt: string
@@ -86,6 +89,12 @@ export interface HarborLocalRuntime {
   readonly info: () => Promise<HarborLocalRuntimeInfo>
   readonly ensure: () => Promise<HarborLocalRuntimeInfo>
   readonly stop: () => Promise<void>
+}
+
+export interface HarborLocalDaemonConnection {
+  readonly origin: string
+  readonly token: string
+  readonly headers: Readonly<Record<string, string>>
 }
 
 export function harborLocalPaths(projectRoot: string): HarborLocalRuntimePaths {
@@ -182,5 +191,15 @@ export async function ensureHarborLocalProject(
     workspaceId: LOCAL_WORKSPACE_ID,
     paths,
     gitignoreUpdated,
+  }
+}
+
+export function harborLocalDaemonConnection(
+  manifest: HarborLocalRuntimeManifest
+): HarborLocalDaemonConnection {
+  return {
+    origin: `http://${manifest.host}:${manifest.port}`,
+    token: manifest.token,
+    headers: { authorization: `Bearer ${manifest.token}` },
   }
 }

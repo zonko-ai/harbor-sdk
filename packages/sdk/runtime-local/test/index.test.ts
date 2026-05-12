@@ -5,6 +5,7 @@ import { describe, expect, it } from "bun:test"
 import {
   ensureHarborLocalProject,
   expectedHarborLocalTables,
+  harborLocalDaemonConnection,
   harborLocalPaths,
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_SCHEMA_VERSION,
@@ -129,8 +130,14 @@ describe("@hrbr/runtime-local daemon", () => {
           workspaceId: "local",
           host: "127.0.0.1",
           port: daemon.info.port,
+          token: "test-token",
           tokenHash: hashHarborLocalToken("test-token"),
           runtimeVersion: "test",
+        })
+        expect(runtime.manifest && harborLocalDaemonConnection(runtime.manifest)).toEqual({
+          origin: daemon.origin,
+          token: "test-token",
+          headers: { authorization: "Bearer test-token" },
         })
       } finally {
         await daemon.close()

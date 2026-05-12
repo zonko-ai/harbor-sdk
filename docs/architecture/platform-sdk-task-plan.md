@@ -112,6 +112,8 @@ Status: complete for MVP daemon skeleton with localhost binding, runtime manifes
 
 ## 5. Beach Integration
 
+Status: complete for the SDK-side runtime boundary: the daemon writes reconnectable local connection metadata, exposes a token-authenticated control surface, and exports connection helpers Beach can consume. Actual Beach package wiring remains outside this SDK repo. Verified with `bun test packages/sdk/runtime-local/test` and `bun run typecheck:packages`.
+
 - Beach detects the current project root.
 - Beach auto-creates `.harbor/` if missing.
 - Beach auto-starts the local daemon if not running.
