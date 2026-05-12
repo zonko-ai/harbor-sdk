@@ -5,6 +5,8 @@ export {
   runHarborLocalQuickJS,
   type HarborLocalQuickJSExecutionInput,
   type HarborLocalQuickJSExecutionResult,
+  type HarborLocalQuickJSHostCallHandler,
+  type HarborLocalQuickJSHostCallName,
 } from "./quickjs"
 
 export {

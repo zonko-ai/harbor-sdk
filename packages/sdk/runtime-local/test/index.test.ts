@@ -395,4 +395,40 @@ describe("@hrbr/runtime-local QuickJS execution", () => {
       timeoutMs: 10,
     })).rejects.toThrow()
   })
+
+  it("exposes approved sync host calls through the harbor runtime object", async () => {
+    const calls: unknown[] = []
+    await expect(runHarborLocalQuickJS({
+      code: `
+        const issue = harbor.tools.call("github.create_issue", { title: __harborInput.title });
+        harbor.cache.set("lastIssue", issue.id);
+        ({ issue, cached: harbor.cache.get("lastIssue") });
+      `,
+      input: { title: "Bug" },
+      hostCall: (name, payload) => {
+        calls.push({ name, payload })
+        if (name === "tools.call") return { id: "ISSUE-1" }
+        if (name === "cache.set") return { ok: true }
+        if (name === "cache.get") return "ISSUE-1"
+        return null
+      },
+    })).resolves.toEqual({
+      ok: true,
+      value: { issue: { id: "ISSUE-1" }, cached: "ISSUE-1" },
+    })
+    expect(calls).toEqual([
+      {
+        name: "tools.call",
+        payload: { toolId: "github.create_issue", input: { title: "Bug" } },
+      },
+      {
+        name: "cache.set",
+        payload: { key: "lastIssue", value: "ISSUE-1" },
+      },
+      {
+        name: "cache.get",
+        payload: { key: "lastIssue" },
+      },
+    ])
+  })
 })
