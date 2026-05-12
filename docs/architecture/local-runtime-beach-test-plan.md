@@ -4,6 +4,112 @@ This file is the approval checklist before starting Beach-driven local runtime t
 
 Scope: test the local runtime only, exactly how a user would use it through Beach in a locally hosted environment. Do not use Coast as the user interface. Cloudflare-backed runtime paths are out of scope except where they must stay disabled or non-blocking for local use.
 
+## Iteration Protocol
+
+Use this loop for every iteration:
+
+1. Create a fresh local test project unless the scenario explicitly tests persistence or restart.
+2. Exercise the feature only through Beach/MCP, the way an actual local user would.
+3. Record every bug in this file before fixing anything.
+4. At the end of the iteration, write the fix plan under that iteration.
+5. Fix only the bugs recorded for that iteration.
+6. Retest the same Beach commands and update each bug with fix status and retest evidence.
+7. Commit code changes and this task file together before starting the next iteration.
+
+## Iteration Checklist
+
+### Iteration 1: Bootstrap and Local Surface
+
+- List Beach MCP tools from a fresh project.
+- Bootstrap local runtime through Beach.
+- Verify `.harbor/` project state is created.
+- Verify `.harbor/` is protected by `.gitignore`.
+- Verify daemon starts locally and reports status.
+- Verify Beach exposes an explicit local runtime surface.
+- Verify existing cloud workspace behavior is not silently replaced.
+
+### Iteration 2: Credentials Vault
+
+- Add/import local credentials through Beach.
+- List credential metadata without revealing secrets.
+- Update credentials.
+- Delete credentials.
+- Verify encrypted storage and redaction in traces/errors.
+
+### Iteration 3: Plugin Registry and Local Tool Search
+
+- List native/global plugins where Beach exposes them.
+- List local custom plugins.
+- Add a local custom plugin ref.
+- Validate plugin manifest/schema failures.
+- Index plugin tools locally.
+- Search with lexical/BM25 behavior.
+- Describe tool schemas.
+- Call a local tool.
+- Delete local plugin refs and verify tools disappear.
+
+### Iteration 4: Local Exec
+
+- Run bundled JavaScript through QuickJS-ng via Beach.
+- Verify direct imports are rejected.
+- Verify network access is unavailable by default.
+- Verify approved host calls for tools, storage, cache, db, artifacts, and traces.
+- Test timeout and invalid code handling.
+
+### Iteration 5: Jobs
+
+- Create, list, inspect, update, delete, and run local jobs.
+- Validate JSON input/output schemas.
+- Verify traces and artifacts.
+- Verify daemon job route behavior.
+- Test missing credential/tool failures.
+
+### Iteration 6: Apps
+
+- Create, list, inspect, update, delete, and preview local apps.
+- Verify JSON and HTML responses.
+- Verify artifact/static serving.
+- Verify app route isolation.
+- Verify app errors and missing routes.
+
+### Iteration 7: Workflows
+
+- List native workflows where Beach exposes them.
+- Create, list, inspect, update, delete, and run local workflows.
+- Validate required tools and sources before run.
+- Generate replay fixtures.
+- Generate workflow package manifests.
+
+### Iteration 8: Package Submission Flow
+
+- Generate plugin package snapshot.
+- Generate workflow package snapshot.
+- Validate package metadata, README, changelog, owner metadata, tests, scopes, and policies.
+- Confirm secret leakage, broad scope, and destructive policy warnings.
+
+### Iteration 9: Persistence, Restart, and Recovery
+
+- Stop and restart the daemon.
+- Reconnect Beach.
+- Verify registry refs, credential metadata, jobs, apps, workflows, traces, and artifacts persist where expected.
+- Corrupt local runtime files and verify actionable recovery errors.
+- Simulate stale daemon port behavior.
+
+### Iteration 10: Final Acceptance Pass
+
+- Run one clean Beach-driven flow from scratch:
+  - bootstrap local runtime
+  - add/import credentials
+  - add custom plugin
+  - search, describe, and call local tools
+  - run local exec
+  - create and run a job
+  - create and preview an app
+  - create and run a workflow
+  - generate package/submission artifacts
+  - restart daemon and reconnect Beach
+  - re-run the core job/app/workflow checks
+
 ## Working Rules
 
 - Use Beach as the user-facing interface for every scenario.
