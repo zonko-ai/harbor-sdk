@@ -186,7 +186,8 @@ console.log(JSON.stringify({
   },
   credentials: {
     importedSlots: runtime.credentials?.slots() ?? [],
-    secretValuesInEnvOnly: true,
+    authSource: liveMode && !hasBearerToken ? "use-flue-setup-e2e-oauth" : hasBearerToken ? "bearer-env-import" : "fixture",
+    secretValuesInEnvOnly: hasBearerToken,
   },
   search: hits.map((hit) => ({
     toolId: hit.toolId,

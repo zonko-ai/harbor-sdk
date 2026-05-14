@@ -1,5 +1,10 @@
 import { createMcpHttpSourceAdapter, type McpSourceFetch } from "@hrbr/source-mcp"
 import {
+  exchangeOAuthAuthorizationCode,
+  registerOAuthDynamicClient,
+  type OAuthFetch,
+} from "@hrbr/source-auth"
+import {
   buildHarborLocalToolIndexFromSqlite,
   createHarborLocalCredentialResolverFromEnv,
   type HarborLocalCredentialResolverFromEnvInput,
@@ -8,9 +13,19 @@ import {
   listHarborLocalMcpToolBindings,
   putHarborLocalMcpToolBindings,
   readHarborLocalMcpSource,
+  updateHarborLocalMcpSourceStatus,
   type HarborLocalMcpStoredSource,
   type HarborLocalMcpToolBinding,
 } from "./mcp-store"
+import {
+  readHarborLocalOAuthStatus,
+  startHarborLocalOAuthFlow,
+  type HarborLocalOAuthStatus,
+} from "./oauth"
+import {
+  startHarborLocalDaemon,
+  type HarborLocalDaemonHandle,
+} from "./daemon"
 import { createHarborLocalToolIndex, type HarborLocalToolIndexRecord } from "./tool-search"
 import type { HarborLocalToolIndex } from "./tool-search"
 
@@ -37,6 +52,33 @@ export interface HarborLocalMcpRefreshSourceResult {
 export interface HarborLocalMcpToolRuntimeInput extends HarborLocalCredentialResolverFromEnvInput {
   readonly projectRoot: string
   readonly fetch?: McpSourceFetch | undefined
+}
+
+export interface HarborLocalMcpOAuthDiscovery {
+  readonly authorizationEndpoint: string
+  readonly tokenEndpoint: string
+  readonly registrationEndpoint?: string | undefined
+  readonly scopes?: readonly string[] | undefined
+  readonly resource?: string | undefined
+}
+
+export interface HarborLocalMcpOAuthConnectInput extends HarborLocalCredentialResolverFromEnvInput {
+  readonly projectRoot: string
+  readonly sourceId: string
+  readonly discovery: HarborLocalMcpOAuthDiscovery
+  readonly clientName?: string | undefined
+  readonly fetch?: OAuthFetch | undefined
+  readonly now?: (() => Date) | undefined
+}
+
+export interface HarborLocalMcpOAuthConnectHandle {
+  readonly sourceId: string
+  readonly authorizationUrl: string
+  readonly state: string
+  readonly redirectUri: string
+  readonly daemon: HarborLocalDaemonHandle
+  readonly waitForReady: (timeoutMs?: number) => Promise<HarborLocalOAuthStatus>
+  readonly close: () => Promise<void>
 }
 
 function titleFromToolName(name: string): string {
@@ -132,6 +174,91 @@ function adapterForSource(input: {
   })
 }
 
+async function waitForOAuthReady(
+  projectRoot: string,
+  sourceId: string,
+  timeoutMs = 300_000
+): Promise<HarborLocalOAuthStatus> {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const status = await readHarborLocalOAuthStatus(projectRoot, sourceId)
+    if (status.status === "ready") return status
+    await new Promise((resolve) => setTimeout(resolve, 1_000))
+  }
+  throw new Error(`Timed out waiting for OAuth callback for MCP source "${sourceId}".`)
+}
+
+export async function connectHarborLocalMcpOAuthSource(
+  input: HarborLocalMcpOAuthConnectInput
+): Promise<HarborLocalMcpOAuthConnectHandle> {
+  const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId)
+  if (!source) throw new Error(`Unknown local MCP source "${input.sourceId}".`)
+  if (source.auth.kind !== "oauth2") {
+    throw new Error(`MCP source "${input.sourceId}" is not configured for oauth2 auth.`)
+  }
+
+  let oauthClient: { clientId: string; clientSecret?: string | undefined } = {
+    clientId: "local-public-client",
+  }
+  const daemon = await startHarborLocalDaemon({
+    projectRoot: input.projectRoot,
+    now: input.now,
+    oauth: {
+      env: input.env,
+      envName: input.envName,
+      exchangeCode: async (callback) =>
+        exchangeOAuthAuthorizationCode({
+          tokenEndpoint: input.discovery.tokenEndpoint,
+          code: callback.code,
+          codeVerifier: callback.codeVerifier,
+          clientId: oauthClient.clientId,
+          clientSecret: oauthClient.clientSecret,
+          redirectUri: callback.redirectUri,
+          fetch: input.fetch,
+        }),
+    },
+  })
+
+  try {
+    const redirectUri = `${daemon.origin}/oauth/callback`
+    if (input.discovery.registrationEndpoint) {
+      oauthClient = await registerOAuthDynamicClient({
+        registrationEndpoint: input.discovery.registrationEndpoint,
+        clientName: input.clientName ?? `Harbor SDK Local ${source.name}`,
+        redirectUris: [redirectUri],
+        scopes: input.discovery.scopes ?? [],
+        fetch: input.fetch,
+      })
+    }
+    const flow = await startHarborLocalOAuthFlow({
+      projectRoot: input.projectRoot,
+      client: {
+        sourceRefId: source.id,
+        clientId: oauthClient.clientId,
+        authorizationEndpoint: input.discovery.authorizationEndpoint,
+        tokenEndpoint: input.discovery.tokenEndpoint,
+        redirectUri,
+        scopes: input.discovery.scopes ?? [],
+        resource: input.discovery.resource,
+        ...(oauthClient.clientSecret ? { clientSecretRef: "dynamic-client-secret" } : {}),
+      },
+      now: input.now,
+    })
+    return {
+      sourceId: source.id,
+      authorizationUrl: flow.authorizationUrl,
+      state: flow.state,
+      redirectUri,
+      daemon,
+      waitForReady: (timeoutMs) => waitForOAuthReady(input.projectRoot, source.id, timeoutMs),
+      close: () => daemon.close(),
+    }
+  } catch (error) {
+    await daemon.close()
+    throw error
+  }
+}
+
 async function searchableRecordsForSource(projectRoot: string, source: HarborLocalMcpStoredSource): Promise<readonly HarborLocalToolIndexRecord[]> {
   const bindings = await listHarborLocalMcpToolBindings(projectRoot, source.id)
   return bindings.map((binding) => bindingToToolIndexRecord(source, binding))
@@ -165,6 +292,11 @@ export async function refreshHarborLocalMcpSource(
   })
   const records = await searchableRecordsForSource(input.projectRoot, source)
   await writeMcpToolIndex(input.projectRoot, source.id, records)
+  await updateHarborLocalMcpSourceStatus({
+    projectRoot: input.projectRoot,
+    sourceId: source.id,
+    status: "ready",
+  })
   return {
     sourceId: source.id,
     namespace: source.namespace,

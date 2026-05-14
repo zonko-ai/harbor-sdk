@@ -63,6 +63,20 @@ describe("source policy compatibility compiler", () => {
     expect(confidentialPolicy.exposure.code).toBe("requires_client_secret")
   })
 
+  it("treats MCP OAuth discovery metadata as native OAuth setup by default", () => {
+    const linear = getCatalogEntry("linear-mcp")
+    const notion = getCatalogEntry("notion-mcp")
+    expect(linear).toBeTruthy()
+    expect(notion).toBeTruthy()
+
+    for (const entry of [linear!, notion!]) {
+      const policy = compileSourcePolicy(entry)
+      expect(policy.setup.auth_kind).toBe("native_oauth")
+      expect(policy.setup.install_flow).toBe("discover_then_auth")
+      expect(policy.runtime.transport).toBe("mcp_http")
+    }
+  })
+
   it("evaluates runtime tool-call policy rules", async () => {
     const policy = createToolPolicy({
       rules: [

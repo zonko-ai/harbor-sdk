@@ -1,6 +1,6 @@
 # Flue Linear To Notion E2E
 
-Status: pending
+Status: completed
 Created: 2026-05-14T11:09:00Z
 
 ## Goal
@@ -22,39 +22,39 @@ Make the Flue example perform a real local E2E workflow: authenticate actual Lin
 
 1. Finish the local MCP OAuth connect primitive.
    - Outcome: `runtime.mcp.connect(sourceId)` or equivalent opens/returns the OAuth URL, handles callback through the local daemon, performs DCR/PKCE/token exchange, and stores encrypted grant tokens for OAuth MCP sources.
-   - Status: pending
+   - Status: completed
 
 2. Make Linear MCP and Notion MCP registry metadata OAuth-correct.
    - Outcome: both sources carry OAuth discovery metadata, registration endpoint, token endpoint, resource value, and default `oauth2` auth behavior.
-   - Status: pending
+   - Status: completed
 
 3. Complete MCP refresh and invocation lifecycle.
    - Outcome: after connect, `refreshSource` discovers tools, persists MCP bindings, updates searchable SQLite rows, and `runtime.tools.invoke` resolves stored OAuth credentials just-in-time.
-   - Status: pending
+   - Status: completed
 
 4. Add a local E2E setup command or script.
    - Outcome: one command installs Linear and Notion sources, starts OAuth connect flows, refreshes tools, and leaves `.harbor` ready for Flue.
-   - Status: pending
+   - Status: completed
 
 5. Rework the Flue agent around tool search.
    - Outcome: Flue searches the local SQLite tool index for Linear read and Notion write tools, inspects schemas, invokes the selected tools, and does not hardcode Linear/Notion tool IDs except as optional fallback hints.
-   - Status: pending
+   - Status: completed
 
 6. Add confirmation/policy for Notion writes.
    - Outcome: write/destructive Notion tools require explicit confirmation before invocation, while read-only Linear tools can run without write confirmation.
-   - Status: pending
+   - Status: completed
 
 7. Add fixture E2E tests.
    - Outcome: tests simulate Linear MCP and Notion MCP servers, prove search finds the intended tools, Linear ticket data flows into Notion input, and write confirmation is enforced.
-   - Status: pending
+   - Status: completed
 
 8. Add real-account validation docs.
    - Outcome: docs explain required env vars, OAuth browser steps, Anthropic key setup, local runtime files, expected output, and how to reset local auth state safely.
-   - Status: pending
+   - Status: completed
 
 9. Run final validation.
    - Outcome: package and example typechecks pass, SDK MCP lifecycle tests pass, fixture E2E passes, and any live-account blockers are recorded with exact failure text.
-   - Status: pending
+   - Status: completed
 
 ## Scope Guards
 
@@ -75,3 +75,16 @@ Make the Flue example perform a real local E2E workflow: authenticate actual Lin
 ## Progress Log
 
 - 2026-05-14T11:09:00Z: Created dedicated E2E tracker for the real Flue Linear-to-Notion workflow after confirming that discovery/search/invoke primitives are starting to exist but OAuth connect, Flue search orchestration, and write confirmation remain incomplete.
+- 2026-05-14T13:55:00Z: Completed the local MCP OAuth connect primitive by adding `connectHarborLocalMcpOAuthSource`, exporting it from `@hrbr/runtime-local`, and covering DCR, PKCE callback exchange, encrypted grant storage, and credential resolution in `packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T13:55:00Z: Verified step 1 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T14:02:00Z: Completed the OAuth-correct registry behavior by keeping Linear/Notion MCP discovery metadata in the catalog and updating source policy so MCP entries with `oauth_discovery` default to `native_oauth` plus `discover_then_auth`.
+- 2026-05-14T14:02:00Z: Verified step 2 with `bun run --filter @hrbr/source-policy typecheck` and `bun test packages/sdk/source-policy/src/index.test.ts packages/sdk/registry/test/index.test.ts packages/sdk/registry-catalog/test/index.test.ts`.
+- 2026-05-14T14:08:00Z: Completed the MCP refresh/invocation lifecycle by marking refreshed sources ready and adding coverage that OAuth MCP refresh and invocation resolve encrypted `access_token` credentials just-in-time.
+- 2026-05-14T14:08:00Z: Verified step 3 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T14:23:00Z: Completed the Flue E2E setup path with `examples/flue-tool-registry-agent/src/setup-e2e.ts`, a `setup:e2e` command, fixture MCP servers, and a root `example:flue-linear-notion-setup` command.
+- 2026-05-14T14:23:00Z: Reworked the Flue example to select Linear and Notion tools through local SQLite search, inspect schemas, invoke Linear reads, and gate Notion writes behind `HARBOR_CONFIRM_NOTION_WRITE`.
+- 2026-05-14T14:23:00Z: Added fixture E2E coverage in `examples/flue-tool-registry-agent/test/e2e.test.ts` for setup, search selection, Linear-to-Notion data flow, blocked writes, and confirmed writes.
+- 2026-05-14T14:23:00Z: Documented fixture setup, live Linear/Notion OAuth setup, Anthropic key usage, confirmation behavior, local runtime files, and reset instructions in `examples/flue-tool-registry-agent/README.md`.
+- 2026-05-14T14:23:00Z: Verified steps 4 through 8 with `bun run --filter flue-tool-registry-agent-example typecheck` and `bun test examples/flue-tool-registry-agent/test/e2e.test.ts`.
+- 2026-05-14T14:31:00Z: Completed final validation with `bun run --filter @hrbr/runtime-local typecheck`, `bun test packages/sdk/runtime-local/test/index.test.ts`, `bun run --filter @hrbr/source-policy typecheck`, `bun test packages/sdk/source-policy/src/index.test.ts packages/sdk/registry/test/index.test.ts packages/sdk/registry-catalog/test/index.test.ts`, `bun run typecheck:packages`, `bun run typecheck:examples`, `bun test examples/flue-tool-registry-agent/test/e2e.test.ts`, and fixture setup via `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:flue-linear-notion-setup`.
+- 2026-05-14T14:31:00Z: Live Linear/Notion OAuth was not executed because it requires user browser approval and real accounts; the live path is implemented and documented, while fixture mode covers the full flow without real credentials.

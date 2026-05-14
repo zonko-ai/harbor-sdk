@@ -26,11 +26,11 @@ Executor reference inspected from:
 
 3. Implement OAuth-first MCP connect flow.
    - Outcome: OAuth-capable MCP sources such as Linear and Notion open a browser auth URL, receive the callback locally, store encrypted OAuth grant tokens, and invoke without manual user-provided tokens.
-   - Status: pending
+   - Status: completed
 
 4. Implement provider-backed discovery and invocation lifecycle.
    - Outcome: MCP discovery produces durable tool bindings, refresh updates tools, invocation resolves credentials just-in-time, and agents call tools through the SDK runtime.
-   - Status: in_progress
+   - Status: completed
 
 5. Add runtime safety and correctness gates.
    - Outcome: source scope isolation, per-user credential isolation, connection reuse, destructive-tool annotations, stdio gating, and elicitation behavior are covered by tests.
@@ -61,3 +61,7 @@ Executor reference inspected from:
 - 2026-05-14T10:39:00Z: Verified step 2 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
 - 2026-05-14T10:58:00Z: Started the discovery/invocation lifecycle by adding `refreshHarborLocalMcpSource` to discover MCP tools into durable bindings plus searchable SQLite rows, and `createHarborLocalMcpToolRuntime` to search and invoke through stored MCP bindings.
 - 2026-05-14T10:58:00Z: Verified the lifecycle slice with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T13:55:00Z: Completed the OAuth-first MCP connect flow with `connectHarborLocalMcpOAuthSource`, which starts the local daemon callback, performs dynamic client registration when available, starts a PKCE OAuth flow, exchanges the callback code, and stores encrypted grant credentials for MCP sources.
+- 2026-05-14T13:55:00Z: Verified the OAuth connect slice with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T14:31:00Z: Completed the provider-backed discovery/invocation lifecycle by marking refreshed MCP sources ready, persisting tool bindings and SQLite index rows, and proving OAuth access-token resolution during MCP refresh and invoke.
+- 2026-05-14T14:31:00Z: Verified the lifecycle with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.

@@ -209,11 +209,13 @@ function inferCredentialSlots(entry: CatalogEntry): CredentialSlot[] {
 }
 
 function inferBaseAuthKind(entry: CatalogEntry): AuthKind {
+  if (entry.kind === "mcp" && entryConfig(entry).oauth_discovery) return "native_oauth"
   return entry.auth.method === "none" ? "none" : "static_secret"
 }
 
 function inferBaseInstallFlow(entry: CatalogEntry): InstallFlow {
   if (entry.auth.method !== "none") return "manual_credentials"
+  if (entry.kind === "mcp" && entryConfig(entry).oauth_discovery) return "discover_then_auth"
   if (entry.kind === "mcp") return "discover"
   return "direct"
 }

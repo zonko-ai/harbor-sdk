@@ -164,6 +164,7 @@ export {
   listHarborLocalMcpToolBindings,
   putHarborLocalMcpToolBindings,
   readHarborLocalMcpSource,
+  updateHarborLocalMcpSourceStatus,
   upsertHarborLocalMcpSource,
   type HarborLocalMcpAuthInput,
   type HarborLocalMcpCredentialInput,
@@ -176,9 +177,13 @@ export {
 } from "./mcp-store"
 
 export {
+  connectHarborLocalMcpOAuthSource,
   createHarborLocalMcpToolIndexFromBindings,
   createHarborLocalMcpToolRuntime,
   refreshHarborLocalMcpSource,
+  type HarborLocalMcpOAuthConnectHandle,
+  type HarborLocalMcpOAuthConnectInput,
+  type HarborLocalMcpOAuthDiscovery,
   type HarborLocalMcpRefreshSourceInput,
   type HarborLocalMcpRefreshSourceResult,
   type HarborLocalMcpToolRuntimeInput,

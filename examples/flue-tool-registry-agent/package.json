@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "bun test test",
+    "setup:e2e": "bun run src/setup-e2e.ts",
     "dev": "flue dev --target node --env .env",
     "run": "flue run tool-registry --target node --env .env --payload '{\"prompt\":\"find my Linear issues\"}'"
   },

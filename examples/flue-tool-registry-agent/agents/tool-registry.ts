@@ -7,10 +7,7 @@ export const triggers = { webhook: true }
 const agentResult = v.object({
   answer: v.string(),
   selectedToolId: v.nullable(v.string()),
-  localRegistryCall: v.object({
-    toolId: v.string(),
-    output: v.unknown(),
-  }),
+  localRegistryCall: v.unknown(),
 })
 
 function payloadPrompt(payload: unknown): string {
@@ -40,9 +37,7 @@ export default async function ({ init, payload, env }: FlueContext) {
   const prompt = payloadPrompt(payload)
   const preview = await loadLocalRegistryPreview({
     prompt,
-    linearRoot: envString(env, "HARBOR_LINEAR_LOCAL_ROOT"),
-    notionRoot: envString(env, "HARBOR_NOTION_LOCAL_ROOT"),
-    invokeProvider: envString(env, "HARBOR_INVOKE_PROVIDER") === "1",
+    confirmNotionWrite: envString(env, "HARBOR_CONFIRM_NOTION_WRITE") === "1",
     env: envRecord(env),
   })
 

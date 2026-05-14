@@ -354,6 +354,28 @@ export async function readHarborLocalMcpSource(
   }
 }
 
+export async function updateHarborLocalMcpSourceStatus(input: {
+  readonly projectRoot: string
+  readonly sourceId: string
+  readonly status: HarborLocalMcpSourceStatus
+  readonly now?: (() => Date) | undefined
+}): Promise<HarborLocalMcpStoredSource> {
+  await ensureHarborLocalProject({ projectRoot: input.projectRoot })
+  const db = openDatabase(input.projectRoot)
+  try {
+    db.prepare(`
+      UPDATE mcp_sources
+      SET status = ?, updated_at = ?
+      WHERE workspace_id = ? AND id = ?
+    `).run(input.status, timestamp(input.now), LOCAL_WORKSPACE_ID, input.sourceId)
+  } finally {
+    db.close()
+  }
+  const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId)
+  if (!source) throw new Error(`Unknown local MCP source "${input.sourceId}".`)
+  return source
+}
+
 export async function putHarborLocalMcpToolBindings(input: {
   readonly projectRoot: string
   readonly sourceId: string
