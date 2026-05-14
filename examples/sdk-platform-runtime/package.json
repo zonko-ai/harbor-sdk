@@ -1,0 +1,17 @@
+{
+  "name": "sdk-platform-runtime-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@hrbr/runtime-cloudflare": "workspace:*",
+    "@hrbr/runtime-local": "workspace:*"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

@@ -60,6 +60,17 @@
         "typescript": "catalog:",
       },
     },
+    "examples/sdk-platform-runtime": {
+      "name": "sdk-platform-runtime-example",
+      "dependencies": {
+        "@hrbr/runtime-cloudflare": "workspace:*",
+        "@hrbr/runtime-local": "workspace:*",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
     "examples/sdk-tool-catalog": {
       "name": "sdk-tool-catalog-example",
       "dependencies": {
@@ -208,10 +219,59 @@
         "typescript": "catalog:",
       },
     },
+    "packages/sdk/runtime-cloudflare": {
+      "name": "@hrbr/runtime-cloudflare",
+      "dependencies": {
+        "@hrbr/orbit": "workspace:*",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/sdk/runtime-local": {
+      "name": "@hrbr/runtime-local",
+      "dependencies": {
+        "@hrbr/orbit": "workspace:*",
+        "@hrbr/runtime-cloudflare": "workspace:*",
+        "@hrbr/tools": "workspace:*",
+        "@jitl/quickjs-ng-wasmfile-release-sync": "^0.32.0",
+        "quickjs-emscripten-core": "^0.32.0",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
     "packages/sdk/sand": {
       "name": "@hrbr/sand",
       "dependencies": {
         "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
+    "packages/sdk/sdk": {
+      "name": "@hrbr/sdk",
+      "dependencies": {
+        "@hrbr/ai": "workspace:*",
+        "@hrbr/client": "workspace:*",
+        "@hrbr/common": "workspace:*",
+        "@hrbr/orbit": "workspace:*",
+        "@hrbr/plugins": "workspace:*",
+        "@hrbr/runs": "workspace:*",
+        "@hrbr/runtime-cloudflare": "workspace:*",
+        "@hrbr/runtime-local": "workspace:*",
+        "@hrbr/source-core": "workspace:*",
+        "@hrbr/source-credentials": "workspace:*",
+        "@hrbr/source-mcp": "workspace:*",
+        "@hrbr/source-policy": "workspace:*",
+        "@hrbr/sources": "workspace:*",
+        "@hrbr/tools": "workspace:*",
+        "@hrbr/workflows": "workspace:*",
+        "@hrbr/workspaces": "workspace:*",
       },
       "devDependencies": {
         "@hrbr/tsconfig": "workspace:*",
@@ -417,7 +477,13 @@
 
     "@hrbr/runs": ["@hrbr/runs@workspace:packages/sdk/runs"],
 
+    "@hrbr/runtime-cloudflare": ["@hrbr/runtime-cloudflare@workspace:packages/sdk/runtime-cloudflare"],
+
+    "@hrbr/runtime-local": ["@hrbr/runtime-local@workspace:packages/sdk/runtime-local"],
+
     "@hrbr/sand": ["@hrbr/sand@workspace:packages/sdk/sand"],
+
+    "@hrbr/sdk": ["@hrbr/sdk@workspace:packages/sdk/sdk"],
 
     "@hrbr/source-auth": ["@hrbr/source-auth@workspace:packages/sdk/source-auth"],
 
@@ -438,6 +504,10 @@
     "@hrbr/workflows": ["@hrbr/workflows@workspace:packages/workflows"],
 
     "@hrbr/workspaces": ["@hrbr/workspaces@workspace:packages/sdk/workspaces"],
+
+    "@jitl/quickjs-ffi-types": ["@jitl/quickjs-ffi-types@0.32.0", "", {}, "sha512-v9T+GQpmk43VDJ7d72sf0Nexhk+ArvtUihW27dy7lqAl0zBObFKtSBBIm5RBjwIhE8VwsPPm9PNuvPvNqLWUEg=="],
+
+    "@jitl/quickjs-ng-wasmfile-release-sync": ["@jitl/quickjs-ng-wasmfile-release-sync@0.32.0", "", { "dependencies": { "@jitl/quickjs-ffi-types": "0.32.0" } }, "sha512-XAX2jjZWWh3M0YaRqi82xMKNW/gkF6mo3MpW3UY2cmVxnQai1JuboVsJQVoLU629iEL4XWvHtO4h5lo7NRnAcg=="],
 
     "@msgpackr-extract/msgpackr-extract-darwin-arm64": ["@msgpackr-extract/msgpackr-extract-darwin-arm64@3.0.3", "", { "os": "darwin", "cpu": "arm64" }, "sha512-QZHtlVgbAdy2zAqNA9Gu1UpIuI8Xvsd1v8ic6B2pZmeFnFcMWiPLfWXh7TVw4eGEZ/C9TH281KwhVoeQUKbyjw=="],
 
@@ -517,9 +587,13 @@
 
     "pure-rand": ["pure-rand@8.4.0", "", {}, "sha512-IoM8YF/jY0hiugFo/wOWqfmarlE6J0wc6fDK1PhftMk7MGhVZl88sZimmqBBFomLOCSmcCCpsfj7wXASCpvK9A=="],
 
+    "quickjs-emscripten-core": ["quickjs-emscripten-core@0.32.0", "", { "dependencies": { "@jitl/quickjs-ffi-types": "0.32.0" } }, "sha512-QFnPfjFey8EqknSrSxe1hZrf1/8z7/6s1QzGOmKo6++02r7QRRX7ZoyNaZh7JuVjWsVW87KnQrbZqnHkOAzUyg=="],
+
     "sdk-custom-source-example": ["sdk-custom-source-example@workspace:examples/sdk-custom-source"],
 
     "sdk-orbit-runtime-example": ["sdk-orbit-runtime-example@workspace:examples/sdk-orbit-runtime"],
+
+    "sdk-platform-runtime-example": ["sdk-platform-runtime-example@workspace:examples/sdk-platform-runtime"],
 
     "sdk-tool-catalog-example": ["sdk-tool-catalog-example@workspace:examples/sdk-tool-catalog"],
 

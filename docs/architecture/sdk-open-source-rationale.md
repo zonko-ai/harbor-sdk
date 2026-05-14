@@ -41,11 +41,14 @@ This pattern already exists in the product shape:
 
 Examples of what developers can build:
 
-- a private company plugin for an internal CRM
-- a workflow that triages GitHub issues and creates Linear tickets
-- a job that syncs SaaS data on a schedule
-- an app that exposes an approval queue or workflow launcher
-- a source adapter for an MCP server, OpenAPI API, CLI, or internal service
+- **Basic**: a private plugin for an internal CRM, support tool, database, or company API.
+- **Basic**: a source adapter for an MCP server, OpenAPI API, CLI, or internal service.
+- **Intermediate**: a workflow that triages GitHub issues, creates Linear tickets, and posts status to Slack.
+- **Intermediate**: a job that syncs SaaS data on a schedule and stores the latest cursor locally or in Harbor.
+- **Intermediate**: an app that exposes an approval queue, workflow launcher, or lightweight admin panel.
+- **Advanced**: a full plugin package with tools, auth setup, policies, docs, tests, and versioned registry metadata.
+- **Advanced**: a workflow pack for a vertical, such as incident response, sales ops, recruiting, finance ops, or customer support.
+- **Advanced**: an agent-facing extension bundle that combines sources, workflows, jobs, apps, and skills into one installable package.
 
 This makes Harbor more extensible without turning the main repo into the public contribution surface.
 
@@ -68,11 +71,14 @@ Orbit becomes the developer-friendly layer over complex infrastructure:
 
 Examples:
 
-- an AI agent that stores artifacts, caches API responses, and records traces
-- a support dashboard backed by workspace data and scheduled sync jobs
-- a document-processing app that stores files, extracts summaries, and exposes review UI
-- a developer tool that indexes local or hosted registries with lexical search locally and vector search when Cloudflare is connected
-- a workflow product that starts local and later moves to Cloudflare-backed execution without changing its authoring model
+- **Basic**: an AI agent that stores artifacts, caches API responses, and records traces.
+- **Basic**: a small app that saves uploads, renders results, and exposes a hosted review page.
+- **Intermediate**: a support dashboard backed by workspace data, scheduled sync jobs, and cached third-party API calls.
+- **Intermediate**: a document-processing app that stores files, extracts summaries, and routes approvals through a simple UI.
+- **Intermediate**: a registry or knowledge-base search app that starts with local lexical search and upgrades to Vectorize-backed retrieval when Cloudflare is connected.
+- **Advanced**: a multi-tenant agent product with storage, jobs, realtime updates, model calls, traces, and policy controls behind one SDK-level runtime.
+- **Advanced**: a workflow automation product that starts local and later moves to Cloudflare-backed execution without changing its authoring model.
+- **Advanced**: a cloud-native internal tools platform where developers build apps/jobs against Harbor primitives instead of hand-wiring Workers, Queues, D1, R2, KV, Vectorize, and Durable Objects.
 
 This is the strongest GTM story: developers can start local, build Harbor-compatible extensions, and graduate to Cloudflare-backed scale through the same SDK primitives.
 
