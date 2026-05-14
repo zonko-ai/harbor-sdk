@@ -12,7 +12,9 @@ The original Flue example remains at `examples/flue-tool-registry-agent`.
 
 ## Run
 
-The example automatically loads `.env` from its own directory. Create `examples/ai-sdk-tool-registry-agent/.env`:
+The example automatically loads `.env` from its own directory. If that file does not exist, it also falls back to `examples/flue-tool-registry-agent/.env` and reuses `examples/flue-tool-registry-agent/.harbor/` when present.
+
+Create `examples/ai-sdk-tool-registry-agent/.env`:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
@@ -36,7 +38,7 @@ Or pass a custom prompt:
 bun run --cwd examples/ai-sdk-tool-registry-agent main.ts "find my open Linear issues assigned to me"
 ```
 
-By default, this example stores local Harbor state in its own `.harbor/` directory. If you already authenticated in another example, set `HARBOR_LOCAL_PROJECT_ROOT` to that example directory and keep the same `HARBOR_LOCAL_CREDENTIAL_KEY`. Then Harbor SDK will reuse the existing encrypted credentials instead of starting OAuth again.
+By default, this example stores local Harbor state in its own `.harbor/` directory. If you already authenticated in another example, set `HARBOR_LOCAL_PROJECT_ROOT` to that example directory and keep the same `HARBOR_LOCAL_CREDENTIAL_KEY`. Then Harbor SDK will reuse the existing encrypted credentials instead of starting OAuth again. When `examples/flue-tool-registry-agent/.harbor/` exists and no explicit project root is set, this example uses it automatically.
 
 On first run without a shared project root, Harbor SDK may print Linear/Notion OAuth URLs. Open them, complete auth, and the SDK stores grants encrypted under `.harbor/credentials.enc`.
 
