@@ -35,7 +35,7 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 
 7. Implement the Notion MCP example after local OAuth exists.
    - Outcome: create a `notion-mcp` local plugin example that installs the source from registry metadata, connects OAuth, discovers/indexes MCP tools, and demonstrates safe read calls before documenting gated writes.
-   - Status: pending
+   - Status: completed
 
 8. Add plugin authoring docs.
    - Outcome: docs explain plugin manifest shape, source config, tool metadata/indexing, credential slots vs secret values, Linear MCP flow, Notion MCP OAuth flow, local runtime files, commit safety, and the hosted Harbor mapping.
@@ -72,3 +72,5 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 - 2026-05-14T07:23:00Z: Verified step 5 with `bun run --filter plugin-linear-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:linear-mcp-local`, and `bun run typecheck:examples`.
 - 2026-05-14T07:46:00Z: Added reusable local OAuth support: PKCE authorization URL helpers in `@hrbr/source-auth`, local OAuth client/pending/grant tables in `@hrbr/runtime-local`, encrypted token persistence as `access_token`/`refresh_token` credential slots, and a daemon `/oauth/callback` hook for mock or provider-backed token exchange.
 - 2026-05-14T07:46:00Z: Verified step 6 with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/source-auth typecheck`, `bun test packages/sdk/source-auth/test packages/sdk/runtime-local/test/index.test.ts`, and `bun run typecheck:packages`.
+- 2026-05-14T08:04:00Z: Added `examples/plugin-notion-mcp-local`, wired `bun run example:notion-mcp-local`, and demonstrated `notion-mcp` OAuth setup through the local daemon callback with encrypted `access_token`/`refresh_token` slots and safe read-only MCP calls.
+- 2026-05-14T08:04:00Z: Verified step 7 with `bun run --filter plugin-notion-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:notion-mcp-local`, and `bun run typecheck:examples`.
