@@ -34,6 +34,21 @@
         "typescript": "catalog:",
       },
     },
+    "examples/flue-local-exec-agent": {
+      "name": "flue-local-exec-agent-example",
+      "dependencies": {
+        "@flue/runtime": "^0.6.1",
+        "@hrbr/runtime-local": "workspace:*",
+        "@hrbr/source-mcp": "workspace:*",
+        "valibot": "^1.1.0",
+        "zod": "^4.4.3",
+      },
+      "devDependencies": {
+        "@flue/cli": "^0.6.1",
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
     "examples/flue-tool-registry-agent": {
       "name": "flue-tool-registry-agent-example",
       "dependencies": {
@@ -41,6 +56,7 @@
         "@hrbr/runtime-local": "workspace:*",
         "@hrbr/source-mcp": "workspace:*",
         "valibot": "^1.1.0",
+        "zod": "^4.4.3",
       },
       "devDependencies": {
         "@flue/cli": "^0.6.1",
@@ -911,6 +927,8 @@
     "find-my-way-ts": ["find-my-way-ts@0.1.6", "", {}, "sha512-a85L9ZoXtNAey3Y6Z+eBWW658kO/MwR7zIafkIUPUMf3isZG0NCs2pjW2wtjxAKuJPxMAsHUIP4ZPGv0o5gyTA=="],
 
     "find-up-simple": ["find-up-simple@1.0.1", "", {}, "sha512-afd4O7zpqHeRyg4PfDQsXmlDe2PfdHtJt6Akt8jOWaApLOZk5JXs6VMR29lz03pRe9mpykrRCYIYxaJYcfpncQ=="],
+
+    "flue-local-exec-agent-example": ["flue-local-exec-agent-example@workspace:examples/flue-local-exec-agent"],
 
     "flue-tool-registry-agent-example": ["flue-tool-registry-agent-example@workspace:examples/flue-tool-registry-agent"],
 

@@ -2454,6 +2454,51 @@ function validateBundledCode(code) {
     throw new Error("QuickJS local execution only accepts bundled JavaScript without import/export");
   }
 }
+function namespaceBootstrap(bindings) {
+  const lines = [
+    `async function __harborNamespaceCall(namespace, tool, input) {`,
+    `  return JSON.parse(await globalThis.__harborHostCallAsync("tools.namespaceCall", JSON.stringify({ namespace, tool, input })));`,
+    `}`
+  ];
+  for (const binding of bindings) {
+    if (!/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(binding.alias)) {
+      throw new Error(`Invalid QuickJS namespace alias: ${binding.alias}`);
+    }
+    lines.push(`const ${binding.alias} = new Proxy({}, { get: (_, tool) => (input = {}) => __harborNamespaceCall(${JSON.stringify(binding.namespace)}, String(tool), input) });`);
+  }
+  return lines.join(`
+`);
+}
+async function waitForQuickJSValue(runtime, context, handle) {
+  const state = context.getPromiseState(handle);
+  if (state.type === "fulfilled")
+    return context.dump(state.value);
+  if (state.type === "rejected") {
+    try {
+      throw context.dump(state.error);
+    } finally {
+      state.error.dispose();
+    }
+  }
+  let settled;
+  context.resolvePromise(handle).then((result) => {
+    settled = { result };
+  }).catch((error) => {
+    settled = { error };
+  });
+  while (!settled) {
+    context.unwrapResult(runtime.executePendingJobs());
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+  if ("error" in settled)
+    throw settled.error;
+  const resolved = context.unwrapResult(settled.result);
+  try {
+    return context.dump(resolved);
+  } finally {
+    resolved.dispose();
+  }
+}
 async function runHarborLocalQuickJS(input) {
   validateBundledCode(input.code);
   const QuickJS = await getQuickJSModule();
@@ -2466,20 +2511,46 @@ async function runHarborLocalQuickJS(input) {
     const hostCall = context.newFunction("__harborHostCall", (nameHandle, payloadHandle) => {
       const name = context.getString(nameHandle);
       const payload = JSON.parse(context.getString(payloadHandle));
-      if (!input.hostCall)
+      if (!input.hostCall) {
+        if (name === "logs.emit")
+          return context.newString("null");
         throw new Error(`Host call is not configured: ${name}`);
-      return context.newString(JSON.stringify(input.hostCall(name, payload) ?? null));
+      }
+      const result2 = input.hostCall(name, payload);
+      if (result2 && typeof result2 === "object" && "then" in result2) {
+        if (name === "logs.emit")
+          return context.newString("null");
+        throw new Error(`Host call is async-only: ${name}`);
+      }
+      return context.newString(JSON.stringify(result2 ?? null));
     });
     context.setProp(context.global, "__harborHostCall", hostCall);
     hostCall.dispose();
+    const asyncHostCall = context.newFunction("__harborHostCallAsync", (nameHandle, payloadHandle) => {
+      const name = context.getString(nameHandle);
+      const payload = JSON.parse(context.getString(payloadHandle));
+      if (!input.hostCall)
+        throw new Error(`Host call is not configured: ${name}`);
+      const deferred = context.newPromise(Promise.resolve(input.hostCall(name, payload)).then((value) => context.newString(JSON.stringify(value ?? null))).catch((error) => {
+        throw error instanceof Error ? error : new Error(String(error));
+      }));
+      deferred.settled.then(() => deferred.dispose());
+      return deferred.handle;
+    });
+    context.setProp(context.global, "__harborHostCallAsync", asyncHostCall);
+    asyncHostCall.dispose();
     const bootstrap = context.evalCode(HARBOR_HOST_BOOTSTRAP, "<harbor-host>");
     context.unwrapResult(bootstrap).dispose();
+    if (input.namespaceBindings && input.namespaceBindings.length > 0) {
+      const namespaces = context.evalCode(namespaceBootstrap(input.namespaceBindings), "<harbor-namespaces>");
+      context.unwrapResult(namespaces).dispose();
+    }
     const injectedInput = context.evalCode(`globalThis.__harborInput = ${JSON.stringify(input.input ?? null)};`, "<harbor-input>");
     context.unwrapResult(injectedInput).dispose();
     const result = context.evalCode(input.code, input.filename ?? "<harbor-bundle>");
     const handle = context.unwrapResult(result);
     try {
-      return { ok: true, value: context.dump(handle) };
+      return { ok: true, value: await waitForQuickJSValue(runtime, context, handle) };
     } finally {
       handle.dispose();
     }
@@ -2489,6 +2560,11 @@ async function runHarborLocalQuickJS(input) {
   }
 }
 var DEFAULT_TIMEOUT_MS = 1000, DEFAULT_MEMORY_LIMIT_BYTES, DEFAULT_STACK_SIZE_BYTES, quickJSModule, HARBOR_HOST_BOOTSTRAP = `
+globalThis.console = Object.freeze({
+  log: (...args) => globalThis.__harborHostCall("logs.emit", JSON.stringify({ level: "log", args })),
+  warn: (...args) => globalThis.__harborHostCall("logs.emit", JSON.stringify({ level: "warn", args })),
+  error: (...args) => globalThis.__harborHostCall("logs.emit", JSON.stringify({ level: "error", args })),
+});
 globalThis.harbor = Object.freeze({
   tools: Object.freeze({
     call: (toolId, input) => JSON.parse(globalThis.__harborHostCall("tools.call", JSON.stringify({ toolId, input }))),
@@ -2689,102 +2765,6 @@ function createHarborLocalWorkflowReplayFixture(input) {
 var init_workflows = __esm(() => {
   init_jobs_apps();
 });
-
-// packages/sdk/runtime-local/src/tool-search.ts
-function tokenize(value) {
-  return value.toLowerCase().split(/[^a-z0-9_]+/g).map((part) => part.trim()).filter(Boolean);
-}
-function termFrequency(tokens, term) {
-  return tokens.reduce((count, token) => count + (token === term ? 1 : 0), 0);
-}
-function toolId(record) {
-  return `${record.namespace}.${record.name}`;
-}
-function toDescription(record) {
-  return {
-    toolId: toolId(record),
-    namespace: record.namespace,
-    name: record.name,
-    displayName: record.displayName,
-    ...record.description !== undefined ? { description: record.description } : {},
-    ...record.inputSchema !== undefined ? { inputSchema: record.inputSchema } : {},
-    ...record.outputSchema !== undefined ? { outputSchema: record.outputSchema } : {}
-  };
-}
-function createHarborLocalToolIndex(records, options = {}) {
-  const docs = records.map((record) => ({
-    record,
-    tokens: tokenize([
-      record.namespace,
-      record.name,
-      record.displayName,
-      record.description ?? "",
-      record.searchText
-    ].join(" "))
-  }));
-  const avgLength = docs.length === 0 ? 1 : docs.reduce((sum, doc) => sum + doc.tokens.length, 0) / docs.length;
-  const byToolId = new Map(records.map((record) => [toolId(record), record]));
-  const search = (input) => {
-    const terms = [...new Set(tokenize(input.query))];
-    if (terms.length === 0)
-      return [];
-    const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
-    const filtered = input.namespace ? docs.filter((doc) => doc.record.namespace === input.namespace) : docs;
-    const scores = filtered.map((doc) => {
-      let score = 0;
-      for (const term of terms) {
-        const tf = termFrequency(doc.tokens, term);
-        if (tf === 0)
-          continue;
-        const containing = filtered.filter((candidate) => candidate.tokens.includes(term)).length;
-        const idf = Math.log((filtered.length + 1) / (containing + 1)) + 1;
-        const k1 = 1.2;
-        const b = 0.75;
-        score += idf * (tf * (k1 + 1) / (tf + k1 * (1 - b + b * (doc.tokens.length / avgLength))));
-      }
-      if (doc.record.name.toLowerCase() === input.query.toLowerCase())
-        score += 5;
-      if (doc.record.displayName.toLowerCase().includes(input.query.toLowerCase()))
-        score += 2;
-      return { doc, score };
-    });
-    return scores.filter((item) => item.score > 0).sort((a, b) => b.score - a.score || toolId(a.doc.record).localeCompare(toolId(b.doc.record))).slice(0, limit).map(({ doc, score }) => ({
-      toolId: toolId(doc.record),
-      namespace: doc.record.namespace,
-      name: doc.record.name,
-      displayName: doc.record.displayName,
-      ...doc.record.description !== undefined ? { description: doc.record.description } : {},
-      score
-    }));
-  };
-  const schema = (id) => {
-    const record = byToolId.get(id);
-    if (!record)
-      return null;
-    return {
-      toolId: id,
-      ...record.inputSchema !== undefined ? { inputSchema: record.inputSchema } : {},
-      ...record.outputSchema !== undefined ? { outputSchema: record.outputSchema } : {}
-    };
-  };
-  return {
-    search,
-    describe: (id) => {
-      const record = byToolId.get(id);
-      return record ? toDescription(record) : null;
-    },
-    schema,
-    schemas: (input = {}) => records.filter((record) => input.namespace === undefined || record.namespace === input.namespace).map((record) => schema(toolId(record))).filter((item) => item !== null),
-    call: async (input) => {
-      const record = byToolId.get(input.toolId);
-      if (!record)
-        throw new Error(`Unknown local tool: ${input.toolId}`);
-      if (!options.callTool)
-        throw new Error("Local tool call handler is not configured");
-      return await options.callTool(input, toDescription(record));
-    }
-  };
-}
 
 // node_modules/.bun/effect@4.0.0-beta.64/node_modules/effect/dist/Pipeable.js
 var pipeArguments = (self, args) => {
@@ -11767,7 +11747,7 @@ function prefixPathInPlace(op, parent) {
 function isJsonObject(value3) {
   return isObject(value3);
 }
-function tokenize2(pointer) {
+function tokenize(pointer) {
   if (pointer === "")
     return [];
   if (pointer.charCodeAt(0) !== 47) {
@@ -11854,7 +11834,7 @@ function setAt(doc, pointer, val, mode) {
   throw new Error(`Cannot ${mode} at "${pointer}" (parent not found or not a container).`);
 }
 function resolveParent(doc, pointer) {
-  const tokens = tokenize2(pointer);
+  const tokens = tokenize(pointer);
   if (tokens.length === 0)
     return null;
   const lastToken = tokens[tokens.length - 1];
@@ -26435,6 +26415,102 @@ var init_credentials = __esm(() => {
   init_src5();
 });
 
+// packages/sdk/runtime-local/src/tool-search.ts
+function tokenize2(value3) {
+  return value3.toLowerCase().split(/[^a-z0-9_]+/g).map((part) => part.trim()).filter(Boolean);
+}
+function termFrequency(tokens, term) {
+  return tokens.reduce((count, token) => count + (token === term ? 1 : 0), 0);
+}
+function toolId(record3) {
+  return `${record3.namespace}.${record3.name}`;
+}
+function toDescription(record3) {
+  return {
+    toolId: toolId(record3),
+    namespace: record3.namespace,
+    name: record3.name,
+    displayName: record3.displayName,
+    ...record3.description !== undefined ? { description: record3.description } : {},
+    ...record3.inputSchema !== undefined ? { inputSchema: record3.inputSchema } : {},
+    ...record3.outputSchema !== undefined ? { outputSchema: record3.outputSchema } : {}
+  };
+}
+function createHarborLocalToolIndex(records, options = {}) {
+  const docs = records.map((record3) => ({
+    record: record3,
+    tokens: tokenize2([
+      record3.namespace,
+      record3.name,
+      record3.displayName,
+      record3.description ?? "",
+      record3.searchText
+    ].join(" "))
+  }));
+  const avgLength = docs.length === 0 ? 1 : docs.reduce((sum, doc) => sum + doc.tokens.length, 0) / docs.length;
+  const byToolId = new Map(records.map((record3) => [toolId(record3), record3]));
+  const search = (input) => {
+    const terms = [...new Set(tokenize2(input.query))];
+    if (terms.length === 0)
+      return [];
+    const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
+    const filtered = input.namespace ? docs.filter((doc) => doc.record.namespace === input.namespace) : docs;
+    const scores = filtered.map((doc) => {
+      let score = 0;
+      for (const term of terms) {
+        const tf = termFrequency(doc.tokens, term);
+        if (tf === 0)
+          continue;
+        const containing = filtered.filter((candidate) => candidate.tokens.includes(term)).length;
+        const idf = Math.log((filtered.length + 1) / (containing + 1)) + 1;
+        const k1 = 1.2;
+        const b = 0.75;
+        score += idf * (tf * (k1 + 1) / (tf + k1 * (1 - b + b * (doc.tokens.length / avgLength))));
+      }
+      if (doc.record.name.toLowerCase() === input.query.toLowerCase())
+        score += 5;
+      if (doc.record.displayName.toLowerCase().includes(input.query.toLowerCase()))
+        score += 2;
+      return { doc, score };
+    });
+    return scores.filter((item) => item.score > 0).sort((a, b) => b.score - a.score || toolId(a.doc.record).localeCompare(toolId(b.doc.record))).slice(0, limit).map(({ doc, score }) => ({
+      toolId: toolId(doc.record),
+      namespace: doc.record.namespace,
+      name: doc.record.name,
+      displayName: doc.record.displayName,
+      ...doc.record.description !== undefined ? { description: doc.record.description } : {},
+      score
+    }));
+  };
+  const schema = (id2) => {
+    const record3 = byToolId.get(id2);
+    if (!record3)
+      return null;
+    return {
+      toolId: id2,
+      ...record3.inputSchema !== undefined ? { inputSchema: record3.inputSchema } : {},
+      ...record3.outputSchema !== undefined ? { outputSchema: record3.outputSchema } : {}
+    };
+  };
+  return {
+    search,
+    describe: (id2) => {
+      const record3 = byToolId.get(id2);
+      return record3 ? toDescription(record3) : null;
+    },
+    schema,
+    schemas: (input = {}) => records.filter((record3) => input.namespace === undefined || record3.namespace === input.namespace).map((record3) => schema(toolId(record3))).filter((item) => item !== null),
+    call: async (input) => {
+      const record3 = byToolId.get(input.toolId);
+      if (!record3)
+        throw new Error(`Unknown local tool: ${input.toolId}`);
+      if (!options.callTool)
+        throw new Error("Local tool call handler is not configured");
+      return await options.callTool(input, toDescription(record3));
+    }
+  };
+}
+
 // packages/sdk/runtime-local/src/plugin-store.ts
 import { createRequire as createRequire3 } from "node:module";
 function loadDatabase() {
@@ -28252,6 +28328,226 @@ var init_tool_registry_actions = __esm(() => {
   WRITE_TOOL_PATTERN = /(?:^|[._-])(?:create|update|delete|remove|archive|move|duplicate|post|send|write|publish)(?:$|[._-])/i;
 });
 
+// packages/sdk/runtime-local/src/exec.ts
+import { createRequire as createRequire6 } from "node:module";
+function loadDatabase4() {
+  const req = createRequire6(import.meta.url);
+  try {
+    return req("bun:sqlite").Database;
+  } catch {
+    return req("node:sqlite").DatabaseSync;
+  }
+}
+function jsIdentifier(value3) {
+  const cleaned = value3.replace(/[^A-Za-z0-9_$]+/g, "_").replace(/^([^A-Za-z_$])/, "_$1");
+  return /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(cleaned) ? cleaned : null;
+}
+function harborLocalNamespaceToJsVar(namespace) {
+  const parts = namespace.split(/[^A-Za-z0-9_$]+/g).filter(Boolean);
+  const camel = parts.map((part, index2) => index2 === 0 ? part : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join("");
+  return jsIdentifier(camel) ?? "source";
+}
+function toCamelCase(value3) {
+  return value3.split(/[^A-Za-z0-9_$]+|_/g).filter(Boolean).map((part, index2) => index2 === 0 ? part : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join("");
+}
+function namespaceAliases(namespace) {
+  const aliases = new Set;
+  const raw = jsIdentifier(namespace);
+  if (raw)
+    aliases.add(raw);
+  const snake = jsIdentifier(namespace.replace(/[^A-Za-z0-9_$]+/g, "_"));
+  if (snake)
+    aliases.add(snake);
+  aliases.add(harborLocalNamespaceToJsVar(namespace));
+  return [...aliases];
+}
+function stripCommentsAndStrings(code) {
+  return code.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n\r]*/g, " ").replace(/`(?:\\[\s\S]|[^`\\])*`/g, " ").replace(/"(?:\\.|[^"\\])*"/g, " ").replace(/'(?:\\.|[^'\\])*'/g, " ");
+}
+function declaredIdentifiers(code) {
+  const stripped = stripCommentsAndStrings(code);
+  const declared = new Set;
+  for (const match7 of stripped.matchAll(/\b(?:const|let|var|function|class)\s+([A-Za-z_$][A-Za-z0-9_$]*)/g)) {
+    if (match7[1])
+      declared.add(match7[1]);
+  }
+  for (const match7 of stripped.matchAll(/\(([^)]*)\)\s*=>/g)) {
+    for (const name of match7[1]?.split(",") ?? []) {
+      const trimmed = name.trim();
+      if (/^[A-Za-z_$][A-Za-z0-9_$]*$/.test(trimmed))
+        declared.add(trimmed);
+    }
+  }
+  return declared;
+}
+function referencedIdentifiers(code) {
+  const stripped = stripCommentsAndStrings(code);
+  const declared = declaredIdentifiers(code);
+  const refs = new Set;
+  for (const match7 of stripped.matchAll(/\b[A-Za-z_$][A-Za-z0-9_$]*\b/g)) {
+    const name = match7[0];
+    if (declared.has(name))
+      continue;
+    refs.add(name);
+  }
+  return refs;
+}
+async function listExecBindings(input) {
+  const Database = loadDatabase4();
+  const db = new Database(harborLocalPaths(input.projectRoot).sqlite);
+  try {
+    const rows = db.prepare(`
+      SELECT namespace, COUNT(*) AS tool_count
+        FROM tool_index
+       WHERE workspace_id = ?
+       GROUP BY namespace
+       ORDER BY namespace ASC
+    `).all(LOCAL_WORKSPACE_ID);
+    return rows.map((row) => {
+      const namespace = String(row.namespace);
+      return {
+        namespace,
+        aliases: namespaceAliases(namespace),
+        toolCount: Number(row.tool_count ?? 0)
+      };
+    });
+  } finally {
+    db.close();
+  }
+}
+function resolveNamespaces(code, bindings) {
+  const refs = referencedIdentifiers(code);
+  const resolved = [];
+  const seen = new Set;
+  for (const binding of bindings) {
+    const alias = binding.aliases.find((candidate) => refs.has(candidate));
+    if (!alias || seen.has(binding.namespace))
+      continue;
+    seen.add(binding.namespace);
+    resolved.push({ namespace: binding.namespace, alias });
+  }
+  return resolved;
+}
+function unresolvedNamespaceReference(code, bindings, resolved) {
+  const refs = referencedIdentifiers(code);
+  const knownAliases = new Set(bindings.flatMap((binding) => [...binding.aliases]));
+  const resolvedAliases = new Set(resolved.map((binding) => binding.alias));
+  for (const ref of refs) {
+    if (knownAliases.has(ref) || resolvedAliases.has(ref))
+      continue;
+    if (/Mcp$/.test(ref))
+      return ref;
+  }
+  return null;
+}
+function resolveToolId(requestedNamespace, requestedTool, tools) {
+  const aliases = new Map;
+  for (const tool of tools) {
+    if (tool.namespace !== requestedNamespace)
+      continue;
+    aliases.set(tool.name, tool.toolId);
+    aliases.set(toCamelCase(tool.name), tool.toolId);
+    aliases.set(tool.name.replace(/[^A-Za-z0-9_$]+/g, "_"), tool.toolId);
+  }
+  const hit = aliases.get(requestedTool);
+  if (hit)
+    return hit;
+  const candidates = tools.filter((tool) => tool.namespace === requestedNamespace).map((tool) => toCamelCase(tool.name)).slice(0, 5);
+  throw new Error(`Tool "${requestedTool}" not found in namespace "${requestedNamespace}".${candidates.length ? ` Did you mean: ${candidates.join(", ")}?` : ""}`);
+}
+function errorMessage(error) {
+  if (error instanceof Error && error.message)
+    return error.message;
+  if (typeof error === "string" && error.trim())
+    return error;
+  return "Local exec failed";
+}
+function createHarborLocalExecRuntime(input) {
+  return {
+    bindings: () => listExecBindings(input),
+    run: async (code, options = {}) => {
+      const started = Date.now();
+      const logs = [];
+      const toolRuntime = await createHarborLocalMcpToolRuntime(input);
+      const bindings = await listExecBindings(input);
+      const namespaces = resolveNamespaces(code, bindings);
+      const missingNamespace = unresolvedNamespaceReference(code, bindings, namespaces);
+      if (missingNamespace) {
+        return {
+          ok: false,
+          error: {
+            code: "EXEC_ERROR",
+            message: `Namespace "${missingNamespace}" is not available. Available namespace aliases: ${bindings.flatMap((binding) => [...binding.aliases]).join(", ") || "none"}.`
+          },
+          namespaces: namespaces.map((binding) => binding.namespace),
+          logs,
+          durationMs: Date.now() - started
+        };
+      }
+      const tools = namespaces.flatMap((binding) => toolRuntime.schemas({ namespace: binding.namespace }).map((schema) => toolRuntime.describe(schema.toolId)).filter((tool) => tool !== null));
+      try {
+        const value3 = await runHarborLocalQuickJS({
+          code: `(async () => {
+${code}
+})()`,
+          filename: "<harbor-local-exec>",
+          input: options.input,
+          timeoutMs: options.timeoutMs,
+          namespaceBindings: namespaces,
+          hostCall: async (name, payload) => {
+            if (name === "logs.emit") {
+              const event = payload;
+              logs.push({
+                level: event.level === "warn" ? "warn" : event.level === "error" ? "error" : "log",
+                args: Array.isArray(event.args) ? event.args : []
+              });
+              return null;
+            }
+            if (name !== "tools.namespaceCall")
+              return null;
+            const request = payload;
+            const namespace = String(request.namespace ?? "");
+            const toolName = String(request.tool ?? "");
+            const toolId2 = resolveToolId(namespace, toolName, tools);
+            const tool = toolRuntime.describe(toolId2);
+            if (!tool)
+              throw new Error(`Unknown local exec tool: ${toolId2}`);
+            const isWrite = options.isWriteTool?.(tool) ?? harborLocalDefaultWriteToolMatcher({ toolId: toolId2, tool });
+            if (isWrite && options.confirmWrites !== true) {
+              throw new Error(`Blocked write tool "${toolId2}". Re-run with write confirmation enabled to allow it.`);
+            }
+            const result2 = await toolRuntime.call({ toolId: toolId2, input: request.input ?? {} });
+            return result2.output;
+          }
+        });
+        return {
+          ok: true,
+          value: value3.value,
+          namespaces: namespaces.map((binding) => binding.namespace),
+          logs,
+          durationMs: Date.now() - started
+        };
+      } catch (error) {
+        return {
+          ok: false,
+          error: {
+            code: "EXEC_ERROR",
+            message: errorMessage(error)
+          },
+          namespaces: namespaces.map((binding) => binding.namespace),
+          logs,
+          durationMs: Date.now() - started
+        };
+      }
+    }
+  };
+}
+var init_exec = __esm(() => {
+  init_tool_registry_actions();
+  init_mcp_runtime();
+  init_src5();
+});
+
 // packages/sdk/runtime-local/src/registry.ts
 import { watch, watchFile, unwatchFile } from "node:fs";
 import { mkdir, readFile as readFile3, rmdir, writeFile as writeFile3 } from "node:fs/promises";
@@ -28530,6 +28826,7 @@ __export(exports_src, {
   harborLocalRegistryActionSchema: () => harborLocalRegistryActionSchema,
   harborLocalRegistryActionFromAgentStep: () => harborLocalRegistryActionFromAgentStep,
   harborLocalPaths: () => harborLocalPaths,
+  harborLocalNamespaceToJsVar: () => harborLocalNamespaceToJsVar,
   harborLocalDefaultWriteToolMatcher: () => harborLocalDefaultWriteToolMatcher,
   harborLocalDaemonConnection: () => harborLocalDaemonConnection,
   generateHarborLocalWorkflowPackageManifest: () => generateHarborLocalWorkflowPackageManifest,
@@ -28547,6 +28844,7 @@ __export(exports_src, {
   createHarborLocalMcpToolRuntime: () => createHarborLocalMcpToolRuntime,
   createHarborLocalMcpToolIndexFromBindings: () => createHarborLocalMcpToolIndexFromBindings,
   createHarborLocalMcpPluginRuntime: () => createHarborLocalMcpPluginRuntime,
+  createHarborLocalExecRuntime: () => createHarborLocalExecRuntime,
   createHarborLocalCredentialResolverFromEnv: () => createHarborLocalCredentialResolverFromEnv,
   createHarborLocalCredentialResolver: () => createHarborLocalCredentialResolver,
   connectHarborLocalMcpOAuthSource: () => connectHarborLocalMcpOAuthSource,
@@ -28654,6 +28952,7 @@ var init_src5 = __esm(() => {
   init_workflows();
   init_jobs_apps();
   init_quickjs();
+  init_exec();
   init_tool_registry_actions();
   init_plugin_store();
   init_credentials();
@@ -40651,6 +40950,10 @@ function createHarborLocalRuntime(input) {
         return result2.kind === "invoke" && !result2.blocked ? result2.result : result2;
       },
       runAction
+    },
+    exec: {
+      run: async (code, options) => createHarborLocalExecRuntime(base2).run(code, options),
+      bindings: async () => createHarborLocalExecRuntime(base2).bindings()
     }
   };
 }
