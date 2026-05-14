@@ -15,7 +15,7 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 
 2. Add local-runtime plugin install support.
    - Outcome: extend `@hrbr/runtime-local` so examples can create local plugin/source records, persist tools, and use `.harbor/harbor.sqlite`, `.harbor/credentials.enc`, and `.harbor/registry-dev-refs.json` instead of only hand-building tool indexes.
-   - Status: pending
+   - Status: completed
 
 3. Use Harbor's real source model as the reference.
    - Outcome: mirror the relevant ideas from `../harbor` into SDK-local examples: installed sources, indexed tools, encrypted source-scoped credentials, OAuth-capable source state, `linear-mcp`, and `notion-mcp`.
@@ -63,3 +63,5 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 - 2026-05-14T06:29:50Z: Created task tracker and pinned Linear examples to `linear-mcp`.
 - 2026-05-14T06:31:00Z: Completed scope-tracking setup; future implementation steps will update this file before each commit.
 - 2026-05-14T06:36:00Z: Expanded tracker to preserve the full high-level work sequence and replaced the earlier Linear GraphQL implementation path with `linear-mcp`.
+- 2026-05-14T06:47:00Z: Added local runtime plugin install/store support: plugin manifests now persist package/source/tool rows into `.harbor/harbor.sqlite`, rebuild local tool indexes from SQLite, and resolve encrypted local credentials by source ref and slot.
+- 2026-05-14T06:47:00Z: Verified step 2 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.

@@ -93,6 +93,19 @@ export {
 } from "./tool-search"
 
 export {
+  buildHarborLocalToolIndexFromSqlite,
+  createHarborLocalCredentialResolver,
+  installHarborLocalPluginManifest,
+  listHarborLocalSources,
+  type HarborLocalCredentialResolveInput,
+  type HarborLocalCredentialResolverInput,
+  type HarborLocalCredentialResolver,
+  type HarborLocalPluginInstallResult,
+  type HarborLocalResolvedCredentials,
+  type HarborLocalSourceRef,
+} from "./plugin-store"
+
+export {
   importHarborLocalCredentialsFromEnv,
   readHarborLocalCredentials,
   redactHarborSecret,

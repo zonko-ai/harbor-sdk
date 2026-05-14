@@ -5,7 +5,9 @@ import { describe, expect, it } from "bun:test"
 import {
   ensureHarborLocalProject,
   expectedHarborLocalTables,
+  buildHarborLocalToolIndexFromSqlite,
   createHarborLocalToolIndex,
+  createHarborLocalCredentialResolver,
   createHarborLocalWorkflowReplayFixture,
   createHarborLocalSubmissionSnapshot,
   harborLocalDaemonConnection,
@@ -18,7 +20,9 @@ import {
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_SCHEMA_VERSION,
   importHarborLocalCredentialsFromEnv,
+  installHarborLocalPluginManifest,
   hashHarborLocalToken,
+  listHarborLocalSources,
   readHarborLocalRuntimeManifest,
   readHarborLocalCredentials,
   redactHarborSecret,
@@ -472,6 +476,99 @@ describe("@hrbr/runtime-local tool search", () => {
       toolId: "github.missing",
       input: {},
     })).rejects.toThrow("Unknown local tool")
+  })
+})
+
+describe("@hrbr/runtime-local plugin install store", () => {
+  it("persists plugin source and tool metadata into the local runtime store", async () => {
+    await withTempProject(async (projectRoot) => {
+      const manifest = generateHarborLocalPluginPackageManifest({
+        name: "linear-mcp",
+        version: "1.0.0",
+        owner: { name: "Harbor Dev" },
+        source: { kind: "local", path: "plugins/linear-mcp" },
+        docs: { readme: "# Linear MCP" },
+        auth: { required: true, slots: ["LINEAR_API_KEY"] },
+        scopes: ["issues:read"],
+        policies: ["network:linear.app"],
+        tests: ["bun test"],
+        changelog: ["1.0.0 initial submission"],
+        tools: [{
+          id: "tool-linear-list",
+          workspaceId: "local",
+          sourceRefId: "source-linear",
+          namespace: "linear-mcp",
+          name: "list_issues",
+          displayName: "List issues",
+          description: "List Linear issues through the MCP source.",
+          inputSchema: { type: "object", properties: { limit: { type: "number" } } },
+          searchText: "linear issues list",
+        }],
+      })
+
+      const installed = await installHarborLocalPluginManifest({
+        projectRoot,
+        manifest,
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+      })
+
+      expect(installed).toMatchObject({
+        packageId: "package:plugin:linear-mcp",
+        sourceRefs: [{
+          id: "source:linear-mcp:linear-mcp",
+          name: "linear-mcp",
+          toolCount: 1,
+        }],
+        tools: [{
+          namespace: "linear-mcp",
+          name: "list_issues",
+        }],
+      })
+      await expect(listHarborLocalSources(projectRoot)).resolves.toMatchObject([
+        { name: "linear-mcp", toolCount: 1 },
+      ])
+
+      const index = await buildHarborLocalToolIndexFromSqlite(projectRoot, {
+        callTool: (input) => ({ toolId: input.toolId, output: { ok: true, input: input.input } }),
+      })
+      expect(index.search({ query: "linear issues" })[0]).toMatchObject({
+        toolId: "linear-mcp.list_issues",
+      })
+      expect(index.describe("linear-mcp.list_issues")).toMatchObject({
+        displayName: "List issues",
+        inputSchema: { type: "object", properties: { limit: { type: "number" } } },
+      })
+      await expect(index.call({
+        toolId: "linear-mcp.list_issues",
+        input: { limit: 2 },
+      })).resolves.toEqual({
+        toolId: "linear-mcp.list_issues",
+        output: { ok: true, input: { limit: 2 } },
+      })
+    })
+  })
+
+  it("resolves encrypted local credentials by source ref and slot", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      await importHarborLocalCredentialsFromEnv(projectRoot, {
+        sourceRefId: "source:linear-mcp:linear-mcp",
+        slots: { LINEAR_API_KEY: "LINEAR_API_KEY" },
+        env: { LINEAR_API_KEY: "lin_secret" },
+        key: "vault-key",
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+      })
+
+      const resolver = createHarborLocalCredentialResolver(projectRoot, { key: "vault-key" })
+      await expect(resolver.resolve({
+        workspaceId: "local",
+        sourceId: "source:linear-mcp:linear-mcp",
+      }).then((credentials) => credentials.require("LINEAR_API_KEY"))).resolves.toBe("lin_secret")
+      await expect(resolver.resolve({
+        workspaceId: "local",
+        sourceId: "source:other",
+      }).then((credentials) => credentials.has("LINEAR_API_KEY"))).resolves.toBe(false)
+    })
   })
 })
 
