@@ -1,5 +1,6 @@
 import {
   connectHarborLocalMcpOAuthSource,
+  createHarborLocalExecRuntime,
   createHarborLocalMcpToolRuntime,
   importHarborLocalCredentialsFromEnv,
   listHarborLocalSources,
@@ -9,6 +10,9 @@ import {
   runHarborLocalRegistryAction,
   upsertHarborLocalMcpSource,
   type HarborLocalCredentialEnvImportInput,
+  type HarborLocalExecBinding,
+  type HarborLocalExecRunOptions,
+  type HarborLocalExecRunResult,
   type HarborLocalMcpOAuthConnectHandle,
   type HarborLocalMcpOAuthDiscovery,
   type HarborLocalMcpRefreshSourceResult,
@@ -40,6 +44,11 @@ export type {
   HarborLocalRegistryWriteToolMatcher,
 } from "./tool-registry-actions"
 export type { HarborLocalMcpOAuthDiscovery } from "./mcp-runtime"
+export type {
+  HarborLocalExecBinding,
+  HarborLocalExecRunOptions,
+  HarborLocalExecRunResult,
+} from "./exec"
 
 export interface HarborLocalRuntimeInput {
   readonly projectRoot: string
@@ -178,6 +187,10 @@ export interface HarborLocalRuntime {
       action: HarborLocalRegistryAction,
       options?: HarborLocalRuntimeActionOptions
     ) => Promise<HarborLocalRegistryActionResult>
+  }
+  readonly exec: {
+    readonly run: (code: string, options?: HarborLocalExecRunOptions) => Promise<HarborLocalExecRunResult>
+    readonly bindings: () => Promise<readonly HarborLocalExecBinding[]>
   }
 }
 
@@ -391,6 +404,10 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
         return result.kind === "invoke" && !result.blocked ? result.result : result
       },
       runAction,
+    },
+    exec: {
+      run: async (code, options) => createHarborLocalExecRuntime(base).run(code, options),
+      bindings: async () => createHarborLocalExecRuntime(base).bindings(),
     },
   }
 }

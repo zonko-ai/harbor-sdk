@@ -1,5 +1,8 @@
 node_modules
 dist
+!packages/sdk/runtime-local/dist/
+!packages/sdk/runtime-local/dist/promise.js
+!packages/sdk/runtime-local/dist/emscripten-module.wasm
 docs/api
 .turbo
 .DS_Store

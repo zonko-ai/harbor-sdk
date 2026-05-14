@@ -10,6 +10,7 @@ import {
   createHarborLocalToolIndex,
   createHarborLocalCredentialResolver,
   createHarborLocalCredentialResolverFromEnv,
+  createHarborLocalExecRuntime,
   createHarborLocalMcpPluginRuntime,
   createHarborLocalMcpToolRuntime,
   createHarborLocalWorkflowReplayFixture,
@@ -614,6 +615,143 @@ describe("@hrbr/runtime-local MCP source store", () => {
         blocked: true,
       })
       expect(seen.some((entry) => entry.method === "tools/call" && entry.tool === "list_issues")).toBe(true)
+    })
+  })
+
+  it("runs local exec code with backend-resolved MCP namespace proxies", async () => {
+    await withTempProject(async (projectRoot) => {
+      const calls: Array<{ method: string; tool?: string | undefined; url: string }> = []
+      const fetch = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const href = typeof url === "string" ? url : url instanceof URL ? url.href : url.url
+        const body = JSON.parse(String(init?.body ?? "{}")) as { id?: number; method: string; params?: { name?: string; arguments?: unknown } }
+        calls.push({ method: body.method, tool: body.params?.name, url: href })
+        if (body.method === "initialize") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: href.includes("notion") ? "notion" : "linear", version: "test" } },
+          }), { headers: { "content-type": "application/json", "mcp-session-id": href.includes("notion") ? "notion-session" : "linear-session" } })
+        }
+        if (body.method === "notifications/initialized") return new Response(null, { status: 202 })
+        if (body.method === "tools/list" && href.includes("linear")) {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              tools: [
+                {
+                  name: "list_issues",
+                  description: "List Linear issues",
+                  inputSchema: { type: "object", properties: { query: { type: "string" } } },
+                  annotations: { readOnlyHint: true },
+                },
+                {
+                  name: "create_issue",
+                  description: "Create Linear issue",
+                  inputSchema: { type: "object", properties: { title: { type: "string" } } },
+                  annotations: { destructiveHint: true },
+                },
+              ],
+            },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        if (body.method === "tools/list" && href.includes("notion")) {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              tools: [{
+                name: "notion-search",
+                description: "Search Notion pages",
+                inputSchema: { type: "object", properties: { query: { type: "string" } } },
+                annotations: { readOnlyHint: true },
+              }],
+            },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        if (body.method === "tools/call") {
+          const output = body.params?.name === "list_issues"
+            ? { issues: [{ id: "LIN-1", title: "Ship local exec", project: "Harbor Alpha" }] }
+            : { results: [{ id: "notion-1", title: "Harbor Alpha launch notes" }] }
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { structuredContent: output },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      }
+
+      await upsertHarborLocalMcpSource({
+        projectRoot,
+        source: {
+          transport: "remote",
+          name: "Linear MCP",
+          namespace: "linear-mcp",
+          endpoint: "https://mcp.linear.app/mcp",
+          auth: { kind: "none" },
+        },
+      })
+      await upsertHarborLocalMcpSource({
+        projectRoot,
+        source: {
+          transport: "remote",
+          name: "Notion MCP",
+          namespace: "notion-mcp",
+          endpoint: "https://mcp.notion.com/mcp",
+          auth: { kind: "none" },
+        },
+      })
+      await refreshHarborLocalMcpSource({ projectRoot, sourceId: "linear-mcp", fetch })
+      await refreshHarborLocalMcpSource({ projectRoot, sourceId: "notion-mcp", fetch })
+
+      const exec = createHarborLocalExecRuntime({ projectRoot, fetch })
+      await expect(exec.bindings()).resolves.toEqual([
+        { namespace: "linear-mcp", aliases: ["linear_mcp", "linearMcp"], toolCount: 2 },
+        { namespace: "notion-mcp", aliases: ["notion_mcp", "notionMcp"], toolCount: 1 },
+      ])
+      await expect(exec.run(`
+        const [linear, notion] = await Promise.all([
+          linearMcp.listIssues({ query: "Harbor Alpha" }),
+          notionMcp.notionSearch({ query: "Harbor Alpha" }),
+        ]);
+        console.log("loaded", linear.structuredContent.issues.length, notion.structuredContent.results.length);
+        return {
+          linearIssues: linear.structuredContent.issues,
+          notionResults: notion.structuredContent.results,
+        };
+      `)).resolves.toMatchObject({
+        ok: true,
+        namespaces: ["linear-mcp", "notion-mcp"],
+        logs: [{ level: "log", args: ["loaded", 1, 1] }],
+        value: {
+          linearIssues: [{ id: "LIN-1", title: "Ship local exec", project: "Harbor Alpha" }],
+          notionResults: [{ id: "notion-1", title: "Harbor Alpha launch notes" }],
+        },
+      })
+      await expect(exec.run(`
+        return await linearMcp.createIssue({ title: "blocked" });
+      `)).resolves.toMatchObject({
+        ok: false,
+        error: { code: "EXEC_ERROR", message: expect.stringContaining("Blocked write tool") },
+        namespaces: ["linear-mcp"],
+      })
+      await expect(exec.run(`
+        return await linarMcp.listIssues({});
+      `)).resolves.toMatchObject({
+        ok: false,
+        error: { code: "EXEC_ERROR", message: expect.stringContaining("Available namespace aliases") },
+        namespaces: [],
+      })
+      await expect(exec.run(`
+        return await linearMcp.missingTool({});
+      `)).resolves.toMatchObject({
+        ok: false,
+        error: { code: "EXEC_ERROR", message: expect.stringContaining("Tool \"missingTool\" not found") },
+        namespaces: ["linear-mcp"],
+      })
+      expect(calls.some((call) => call.method === "tools/call" && call.tool === "list_issues")).toBe(true)
+      expect(calls.some((call) => call.method === "tools/call" && call.tool === "notion-search")).toBe(true)
     })
   })
 

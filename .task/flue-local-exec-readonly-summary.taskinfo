@@ -1,0 +1,241 @@
+# Flue Local Exec Read-Only Summary
+
+Status: completed
+Created: 2026-05-14T18:05:00Z
+Last Updated: 2026-05-14T18:45:00Z
+
+## Goal
+
+Build the SDK-backed local exec path that matches Harbor main's execution model: Flue writes code, the Harbor SDK local runtime executes that code in QuickJS, and the runtime backend resolves installed MCP namespaces, OAuth credentials, discovery metadata, and tool invocation from local state. The first example should be read-only: fetch latest data from Linear and Notion, then summarize the current project status without creating or updating Notion content.
+
+## Success Criteria
+
+- `harbor.exec.run(code, options?)` is the primary execution API; exec receives code, not MCP URLs, source lists, or explicit tool IDs.
+- Local exec scans code for namespace identifiers, resolves them against installed local sources, injects namespace proxies, and dispatches calls host-side.
+- OAuth credentials and refresh are resolved by the SDK runtime backend, never by Flue code or generated user code.
+- QuickJS supports asynchronous namespace tool calls such as `await linearMcp.listIssues(...)`.
+- MCP tool dispatch reuses the existing local runtime invocation path, including encrypted credentials and indexed tool bindings.
+- The example can call Linear and Notion in one exec body and return compact structured data for summarization.
+- The first example is read-only and does not create Notion pages, update Linear issues, or require write confirmation.
+- Fixture tests prove namespace resolution, cross-plugin piping, and read-only summarization without real credentials.
+- Documentation explains the exec mental model and clearly separates source setup from code execution.
+
+## SDK Plan
+
+### 1. Define the Local Exec Public Contract
+
+Outcome: add a stable SDK contract for local code execution, centered on `harbor.exec.run(code, options?)`.
+
+Status: completed
+
+Best-practice requirements:
+
+- Keep exec source-agnostic: no `sources`, `toolIds`, or MCP endpoints in the exec call.
+- Keep setup/control-plane APIs separate from execution APIs.
+- Accept only execution concerns in options, such as input, timeout, logging, and read/write policy.
+- Return a structured result envelope with value, logs, run metadata, and normalized errors.
+
+### 2. Add Namespace Prescan And Binding Resolution
+
+Outcome: scan submitted code, detect referenced namespace aliases, and resolve them from local SQLite state before QuickJS execution.
+
+Status: completed
+
+Best-practice requirements:
+
+- Follow Harbor main's model: code references namespaces; backend resolves available bindings.
+- Support canonical and JavaScript-safe aliases, for example `linear-mcp` -> `linearMcp`.
+- Avoid false positives when identifiers are locally declared.
+- Return actionable missing namespace errors with available/suggested namespace names.
+- Keep this logic in SDK runtime code, not in the Flue example.
+
+### 3. Inject QuickJS Namespace Proxies
+
+Outcome: generate QuickJS preamble code that exposes only the resolved namespace globals required by the submitted code.
+
+Status: completed
+
+Best-practice requirements:
+
+- Generated code should call `await linearMcp.someTool(input)` or bracket notation for non-identifier tool names.
+- The sandbox should receive proxy functions only; it must not receive source config, OAuth tokens, or decrypted credentials.
+- Keep the host dispatch payload minimal: namespace, requested tool name, and arguments.
+- Preserve existing local primitives where useful, but do not require `harbor.tools.call(...)` for plugin execution.
+
+### 4. Make QuickJS Host Dispatch Async
+
+Outcome: support async host calls so MCP invocations can run through the real adapter path.
+
+Status: completed
+
+Best-practice requirements:
+
+- Replace or extend the current sync-only `__harborHostCall` path.
+- Preserve timeout, memory limit, and import/export blocking.
+- Ensure rejected host calls surface as sanitized exec errors.
+- Keep return values JSON-serializable across the sandbox boundary.
+
+### 5. Reuse Existing MCP Runtime Invocation
+
+Outcome: route namespace proxy calls through the existing local MCP runtime, tool binding lookup, encrypted credential resolver, OAuth refresh path, and adapter invocation.
+
+Status: completed
+
+Best-practice requirements:
+
+- Do not duplicate MCP JSON-RPC invocation logic in the exec layer.
+- Resolve requested tool aliases against indexed MCP bindings.
+- Normalize MCP results consistently with the current runtime action path.
+- Preserve credential secrecy and avoid logging token-bearing payloads.
+
+### 6. Add Read/Write Policy At Dispatch Boundary
+
+Outcome: enforce policy in host dispatch before invoking a tool.
+
+Status: completed
+
+Best-practice requirements:
+
+- The first Linear + Notion summary example should run read-only.
+- Write/destructive tools should be blocked unless execution options explicitly allow them.
+- Policy belongs in SDK host dispatch, not in generated Flue code.
+- Blocked calls should return structured errors that Flue can explain.
+
+### 7. Add SDK Tests
+
+Outcome: cover local exec behavior with fixtures before relying on real providers.
+
+Status: completed
+
+Best-practice requirements:
+
+- Test namespace alias detection and collisions.
+- Test `linearMcp -> notionMcp` cross-plugin reads in one code body.
+- Test missing namespace and missing tool errors.
+- Test read-only policy blocks write-like tools.
+- Test OAuth credential resolution stays host-side.
+
+## Example Plan
+
+### 1. Create A New Example
+
+Outcome: add `examples/flue-local-exec-agent` as the primary high-level example for SDK-local exec.
+
+Status: completed
+
+Scope:
+
+- Keep `examples/flue-tool-registry-agent` as a lower-level registry/search diagnostic example.
+- Do not add Notion page creation to this example.
+- Keep the example thin enough that users learn the SDK API, not internal runtime details.
+
+### 2. Use Flue Only For Code Generation And Summarization
+
+Outcome: Flue generates a Harbor exec code body and summarizes the returned data.
+
+Status: completed
+
+Expected shape:
+
+```ts
+const code = await flueGenerateExecCode(prompt, bindingContext)
+const data = await harbor.exec.run(code)
+const summary = await flueSummarize(prompt, data)
+return summary
+```
+
+Scope guards:
+
+- Flue does not connect to MCP.
+- Flue does not handle OAuth callbacks.
+- Flue does not manually invoke `harbor.tools.search/schema/invoke` in a loop.
+- Flue does not receive provider credentials.
+
+### 3. Demonstrate Read-Only Linear And Notion Composition
+
+Outcome: the generated code fetches recent Linear project state and relevant Notion context in one exec run.
+
+Status: completed
+
+Example user prompt:
+
+> Get latest Linear issues from Harbor Alpha and latest relevant Notion docs/pages, then summarize current project status.
+
+Expected generated-code style:
+
+```ts
+const [linear, notion] = await Promise.all([
+  linearMcp.listIssues({ limit: 50, query: "Harbor Alpha updated recently", includeArchived: false }),
+  notionMcp.notionSearch({ query: "Harbor Alpha" }),
+])
+
+return {
+  linearIssues: linear.issues ?? linear.items ?? [],
+  notionResults: notion.results ?? notion.items ?? [],
+}
+```
+
+### 4. Add Fixture E2E Coverage
+
+Outcome: prove the example works without real Linear or Notion accounts.
+
+Status: completed
+
+Fixture behavior:
+
+- Linear fixture returns recent Harbor Alpha issues.
+- Notion fixture returns relevant Harbor Alpha docs/pages.
+- Flue or a deterministic test harness generates/uses exec code.
+- The final output is a project summary, not a created page URL.
+
+### 5. Document Real-Account Usage
+
+Outcome: README explains setup and execution for real Linear and Notion OAuth accounts.
+
+Status: completed
+
+Docs should include:
+
+- required Flue/Anthropic env vars
+- required local Harbor credential key
+- first-run OAuth behavior
+- `.harbor/harbor.sqlite` and `.harbor/credentials.enc` state files
+- reset command for fresh OAuth testing
+- read-only safety posture
+- how this differs from the lower-level tool registry example
+
+## Scope Guards
+
+- Do not pass MCP URLs, source arrays, or explicit tool IDs into `harbor.exec.run`.
+- Do not put OAuth, refresh, credential lookup, or MCP protocol handling in examples.
+- Do not make Flue the tool router; Flue writes code and summarizes results.
+- Do not create or update Notion content in the first exec example.
+- Do not parse provider-specific MCP payloads in host/example code; generated exec code may normalize its own returned data.
+- Do not remove the current registry-action APIs until the exec path is stable; they remain useful as lower-level diagnostics.
+- Do not commit `.harbor` state, OAuth grants, tokens, or real user data.
+
+## Dependencies
+
+- Existing local MCP install/OAuth/refresh/discovery support in `@hrbr/runtime-local`.
+- Existing SQLite source/tool state under `.harbor/harbor.sqlite`.
+- Existing encrypted credential vault under `.harbor/credentials.enc`.
+
+## Validation Notes
+
+- Focused SDK fixture test passes: `bun test examples/flue-local-exec-agent/test/e2e.test.ts`.
+- Focused example typecheck passes: `bun run --filter flue-local-exec-agent-example typecheck`.
+- Broader examples typecheck passes: `bun run typecheck:examples`.
+- Flue fixture smoke passes with local Linear and Notion MCP fixture endpoints. The run prints `[harbor] Generated local exec code:`, executes the generated code through `harbor.exec.run(...)`, invokes `linearMcp.listIssues(...)` and `notionMcp.notionSearch(...)`, and returns read-only fixture data for summarization.
+- Existing MCP fixture helpers under `@hrbr/source-mcp/testing`.
+- Harbor main exec model in `../harbor/apps/api/src/plugins/worker`.
+
+## Progress Log
+
+- 2026-05-14T18:05:00Z: Created tracker for the corrected SDK-local exec architecture after confirming that Harbor main exec accepts code, resolves namespaces backend-side, and supports cross-plugin composition inside one sandbox run.
+- 2026-05-14T18:30:00Z: Added SDK-local exec runtime primitives: `createHarborLocalExecRuntime`, `harbor.exec.run(code, options?)`, namespace alias discovery from local SQLite, backend-resolved QuickJS namespace proxies, async host dispatch, read/write policy enforcement, and exec result logs.
+- 2026-05-14T18:30:00Z: Added SDK regression coverage for `linearMcp -> notionMcp` cross-plugin reads in one exec body, camelCase tool alias resolution, backend MCP invocation reuse, and blocked write tools.
+- 2026-05-14T18:42:00Z: Added `examples/flue-local-exec-agent` with Flue code-generation/summarization only, SDK-owned MCP setup, read-only Linear and Notion composition, README usage docs, and fixture E2E coverage.
+- 2026-05-14T18:42:00Z: Verified the current slice with `bun run --filter @hrbr/runtime-local typecheck`, `bun test packages/sdk/runtime-local/test/index.test.ts`, `bun run --filter flue-local-exec-agent-example typecheck`, and `bun test examples/flue-local-exec-agent/test/e2e.test.ts`.
+- 2026-05-14T18:55:00Z: Tightened local exec to return structured `ok: false` error envelopes instead of rejecting for sandbox/tool failures, regenerated the promise runtime bundle, and added the QuickJS wasm artifact required by the published-style `@hrbr/runtime-local/promise` export.
+- 2026-05-14T18:58:00Z: Added explicit missing namespace and missing tool error coverage so the SDK tests cover every planned local exec error gate.
+- 2026-05-14T18:58:00Z: Completed final validation with `bun run typecheck:packages`, `bun run typecheck:examples`, and `bun test packages/sdk/runtime-local/test/index.test.ts examples/flue-local-exec-agent/test/e2e.test.ts`.

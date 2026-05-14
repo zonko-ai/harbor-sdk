@@ -75,7 +75,18 @@ export {
   type HarborLocalQuickJSExecutionResult,
   type HarborLocalQuickJSHostCallHandler,
   type HarborLocalQuickJSHostCallName,
+  type HarborLocalQuickJSNamespaceBinding,
 } from "./quickjs"
+
+export {
+  createHarborLocalExecRuntime,
+  harborLocalNamespaceToJsVar,
+  type HarborLocalExecBinding,
+  type HarborLocalExecRunOptions,
+  type HarborLocalExecRunResult,
+  type HarborLocalExecRuntime,
+  type HarborLocalExecRuntimeInput,
+} from "./exec"
 
 export {
   createHarborLocalToolIndex,
