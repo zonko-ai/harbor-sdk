@@ -40,6 +40,7 @@ export interface HarborLocalMcpRefreshSourceInput extends HarborLocalCredentialR
   readonly projectRoot: string
   readonly sourceId: string
   readonly fetch?: McpSourceFetch | undefined
+  readonly allowLocalNetwork?: boolean | undefined
 }
 
 export interface HarborLocalMcpRefreshSourceResult {
@@ -52,6 +53,7 @@ export interface HarborLocalMcpRefreshSourceResult {
 export interface HarborLocalMcpToolRuntimeInput extends HarborLocalCredentialResolverFromEnvInput {
   readonly projectRoot: string
   readonly fetch?: McpSourceFetch | undefined
+  readonly allowLocalNetwork?: boolean | undefined
 }
 
 export interface HarborLocalMcpOAuthDiscovery {
@@ -159,6 +161,7 @@ async function optionalCredentials(
 function adapterForSource(input: {
   readonly source: HarborLocalMcpStoredSource
   readonly fetch?: McpSourceFetch | undefined
+  readonly allowLocalNetwork?: boolean | undefined
 }) {
   const source = input.source
   if (source.transport !== "remote" || !source.endpoint) {
@@ -169,6 +172,7 @@ function adapterForSource(input: {
     namespace: source.namespace,
     displayName: source.name,
     endpoint: source.endpoint,
+    allowLocalNetwork: input.allowLocalNetwork,
     ...(input.fetch !== undefined ? { fetch: input.fetch } : {}),
     ...(bearerSlot(source) !== undefined ? { bearerCredentialSlot: bearerSlot(source) } : {}),
   })
@@ -269,7 +273,7 @@ export async function refreshHarborLocalMcpSource(
 ): Promise<HarborLocalMcpRefreshSourceResult> {
   const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId)
   if (!source) throw new Error(`Unknown local MCP source "${input.sourceId}".`)
-  const adapter = adapterForSource({ source, fetch: input.fetch })
+  const adapter = adapterForSource({ source, fetch: input.fetch, allowLocalNetwork: input.allowLocalNetwork })
   const credentials = await optionalCredentials({
     projectRoot: input.projectRoot,
     source,
@@ -361,7 +365,7 @@ export async function createHarborLocalMcpToolRuntime(
       const binding = (await listHarborLocalMcpToolBindings(input.projectRoot, source.id))
         .find((candidate) => `${candidate.namespace}.${candidate.toolId}` === call.toolId)
       if (!binding) throw new Error(`No MCP binding found for local tool "${call.toolId}".`)
-      const adapter = adapterForSource({ source, fetch: input.fetch })
+      const adapter = adapterForSource({ source, fetch: input.fetch, allowLocalNetwork: input.allowLocalNetwork })
       const credentials = await optionalCredentials({
         projectRoot: input.projectRoot,
         source,

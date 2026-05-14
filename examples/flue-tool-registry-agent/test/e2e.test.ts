@@ -3,8 +3,8 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "bun:test"
 import { runHarborLocalRegistryAction } from "@hrbr/runtime-local"
-import { flueLinearNotionFixtureFetch } from "../src/fixture-mcp"
 import { setupFlueLinearNotionE2E } from "../src/setup-e2e"
+import { serveLinearNotionFixtureServers } from "./fixtures"
 
 async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   const dir = await mkdtemp(join(tmpdir(), "hrbr-flue-e2e-"))
@@ -18,77 +18,86 @@ async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
 describe("flue Linear to Notion local E2E", () => {
   it("exposes search/schema/invoke actions and gates Notion writes without parsing MCP output", async () => {
     await withTempProject(async (projectRoot) => {
+      const servers = await serveLinearNotionFixtureServers()
       const env = { HARBOR_LOCAL_CREDENTIAL_KEY: "vault-key" }
-      const setup = await setupFlueLinearNotionE2E({
-        projectRoot,
-        env,
-      })
-      expect(setup.mode).toBe("fixture")
-
-      const linearSearch = await runHarborLocalRegistryAction({
-        projectRoot,
-        env,
-        fetch: flueLinearNotionFixtureFetch,
-        action: { kind: "search", namespace: "linear-mcp", query: "linear tickets issues list" },
-      })
-      expect(linearSearch).toMatchObject({
-        kind: "search",
-        hits: [expect.objectContaining({ toolId: "linear-mcp.list_issues" })],
-      })
-
-      await expect(runHarborLocalRegistryAction({
-        projectRoot,
-        env,
-        fetch: flueLinearNotionFixtureFetch,
-        action: { kind: "schema", toolId: "notion-mcp.notion-create-pages" },
-      })).resolves.toMatchObject({
-        kind: "schema",
-        schema: { toolId: "notion-mcp.notion-create-pages" },
-      })
-
-      await expect(runHarborLocalRegistryAction({
-        projectRoot,
-        env,
-        fetch: flueLinearNotionFixtureFetch,
-        action: {
-          kind: "invoke",
-          toolId: "notion-mcp.notion-create-pages",
-          input: {
-            parent: { page_id: "notion-fixture-parent-page" },
-            pages: [{ properties: { title: "Linear summary" }, content: "No parsing in host code." }],
+      try {
+        const setup = await setupFlueLinearNotionE2E({
+          projectRoot,
+          env,
+          endpoints: {
+            "linear-mcp": servers.linear.url,
+            "notion-mcp": servers.notion.url,
           },
-        },
-      })).resolves.toMatchObject({
-        kind: "invoke",
-        blocked: true,
-      })
+        })
+        expect(setup.mode).toBe("fixture")
 
-      await expect(runHarborLocalRegistryAction({
-        projectRoot,
-        env,
-        fetch: flueLinearNotionFixtureFetch,
-        confirmWrites: true,
-        action: {
-          kind: "invoke",
-          toolId: "notion-mcp.notion-create-pages",
-          input: {
-            parent: { page_id: "notion-fixture-parent-page" },
-            pages: [{ properties: { title: "Linear summary" }, content: "No parsing in host code." }],
-          },
-        },
-      })).resolves.toMatchObject({
-        kind: "invoke",
-        blocked: false,
-        result: {
-          toolId: "notion-mcp.notion-create-pages",
-          output: {
-            structuredContent: {
-              created: true,
-              pageId: "notion://page/linear-ticket-summary",
+        const linearSearch = await runHarborLocalRegistryAction({
+          projectRoot,
+          env,
+          allowLocalNetwork: true,
+          action: { kind: "search", namespace: "linear-mcp", query: "linear tickets issues list" },
+        })
+        expect(linearSearch).toMatchObject({
+          kind: "search",
+          hits: [expect.objectContaining({ toolId: "linear-mcp.list_issues" })],
+        })
+
+        await expect(runHarborLocalRegistryAction({
+          projectRoot,
+          env,
+          allowLocalNetwork: true,
+          action: { kind: "schema", toolId: "notion-mcp.notion-create-pages" },
+        })).resolves.toMatchObject({
+          kind: "schema",
+          schema: { toolId: "notion-mcp.notion-create-pages" },
+        })
+
+        await expect(runHarborLocalRegistryAction({
+          projectRoot,
+          env,
+          allowLocalNetwork: true,
+          action: {
+            kind: "invoke",
+            toolId: "notion-mcp.notion-create-pages",
+            input: {
+              parent: { page_id: "notion-fixture-parent-page" },
+              pages: [{ properties: { title: "Linear summary" }, content: "No parsing in host code." }],
             },
           },
-        },
-      })
+        })).resolves.toMatchObject({
+          kind: "invoke",
+          blocked: true,
+        })
+
+        await expect(runHarborLocalRegistryAction({
+          projectRoot,
+          env,
+          allowLocalNetwork: true,
+          confirmWrites: true,
+          action: {
+            kind: "invoke",
+            toolId: "notion-mcp.notion-create-pages",
+            input: {
+              parent: { page_id: "notion-fixture-parent-page" },
+              pages: [{ properties: { title: "Linear summary" }, content: "No parsing in host code." }],
+            },
+          },
+        })).resolves.toMatchObject({
+          kind: "invoke",
+          blocked: false,
+          result: {
+            toolId: "notion-mcp.notion-create-pages",
+            output: {
+              structuredContent: {
+                created: true,
+                pageId: "notion://page/linear-ticket-summary",
+              },
+            },
+          },
+        })
+      } finally {
+        await servers.close()
+      }
     })
   })
 })

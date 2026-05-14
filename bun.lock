@@ -40,6 +40,7 @@
         "@flue/runtime": "^0.6.1",
         "@hrbr/registry-catalog": "workspace:*",
         "@hrbr/runtime-local": "workspace:*",
+        "@hrbr/source-mcp": "workspace:*",
         "valibot": "^1.1.0",
       },
       "devDependencies": {
@@ -354,6 +355,8 @@
       "name": "@hrbr/source-mcp",
       "dependencies": {
         "@hrbr/source-core": "workspace:*",
+        "@modelcontextprotocol/sdk": "^1.29.0",
+        "zod": "^4.4.3",
       },
       "devDependencies": {
         "@hrbr/source-credentials": "workspace:*",

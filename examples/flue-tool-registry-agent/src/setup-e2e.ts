@@ -10,7 +10,6 @@ import {
   upsertHarborLocalMcpSource,
   type HarborLocalMcpOAuthDiscovery,
 } from "@hrbr/runtime-local"
-import { flueLinearNotionFixtureFetch } from "./fixture-mcp"
 
 type SourceSlug = "linear-mcp" | "notion-mcp"
 
@@ -33,6 +32,7 @@ interface McpCatalogEntry {
 export interface SetupFlueLinearNotionE2EInput {
   readonly projectRoot?: string | undefined
   readonly liveOAuth?: boolean | undefined
+  readonly endpoints?: Partial<Record<SourceSlug, string>> | undefined
   readonly env?: Readonly<Record<string, string | undefined>> | undefined
 }
 
@@ -100,6 +100,7 @@ async function connectLiveOAuth(input: {
 async function installSource(input: {
   readonly projectRoot: string
   readonly entry: McpCatalogEntry
+  readonly endpoint: string
 }): Promise<void> {
   await upsertHarborLocalMcpSource({
     projectRoot: input.projectRoot,
@@ -107,7 +108,7 @@ async function installSource(input: {
       transport: "remote",
       name: input.entry.display_name,
       namespace: input.entry.default_namespace,
-      endpoint: input.entry.config.mcp_endpoint,
+      endpoint: input.endpoint,
       remoteTransport: "auto",
       auth: { kind: "oauth2" },
     },
@@ -141,7 +142,11 @@ export async function setupFlueLinearNotionE2E(
 
   for (const slug of sourceSlugs) {
     const entry = entryFor(slug)
-    await installSource({ projectRoot, entry })
+    const endpoint = input.endpoints?.[slug] ?? entry.config.mcp_endpoint
+    if (!liveOAuth && !input.endpoints?.[slug]) {
+      throw new Error(`Fixture setup for ${slug} requires a local MCP test server endpoint. Set HARBOR_MCP_LIVE_OAUTH=1 for real OAuth setup.`)
+    }
+    await installSource({ projectRoot, entry, endpoint })
     if (liveOAuth) {
       await connectLiveOAuth({ projectRoot, entry, env })
     } else {
@@ -151,12 +156,12 @@ export async function setupFlueLinearNotionE2E(
       projectRoot,
       sourceId: entry.default_namespace,
       env,
-      ...(liveOAuth ? {} : { fetch: flueLinearNotionFixtureFetch }),
+      allowLocalNetwork: !liveOAuth,
     })
     sources.push({
       slug,
       namespace: entry.default_namespace,
-      endpoint: entry.config.mcp_endpoint,
+      endpoint,
       refreshedToolCount: refresh.toolCount,
     })
   }

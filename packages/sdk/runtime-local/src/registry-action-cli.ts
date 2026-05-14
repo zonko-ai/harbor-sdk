@@ -1,12 +1,13 @@
 import {
   runHarborLocalRegistryAction,
   type HarborLocalRegistryAction,
-} from "@hrbr/runtime-local"
+} from "./tool-registry-actions"
 
 interface RunnerInput {
   readonly action: HarborLocalRegistryAction
   readonly confirmWrites?: boolean | undefined
   readonly projectRoot?: string | undefined
+  readonly allowLocalNetwork?: boolean | undefined
 }
 
 function readInput(): RunnerInput {
@@ -21,8 +22,9 @@ if (import.meta.main) {
     action: input.action,
     projectRoot: input.projectRoot ?? process.cwd(),
     confirmWrites: input.confirmWrites,
+    allowLocalNetwork: input.allowLocalNetwork,
     env: process.env,
-    writeBlockedReason: "Write tool blocked. Set HARBOR_CONFIRM_NOTION_WRITE=1 to allow Notion write invocations.",
+    writeBlockedReason: "Write tool blocked. Set HARBOR_CONFIRM_NOTION_WRITE=1 to allow write invocations.",
   })
   console.log(JSON.stringify(result))
 }

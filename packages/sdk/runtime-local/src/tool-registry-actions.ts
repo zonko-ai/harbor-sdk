@@ -89,6 +89,7 @@ export async function runHarborLocalRegistryAction(
     projectRoot: input.projectRoot,
     env: input.env,
     envName: input.envName,
+    allowLocalNetwork: input.allowLocalNetwork,
     ...(input.fetch ? { fetch: input.fetch } : {}),
   })
 

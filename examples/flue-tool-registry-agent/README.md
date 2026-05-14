@@ -10,14 +10,13 @@ At runtime the model owns orchestration and `@hrbr/runtime-local` owns the regis
 4. The model reads that observation and decides the next action.
 5. Notion write tools are blocked unless `HARBOR_CONFIRM_NOTION_WRITE=1`.
 
-The example code does not implement OAuth storage, MCP discovery, SQLite search, credential resolution, write gating, or provider-specific MCP output parsing. Those reusable pieces live in the Harbor SDK; this example is only the Flue harness plus setup/docs/fixtures.
+The example code does not implement OAuth storage, MCP discovery, SQLite search, credential resolution, write gating, provider-specific MCP output parsing, or hand-rolled MCP fixture protocol handling. Those reusable pieces live in the Harbor SDK; the Flue harness is in `main.ts`.
 
 ## Fixture E2E
 
-Use fixture mode for local development and tests. It creates encrypted fixture OAuth credentials and indexes fixture MCP tools without opening a browser.
+Fixture mode is test-only. The test starts real local MCP servers through `@hrbr/source-mcp/testing`, creates encrypted fixture OAuth credentials, and indexes fixture MCP tools without opening a browser.
 
 ```sh
-HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run --cwd examples/flue-tool-registry-agent setup:e2e
 bun test examples/flue-tool-registry-agent/test/e2e.test.ts
 ```
 

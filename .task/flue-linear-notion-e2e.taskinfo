@@ -64,6 +64,7 @@ Make the Flue example perform a real local E2E workflow: authenticate actual Lin
 - Do not rely on hardcoded tool names as the main routing mechanism; use the SQLite search index and schemas.
 - Do not parse Linear or Notion MCP result payloads in host code to extract issues, select parents, or assemble follow-up provider calls.
 - Keep reusable OAuth, discovery, search, invoke, credential, and write-gating behavior in the Harbor SDK; the Flue example should stay a thin harness.
+- Keep MCP fixture protocol handling in SDK testing helpers; example fixtures may define scenario tools but should not hand-roll JSON-RPC request parsing.
 - Do not auto-run Notion write tools without confirmation.
 - Do not commit `.harbor` state, OAuth grants, tokens, or user data.
 - Do not mix this E2E work with the interrupted Linear OAuth shortcut patch unless it is intentionally reconciled into the new SDK primitives.
@@ -97,3 +98,6 @@ Make the Flue example perform a real local E2E workflow: authenticate actual Lin
 - 2026-05-14T16:10:00Z: Verified the model-driven loop with `bun run --filter flue-tool-registry-agent-example typecheck`, `bun test examples/flue-tool-registry-agent/test/e2e.test.ts`, and a no-write live Flue smoke using Anthropic that read Linear issues and prepared the Notion page content without host-side MCP output parsing.
 - 2026-05-14T16:35:00Z: Moved the reusable search/schema/invoke registry action runner from the Flue example into `@hrbr/runtime-local` as `runHarborLocalRegistryAction`, exported its action/result types, and removed the example-local `src/local-registry.ts`.
 - 2026-05-14T16:35:00Z: Updated the Flue example runner and fixture E2E to call the SDK action runner, documented the new boundary, and verified with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter flue-tool-registry-agent-example typecheck`, `bun test packages/sdk/runtime-local/test/index.test.ts`, and `bun test examples/flue-tool-registry-agent/test/e2e.test.ts`.
+- 2026-05-14T17:05:00Z: Added `@hrbr/source-mcp/testing` with a real MCP SDK-backed local test server helper, moved Linear/Notion fake tool definitions into example test fixtures, and deleted the hand-rolled `src/fixture-mcp.ts`.
+- 2026-05-14T17:05:00Z: Collapsed the Flue agent into `examples/flue-tool-registry-agent/main.ts` under 100 LOC, changed `agents/tool-registry.ts` to a one-line re-export, and moved the registry action child runner into `@hrbr/runtime-local`.
+- 2026-05-14T17:05:00Z: Verified with `bun run --filter @hrbr/source-mcp typecheck`, `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter flue-tool-registry-agent-example typecheck`, and `bun test examples/flue-tool-registry-agent/test/e2e.test.ts packages/sdk/source-mcp/test/index.test.ts packages/sdk/runtime-local/test/index.test.ts`.

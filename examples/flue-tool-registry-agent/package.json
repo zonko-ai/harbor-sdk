@@ -13,6 +13,7 @@
     "@flue/runtime": "^0.6.1",
     "@hrbr/registry-catalog": "workspace:*",
     "@hrbr/runtime-local": "workspace:*",
+    "@hrbr/source-mcp": "workspace:*",
     "valibot": "^1.1.0"
   },
   "devDependencies": {
