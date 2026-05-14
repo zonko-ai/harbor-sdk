@@ -34,6 +34,7 @@ export interface LinearToNotionE2EResult {
   }
   readonly notionWrite: {
     readonly selected: SelectedTool
+    readonly parentPageId: string | null
     readonly confirmationRequired: boolean
     readonly confirmed: boolean
     readonly call: HarborLocalToolCallResult | null
@@ -61,22 +62,95 @@ function firstSearchHit(
   }
 }
 
-function pageInputFromLinear(linearCall: HarborLocalToolCallResult, prompt: string): Record<string, unknown> {
-  const output = linearCall.output as { structuredContent?: { issues?: unknown } } | undefined
+function envValue(env: Readonly<Record<string, string | undefined>> | undefined, key: string): string | undefined {
+  const value = env?.[key]
+  return typeof value === "string" && value.trim() ? value.trim() : undefined
+}
+
+function textFromOutput(output: unknown): string {
+  if (typeof output === "string") return output
+  if (output && typeof output === "object" && "content" in output) {
+    const content = (output as { content?: unknown }).content
+    if (Array.isArray(content)) {
+      return content
+        .map((item) => item && typeof item === "object" && "text" in item ? String((item as { text?: unknown }).text ?? "") : "")
+        .filter(Boolean)
+        .join("\n")
+    }
+  }
+  return JSON.stringify(output, null, 2)
+}
+
+function markdownFromLinear(linearCall: HarborLocalToolCallResult, prompt: string): string {
+  const output = linearCall.output as { structuredContent?: unknown } | undefined
+  return [
+    "## Request",
+    prompt,
+    "",
+    "## Linear Result",
+    "```json",
+    JSON.stringify(output?.structuredContent ?? linearCall.output, null, 2),
+    "```",
+    "",
+    "## Notes",
+    textFromOutput(linearCall.output),
+  ].join("\n")
+}
+
+function pageInputFromLinear(
+  linearCall: HarborLocalToolCallResult,
+  prompt: string,
+  parentPageId: string
+): Record<string, unknown> {
   return {
-    parent: { type: "workspace" },
+    parent: { page_id: parentPageId },
     pages: [{
-      title: "Linear ticket summary",
-      properties: {
-        source: "Harbor SDK Flue local E2E",
-        prompt,
-      },
-      content: {
-        type: "linear_issues",
-        issues: output?.structuredContent?.issues ?? linearCall.output,
-      },
+      properties: { title: "Harbor Alpha Linear tickets - last 24 hours" },
+      content: markdownFromLinear(linearCall, prompt),
     }],
   }
+}
+
+function parseNotionSearchResults(output: unknown): Array<{ id?: string; title?: string; type?: string }> {
+  const structuredResults = output && typeof output === "object" && "structuredContent" in output
+    ? (output as { structuredContent?: { results?: Array<{ id?: string; title?: string; type?: string }> } }).structuredContent?.results
+    : undefined
+  if (Array.isArray(structuredResults)) return structuredResults
+  const content = output && typeof output === "object" && "content" in output
+    ? (output as { content?: unknown }).content
+    : undefined
+  const text = Array.isArray(content)
+    ? content
+        .map((item) => item && typeof item === "object" && "text" in item ? String((item as { text?: unknown }).text ?? "") : "")
+        .join("\n")
+    : typeof output === "string"
+      ? output
+      : ""
+  if (!text.trim()) return []
+  try {
+    const parsed = JSON.parse(text) as { results?: Array<{ id?: string; title?: string; type?: string }> }
+    return parsed.results ?? []
+  } catch {
+    return []
+  }
+}
+
+async function resolveNotionParentPageId(input: {
+  readonly index: HarborLocalToolIndex
+  readonly env?: Readonly<Record<string, string | undefined>> | undefined
+}): Promise<string | null> {
+  const configured = envValue(input.env, "HARBOR_NOTION_PARENT_PAGE_ID")
+  if (configured) return configured
+  const search = await input.index.call({
+    toolId: "notion-mcp.notion-search",
+    input: {
+      query: envValue(input.env, "HARBOR_NOTION_PARENT_QUERY") ?? "Harbor Alpha",
+      filters: {},
+      page_size: 5,
+      max_highlight_length: 120,
+    },
+  })
+  return parseNotionSearchResults(search.output).find((result) => result.type === "page" && result.id)?.id ?? null
 }
 
 export async function runLinearToNotionE2E(input: LinearToNotionE2EInput): Promise<LinearToNotionE2EResult> {
@@ -103,11 +177,22 @@ export async function runLinearToNotionE2E(input: LinearToNotionE2EInput): Promi
     `${input.prompt} notion create page save linear ticket summary`
   )
   const confirmed = input.confirmNotionWrite === true
+  const parentPageId = confirmed
+    ? await resolveNotionParentPageId({ index, env: input.env })
+    : null
   const notionCall = confirmed
-    ? await index.call({
+    ? parentPageId
+      ? await index.call({
         toolId: notionWrite.hit.toolId,
-        input: pageInputFromLinear(linearCall, input.prompt),
+        input: pageInputFromLinear(linearCall, input.prompt, parentPageId),
       })
+      : {
+          toolId: notionWrite.hit.toolId,
+          output: {
+            ok: false,
+            error: "No Notion parent page found. Set HARBOR_NOTION_PARENT_PAGE_ID or HARBOR_NOTION_PARENT_QUERY.",
+          },
+        }
     : null
 
   return {
@@ -120,6 +205,7 @@ export async function runLinearToNotionE2E(input: LinearToNotionE2EInput): Promi
     },
     notionWrite: {
       selected: notionWrite,
+      parentPageId,
       confirmationRequired: true,
       confirmed,
       call: notionCall,
