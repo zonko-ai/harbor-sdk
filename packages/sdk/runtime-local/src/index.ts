@@ -176,6 +176,15 @@ export {
 } from "./mcp-store"
 
 export {
+  createHarborLocalMcpToolIndexFromBindings,
+  createHarborLocalMcpToolRuntime,
+  refreshHarborLocalMcpSource,
+  type HarborLocalMcpRefreshSourceInput,
+  type HarborLocalMcpRefreshSourceResult,
+  type HarborLocalMcpToolRuntimeInput,
+} from "./mcp-runtime"
+
+export {
   createHarborLocalToken,
   ensureHarborLocalDaemonConnection,
   hashHarborLocalToken,

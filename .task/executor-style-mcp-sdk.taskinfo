@@ -30,7 +30,7 @@ Executor reference inspected from:
 
 4. Implement provider-backed discovery and invocation lifecycle.
    - Outcome: MCP discovery produces durable tool bindings, refresh updates tools, invocation resolves credentials just-in-time, and agents call tools through the SDK runtime.
-   - Status: pending
+   - Status: in_progress
 
 5. Add runtime safety and correctness gates.
    - Outcome: source scope isolation, per-user credential isolation, connection reuse, destructive-tool annotations, stdio gating, and elicitation behavior are covered by tests.
@@ -59,3 +59,5 @@ Executor reference inspected from:
 - 2026-05-14T10:27:00Z: Locked the Executor-style MCP SDK contract in `docs/architecture/executor-style-mcp-sdk-contract.md`, covering public runtime APIs, source/auth inputs, OAuth-first connect flow, normalized local storage, lifecycle behavior, safety tests, and thin example expectations.
 - 2026-05-14T10:39:00Z: Added local runtime MCP primitive storage tables and typed helpers for MCP sources, auth modes, header/query credential maps, and durable MCP tool bindings.
 - 2026-05-14T10:39:00Z: Verified step 2 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T10:58:00Z: Started the discovery/invocation lifecycle by adding `refreshHarborLocalMcpSource` to discover MCP tools into durable bindings plus searchable SQLite rows, and `createHarborLocalMcpToolRuntime` to search and invoke through stored MCP bindings.
+- 2026-05-14T10:58:00Z: Verified the lifecycle slice with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.

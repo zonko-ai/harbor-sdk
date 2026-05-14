@@ -10,6 +10,7 @@ import {
   createHarborLocalCredentialResolver,
   createHarborLocalCredentialResolverFromEnv,
   createHarborLocalMcpPluginRuntime,
+  createHarborLocalMcpToolRuntime,
   createHarborLocalWorkflowReplayFixture,
   createHarborLocalSubmissionSnapshot,
   harborLocalDaemonConnection,
@@ -40,6 +41,7 @@ import {
   redactHarborSecret,
   readHarborRegistryDevRefs,
   removeHarborRegistryDevRef,
+  refreshHarborLocalMcpSource,
   runHarborLocalQuickJS,
   runHarborLocalJob,
   runHarborLocalWorkflow,
@@ -468,6 +470,88 @@ describe("@hrbr/runtime-local MCP source store", () => {
         cwd: "/tmp",
         auth: { kind: "none" },
       })
+    })
+  })
+
+  it("discovers MCP tools into searchable SQLite rows and invokes by stored binding", async () => {
+    await withTempProject(async (projectRoot) => {
+      const seen: Array<{ method: string; tool?: string | undefined }> = []
+      const fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { id?: number; method: string; params?: { name?: string; arguments?: unknown } }
+        seen.push({ method: body.method, tool: body.params?.name })
+        if (body.method === "initialize") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "linear" } },
+          }), { headers: { "content-type": "application/json", "mcp-session-id": "session-1" } })
+        }
+        if (body.method === "notifications/initialized") return new Response(null, { status: 202 })
+        if (body.method === "tools/list") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              tools: [
+                {
+                  name: "list_issues",
+                  description: "List Linear tickets and issues",
+                  inputSchema: { type: "object", properties: { assignee: { type: "string" } } },
+                  annotations: { readOnlyHint: true },
+                },
+                {
+                  name: "create_issue",
+                  description: "Create a Linear ticket",
+                  inputSchema: { type: "object", required: ["title"], properties: { title: { type: "string" } } },
+                  annotations: { destructiveHint: true },
+                },
+              ],
+            },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        if (body.method === "tools/call") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { structuredContent: { called: body.params?.name, input: body.params?.arguments } },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      }
+
+      await upsertHarborLocalMcpSource({
+        projectRoot,
+        source: {
+          transport: "remote",
+          name: "Linear MCP",
+          namespace: "linear-mcp",
+          endpoint: "https://mcp.linear.app/mcp",
+          auth: { kind: "none" },
+        },
+      })
+
+      await expect(refreshHarborLocalMcpSource({
+        projectRoot,
+        sourceId: "linear-mcp",
+        fetch,
+      })).resolves.toMatchObject({
+        sourceId: "linear-mcp",
+        namespace: "linear-mcp",
+        toolCount: 2,
+      })
+
+      const runtime = await createHarborLocalMcpToolRuntime({ projectRoot, fetch })
+      const hits = runtime.search({ query: "linear tickets", limit: 2 })
+      expect(hits[0]).toMatchObject({
+        toolId: "linear-mcp.list_issues",
+      })
+      await expect(runtime.call({
+        toolId: "linear-mcp.list_issues",
+        input: { assignee: "me" },
+      })).resolves.toMatchObject({
+        output: { structuredContent: { called: "list_issues", input: { assignee: "me" } } },
+      })
+      expect(seen.some((entry) => entry.method === "tools/call" && entry.tool === "list_issues")).toBe(true)
     })
   })
 })
