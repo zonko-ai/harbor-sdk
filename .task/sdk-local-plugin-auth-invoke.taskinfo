@@ -1,0 +1,42 @@
+# SDK Local Plugin Auth And Invoke
+
+Status: in_progress
+Created: 2026-05-14T09:10:00Z
+
+## Goal
+
+Make local plugin auth and invocation an SDK capability, so plugin authors can define a plugin, choose an auth method, connect locally, persist encrypted credentials, discover/index tools, and invoke the provider-backed tools from examples or Flue.
+
+## High-Level Plan
+
+1. Add SDK-level auth client helpers.
+   - Outcome: `@hrbr/source-auth` supports dynamic client registration and authorization-code token exchange for OAuth MCP sources.
+   - Status: pending
+
+2. Add SDK-level local MCP plugin runtime helpers.
+   - Outcome: `@hrbr/runtime-local` can create a provider-backed MCP tool runtime from installed local plugin state and encrypted credential slots.
+   - Status: pending
+
+3. Upgrade Notion and Linear local examples.
+   - Outcome: Linear keeps bearer auth; Notion can use real OAuth when enabled, while fixture flows remain safe defaults.
+   - Status: pending
+
+4. Upgrade the Flue example to invoke provider-backed local tools.
+   - Outcome: Flue can use Anthropic and dispatch through the SDK local MCP runtime when credentials are connected.
+   - Status: pending
+
+5. Validate and document real-account setup.
+   - Outcome: docs explain Anthropic env, Linear bearer auth, Notion OAuth/DCR, fixture mode, provider invoke mode, and validation results.
+   - Status: pending
+
+## Scope Guards
+
+- Keep auth/invoke primitives in SDK packages, not only inside examples.
+- Do not commit secrets or generated `.harbor` state.
+- Keep fixture mode available for repeatable tests.
+- Do not switch Linear examples to GraphQL.
+- Do not make Flue own provider auth; Flue should consume the SDK local runtime.
+
+## Progress Log
+
+- 2026-05-14T09:10:00Z: Created tracker after identifying that Linear had a bearer-token live path, Notion only had mock OAuth, and Flue used a stubbed registry call.
