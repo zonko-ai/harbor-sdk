@@ -38,7 +38,6 @@
       "name": "flue-tool-registry-agent-example",
       "dependencies": {
         "@flue/runtime": "^0.6.1",
-        "@hrbr/registry-catalog": "workspace:*",
         "@hrbr/runtime-local": "workspace:*",
         "@hrbr/source-mcp": "workspace:*",
         "valibot": "^1.1.0",
@@ -273,6 +272,7 @@
       "name": "@hrbr/runtime-local",
       "dependencies": {
         "@hrbr/orbit": "workspace:*",
+        "@hrbr/registry-catalog": "workspace:*",
         "@hrbr/runtime-cloudflare": "workspace:*",
         "@hrbr/source-auth": "workspace:*",
         "@hrbr/source-mcp": "workspace:*",

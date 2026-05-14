@@ -24,6 +24,7 @@ import {
   type HarborLocalToolSchema,
   type HarborLocalToolSearchHit,
 } from "./index"
+import { REGISTRY_CATALOG_ENTRIES } from "@hrbr/registry-catalog"
 import type { McpSourceFetch } from "@hrbr/source-mcp"
 
 export { HARBOR_LOCAL_CREDENTIAL_KEY_ENV } from "./credentials"
@@ -67,6 +68,49 @@ export interface HarborLocalMcpSetupResult {
   readonly refresh?: HarborLocalMcpRefreshSourceResult | undefined
 }
 
+export type HarborLocalMcpEnsureAuth = "auto" | "none" | "oauth2"
+
+export interface HarborLocalMcpUrlSourceInput {
+  readonly endpoint: string
+  readonly name?: string | undefined
+  readonly namespace?: string | undefined
+  readonly auth?: HarborLocalMcpEnsureAuth | undefined
+  readonly discovery?: HarborLocalMcpOAuthDiscovery | undefined
+  readonly clientName?: string | undefined
+}
+
+export interface HarborLocalMcpEnsureSourcesInput {
+  readonly sources: readonly HarborLocalMcpUrlSourceInput[]
+  readonly connect?: boolean | undefined
+  readonly refresh?: boolean | undefined
+  readonly onAuthorizationUrl?: ((input: {
+    readonly sourceId: string
+    readonly authorizationUrl: string
+  }) => void | Promise<void>) | undefined
+}
+
+export type HarborLocalMcpEnsureSourceStatus =
+  | "ready"
+  | "installed"
+  | "requires_oauth"
+  | "pending_oauth"
+  | "reconnect_required"
+  | "refresh_failed"
+
+export interface HarborLocalMcpEnsureSourceResult {
+  readonly source: HarborLocalMcpStoredSource
+  readonly status: HarborLocalMcpEnsureSourceStatus
+  readonly matchedCatalogSlug?: string | undefined
+  readonly authorizationUrl?: string | undefined
+  readonly refresh?: HarborLocalMcpRefreshSourceResult | undefined
+  readonly error?: string | undefined
+}
+
+export interface HarborLocalMcpEnsureSourcesResult {
+  readonly sources: readonly HarborLocalMcpEnsureSourceResult[]
+  readonly ready: boolean
+}
+
 export interface HarborLocalRuntime {
   readonly sources: {
     readonly list: () => Promise<readonly HarborLocalSourceRef[]>
@@ -80,6 +124,7 @@ export interface HarborLocalRuntime {
     }) => Promise<HarborLocalMcpOAuthConnectHandle>
     readonly refreshMcp: (sourceId: string) => Promise<HarborLocalMcpRefreshSourceResult>
     readonly setupMcp: (input: HarborLocalMcpSetupInput) => Promise<HarborLocalMcpSetupResult>
+    readonly ensureMcpSources: (input: HarborLocalMcpEnsureSourcesInput) => Promise<HarborLocalMcpEnsureSourcesResult>
   }
   readonly credentials: {
     readonly importFromEnv: (
@@ -115,6 +160,97 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
 
   const refreshMcp = (sourceId: string) =>
     refreshHarborLocalMcpSource({ ...base, sourceId })
+
+  const ensureOne = async (
+    ensureInput: HarborLocalMcpEnsureSourcesInput,
+    sourceInput: HarborLocalMcpUrlSourceInput
+  ): Promise<HarborLocalMcpEnsureSourceResult> => {
+    const catalog = catalogEntryForEndpoint(sourceInput.endpoint)
+    const discovery = sourceInput.discovery ?? catalogDiscovery(catalog)
+    const authKind = sourceInput.auth === "none"
+      ? "none"
+      : sourceInput.auth === "oauth2" || discovery
+        ? "oauth2"
+        : "none"
+    const source = await upsertHarborLocalMcpSource({
+      projectRoot: input.projectRoot,
+      source: {
+        transport: "remote",
+        name: sourceInput.name ?? catalog?.display_name ?? nameFromEndpoint(sourceInput.endpoint),
+        namespace: sourceInput.namespace ?? catalog?.default_namespace,
+        endpoint: sourceInput.endpoint,
+        remoteTransport: "auto",
+        auth: authKind === "oauth2" ? { kind: "oauth2" } : { kind: "none" },
+      },
+    })
+
+    if (authKind === "oauth2") {
+      const oauth = await readHarborLocalOAuthStatus(input.projectRoot, source.id)
+      if (oauth.status === "reconnect_required") {
+        return {
+          source,
+          status: "reconnect_required",
+          ...(catalog ? { matchedCatalogSlug: catalog.slug } : {}),
+        }
+      }
+      if (oauth.status !== "ready") {
+        if (!discovery) {
+          return {
+            source,
+            status: oauth.status === "pending" ? "pending_oauth" : "requires_oauth",
+            ...(catalog ? { matchedCatalogSlug: catalog.slug } : {}),
+          }
+        }
+        if (ensureInput.connect !== true) {
+          return {
+            source,
+            status: oauth.status === "pending" ? "pending_oauth" : "requires_oauth",
+            ...(catalog ? { matchedCatalogSlug: catalog.slug } : {}),
+          }
+        }
+        const connect = await connectHarborLocalMcpOAuthSource({
+          ...base,
+          sourceId: source.id,
+          discovery,
+          clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`,
+        })
+        try {
+          await ensureInput.onAuthorizationUrl?.({
+            sourceId: source.id,
+            authorizationUrl: connect.authorizationUrl,
+          })
+          await connect.waitForReady()
+        } finally {
+          await connect.close()
+        }
+      }
+    }
+
+    if (ensureInput.refresh === false) {
+      return {
+        source,
+        status: "installed",
+        ...(catalog ? { matchedCatalogSlug: catalog.slug } : {}),
+      }
+    }
+
+    try {
+      const refresh = await refreshMcp(source.id)
+      return {
+        source: await readHarborLocalMcpSource(input.projectRoot, source.id) ?? source,
+        status: "ready",
+        ...(catalog ? { matchedCatalogSlug: catalog.slug } : {}),
+        refresh,
+      }
+    } catch (error) {
+      return {
+        source,
+        status: "refresh_failed",
+        ...(catalog ? { matchedCatalogSlug: catalog.slug } : {}),
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
 
   const runAction = (
     action: HarborLocalRegistryAction,
@@ -164,6 +300,16 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
           ...(refresh ? { refresh } : {}),
         }
       },
+      ensureMcpSources: async (ensureInput) => {
+        const sources = []
+        for (const source of ensureInput.sources) {
+          sources.push(await ensureOne(ensureInput, source))
+        }
+        return {
+          sources,
+          ready: sources.every((source) => source.status === "ready" || source.status === "installed"),
+        }
+      },
     },
     credentials: {
       importFromEnv: async (credentialInput) => {
@@ -179,5 +325,46 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
       },
       runAction,
     },
+  }
+}
+
+interface CatalogMcpEntry {
+  readonly slug: string
+  readonly display_name?: string | undefined
+  readonly default_namespace?: string | undefined
+  readonly config?: {
+    readonly mcp_endpoint?: string | undefined
+    readonly oauth_discovery?: {
+      readonly authorization_endpoint?: string | undefined
+      readonly token_endpoint?: string | undefined
+      readonly registration_endpoint?: string | undefined
+      readonly scopes_supported?: readonly string[] | undefined
+      readonly resource?: string | undefined
+    } | undefined
+  } | undefined
+}
+
+function catalogEntryForEndpoint(endpoint: string): CatalogMcpEntry | undefined {
+  return (REGISTRY_CATALOG_ENTRIES as unknown as readonly CatalogMcpEntry[])
+    .find((entry) => entry.config?.mcp_endpoint === endpoint)
+}
+
+function catalogDiscovery(entry: CatalogMcpEntry | undefined): HarborLocalMcpOAuthDiscovery | undefined {
+  const discovery = entry?.config?.oauth_discovery
+  if (!discovery?.authorization_endpoint || !discovery.token_endpoint) return undefined
+  return {
+    authorizationEndpoint: discovery.authorization_endpoint,
+    tokenEndpoint: discovery.token_endpoint,
+    registrationEndpoint: discovery.registration_endpoint,
+    scopes: discovery.scopes_supported,
+    resource: discovery.resource,
+  }
+}
+
+function nameFromEndpoint(endpoint: string): string {
+  try {
+    return new URL(endpoint).hostname.replace(/^mcp\./, "").split(".")[0] || "MCP Source"
+  } catch {
+    return "MCP Source"
   }
 }

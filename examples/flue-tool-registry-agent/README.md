@@ -1,6 +1,6 @@
 # Flue Tool Registry Agent
 
-This Flue agent consumes Harbor SDK local MCP sources. It does not define fake Linear or Notion tools. The setup flow installs real Linear MCP and Notion MCP source records, connects OAuth when live mode is enabled, and discovers tools into `.harbor/harbor.sqlite`.
+This Flue agent consumes Harbor SDK local MCP sources. It does not define fake Linear or Notion tools. The agent declares the Linear MCP and Notion MCP URLs in `main.ts`; the Harbor SDK installs missing sources, connects OAuth when needed, refreshes existing OAuth grants, and discovers tools into `.harbor/harbor.sqlite`.
 
 At runtime the model owns orchestration and `@hrbr/runtime-local/promise` owns the registry mechanics:
 
@@ -22,6 +22,14 @@ import {
 } from "@hrbr/runtime-local/promise"
 
 const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env })
+const setup = await harbor.sources.ensureMcpSources({
+  sources: [
+    { endpoint: "https://mcp.linear.app/mcp" },
+    { endpoint: "https://mcp.notion.com/mcp" },
+  ],
+  connect: true,
+  refresh: true,
+})
 const { data: next } = await session.prompt(prompt, {
   result: harborLocalRegistryAgentStepSchema,
 })
@@ -41,19 +49,22 @@ bun test examples/flue-tool-registry-agent/test/e2e.test.ts
 
 ## Real Linear And Notion OAuth
 
-Live mode opens browser OAuth URLs for Linear MCP and Notion MCP, one after the other. After each provider redirects back to the local callback, the SDK stores grant tokens encrypted in `.harbor/credentials.enc` and refreshes the MCP tool index.
+On first run, the SDK opens browser OAuth URLs for any source that is not connected yet. After each provider redirects back to the local callback, the SDK stores grant tokens encrypted in `.harbor/credentials.enc` and refreshes the MCP tool index. Later runs reuse the stored grants.
 
 ```sh
 HARBOR_LOCAL_CREDENTIAL_KEY=dev-key \
-HARBOR_MCP_LIVE_OAUTH=1 \
-bun run --cwd examples/flue-tool-registry-agent setup:e2e
+bun run --cwd examples/flue-tool-registry-agent flue run tool-registry \
+  --target node \
+  --id local-test \
+  --env .env \
+  --payload '{"prompt":"find my Linear issues"}'
 ```
 
 Expected prompts:
 
-- The terminal prints a Linear MCP authorization URL. Open it, approve access, and wait for the local callback to complete.
-- The terminal then prints a Notion MCP authorization URL. Open it, approve access, and wait for the local callback to complete.
-- The command prints indexed source summaries for `linear-mcp` and `notion-mcp`.
+- If Linear or Notion is not connected, the terminal prints an authorization URL. Open it, approve access, and wait for the local callback to complete.
+- If a source is already connected, the SDK skips OAuth and refreshes the tool index.
+- If a source cannot be installed, connected, or refreshed, the agent receives that source setup status as an observation and reports it instead of inventing tool results.
 
 ## Run With Anthropic
 

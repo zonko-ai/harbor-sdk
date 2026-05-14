@@ -23,7 +23,6 @@
     "example:linear-notion": "bun run examples/tool-registry-linear-notion/src/index.ts",
     "example:linear-mcp-local": "bun run examples/plugin-linear-mcp-local/src/index.ts",
     "example:notion-mcp-local": "bun run examples/plugin-notion-mcp-local/src/index.ts",
-    "example:flue-linear-notion-setup": "bun run --filter flue-tool-registry-agent-example setup:e2e",
     "example:flue-tool-registry-agent": "bun run --filter flue-tool-registry-agent-example typecheck"
   },
   "catalog": {

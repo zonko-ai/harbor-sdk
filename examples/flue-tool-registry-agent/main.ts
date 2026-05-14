@@ -8,6 +8,11 @@ import * as v from "valibot"
 
 export const triggers = { webhook: true }
 
+const mcpSources = [
+  { endpoint: "https://mcp.linear.app/mcp" },
+  { endpoint: "https://mcp.notion.com/mcp" },
+] as const
+
 const result = v.object({
   answer: v.string(),
   selectedToolId: v.nullable(v.string()),
@@ -29,6 +34,7 @@ function systemPrompt(prompt: string, confirmWrites: boolean, observations: read
   return [
     "Drive the Harbor SDK local MCP registry. Choose exactly one action: search, schema, invoke, or final.",
     "Use search before unknown tools, schema before non-trivial invoke inputs, and treat MCP outputs as opaque observations.",
+    "If source setup reports a missing, pending, or failed MCP source, explain that status instead of inventing tool results.",
     `Write confirmation is ${confirmWrites ? "enabled" : "disabled"}. Do not invent missing Linear or Notion data.`,
     `User request: ${prompt}`,
     `Observations: ${JSON.stringify(observations, null, 2)}`,
@@ -41,6 +47,15 @@ export default async function ({ init, payload, env }: FlueContext) {
   const confirmWrites = registryEnv.HARBOR_CONFIRM_NOTION_WRITE === "1"
   const observations: unknown[] = []
   const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env: registryEnv })
+  const sourceSetup = await harbor.sources.ensureMcpSources({
+    sources: mcpSources,
+    connect: true,
+    refresh: true,
+    onAuthorizationUrl: ({ sourceId, authorizationUrl }) => {
+      console.log(`Open this URL to connect ${sourceId}:\n${authorizationUrl}\n`)
+    },
+  })
+  observations.push({ kind: "mcp_source_setup", result: sourceSetup })
   const session = await (await init({ model: "anthropic/claude-sonnet-4-6" })).session()
 
   for (let step = 0; step < 12; step++) {

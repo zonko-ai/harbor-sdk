@@ -12,17 +12,12 @@ import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
 
 const harbor = createHarborLocalRuntime({ projectRoot, env: process.env })
 
-const source = await harbor.sources.upsertMcp({
-  transport: "remote",
-  name: "Linear",
-  endpoint: "https://mcp.linear.app/mcp",
-  auth: { kind: "oauth2" },
+await harbor.sources.ensureMcpSources({
+  sources: [{ endpoint: "https://mcp.linear.app/mcp" }],
+  connect: true,
+  refresh: true,
+  onAuthorizationUrl: ({ authorizationUrl }) => console.log(authorizationUrl),
 })
-
-const connect = await harbor.sources.connectMcpOAuth({ sourceId: source.id, discovery })
-console.log(connect.authorizationUrl)
-await connect.waitForReady()
-await harbor.sources.refreshMcp(source.id)
 
 const hits = await harbor.tools.search({ query: "my Linear issues" })
 const result = await harbor.tools.invoke(hits[0].toolId, { assignee: "me" })
@@ -51,6 +46,7 @@ interface HarborLocalSourceRuntime {
   connectMcpOAuth(input: HarborLocalMcpOAuthConnectInput): Promise<HarborLocalMcpOAuthConnectHandle>
   refreshMcp(sourceId: string): Promise<HarborLocalMcpRefreshSourceResult>
   setupMcp(input: HarborLocalMcpSetupInput): Promise<HarborLocalMcpSetupResult>
+  ensureMcpSources(input: HarborLocalMcpEnsureSourcesInput): Promise<HarborLocalMcpEnsureSourcesResult>
 }
 
 interface HarborLocalToolRuntime {
@@ -206,24 +202,21 @@ tests.
 
 ## Example Shape
 
-The Linear and Notion examples should become thin setup scripts:
+The Linear and Notion examples should not own setup lifecycle logic. They should
+declare the MCP URLs and call the SDK:
 
 ```ts
 import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
 
 const harbor = createHarborLocalRuntime({ projectRoot, env: process.env })
-
-const linear = await harbor.sources.upsertMcp({
-  transport: "remote",
-  name: "Linear",
-  endpoint: "https://mcp.linear.app/mcp",
-  auth: { kind: "oauth2" },
+await harbor.sources.ensureMcpSources({
+  sources: [
+    { endpoint: "https://mcp.linear.app/mcp" },
+    { endpoint: "https://mcp.notion.com/mcp" },
+  ],
+  connect: true,
+  refresh: true,
 })
-
-const connect = await harbor.sources.connectMcpOAuth({ sourceId: linear.id, discovery })
-console.log(connect.authorizationUrl)
-await connect.waitForReady()
-await harbor.sources.refreshMcp(linear.id)
 
 const result = await harbor.tools.invoke("linear-mcp.list_issues", {
   assignee: "me",
@@ -240,16 +233,25 @@ import {
 } from "@hrbr/runtime-local/promise"
 
 const harbor = createHarborLocalRuntime({ projectRoot, env })
+await harbor.sources.ensureMcpSources({
+  sources: [
+    { endpoint: "https://mcp.linear.app/mcp" },
+    { endpoint: "https://mcp.notion.com/mcp" },
+  ],
+  connect: true,
+  refresh: true,
+})
 const { data: next } = await session.prompt(prompt, {
   result: harborLocalRegistryAgentStepSchema,
 })
 const output = await harbor.tools.runAction(harborLocalRegistryActionFromAgentStep(next))
 ```
 
-Flue owns the agent session and model. Harbor SDK owns MCP source lifecycle,
-OAuth, credential resolution, search, schema lookup, policy, invocation, and
-registry action validation. Example code may define its final response schema,
-because that contract belongs to the app or agent using the SDK.
+Flue owns the agent session, model, and the MCP URL list. Harbor SDK owns MCP
+source lifecycle, OAuth, credential resolution, refresh, discovery/indexing,
+search, schema lookup, policy, invocation, and registry action validation.
+Example code may define its final response schema, because that contract belongs
+to the app or agent using the SDK.
 
 ## First Implementation Target
 

@@ -3,7 +3,6 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "bun:test"
 import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
-import { setupFlueLinearNotionE2E } from "../src/setup-e2e"
 import { serveLinearNotionFixtureServers } from "./fixtures"
 
 async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
@@ -21,16 +20,25 @@ describe("flue Linear to Notion local E2E", () => {
       const servers = await serveLinearNotionFixtureServers()
       const env = { HARBOR_LOCAL_CREDENTIAL_KEY: "vault-key" }
       try {
-        const setup = await setupFlueLinearNotionE2E({
-          projectRoot,
-          env,
-          endpoints: {
-            "linear-mcp": servers.linear.url,
-            "notion-mcp": servers.notion.url,
-          },
-        })
-        expect(setup.mode).toBe("fixture")
         const harbor = createHarborLocalRuntime({ projectRoot, env, allowLocalNetwork: true })
+        const setup = await harbor.sources.ensureMcpSources({
+          sources: [
+            {
+              endpoint: servers.linear.url,
+              name: "Linear MCP",
+              namespace: "linear-mcp",
+              auth: "none",
+            },
+            {
+              endpoint: servers.notion.url,
+              name: "Notion MCP",
+              namespace: "notion-mcp",
+              auth: "none",
+            },
+          ],
+        })
+        expect(setup.ready).toBe(true)
+        expect(setup.sources.map((source) => source.status)).toEqual(["ready", "ready"])
 
         const linearSearch = await harbor.tools.runAction({ kind: "search", namespace: "linear-mcp", query: "linear tickets issues list" })
         expect(linearSearch).toMatchObject({
