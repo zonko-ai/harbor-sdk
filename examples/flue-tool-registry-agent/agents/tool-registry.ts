@@ -1,6 +1,6 @@
+import { execFileSync } from "node:child_process"
 import type { FlueContext } from "@flue/runtime"
 import * as v from "valibot"
-import { loadLocalRegistryPreview } from "../src/local-registry"
 
 export const triggers = { webhook: true }
 
@@ -33,12 +33,34 @@ function envRecord(env: unknown): Readonly<Record<string, string | undefined>> |
   return out
 }
 
+function runLocalRegistry(input: {
+  readonly prompt: string
+  readonly confirmNotionWrite: boolean
+  readonly env: Readonly<Record<string, string | undefined>>
+}): unknown {
+  const projectRoot = process.cwd()
+  const output = execFileSync("bun", ["run", "src/run-e2e.ts"], {
+    cwd: projectRoot,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      ...input.env,
+      HARBOR_FLUE_E2E_INPUT: JSON.stringify({
+        prompt: input.prompt,
+        confirmNotionWrite: input.confirmNotionWrite,
+        projectRoot,
+      }),
+    },
+  })
+  return JSON.parse(output)
+}
+
 export default async function ({ init, payload, env }: FlueContext) {
   const prompt = payloadPrompt(payload)
-  const preview = await loadLocalRegistryPreview({
+  const preview = runLocalRegistry({
     prompt,
     confirmNotionWrite: envString(env, "HARBOR_CONFIRM_NOTION_WRITE") === "1",
-    env: envRecord(env),
+    env: envRecord(env) ?? {},
   })
 
   const harness = await init({ model: "anthropic/claude-sonnet-4-6" })
