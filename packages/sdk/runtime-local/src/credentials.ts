@@ -2,6 +2,8 @@ import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:
 import { readFile, writeFile } from "node:fs/promises"
 import { harborLocalPaths, LOCAL_WORKSPACE_ID } from "./index"
 
+export const HARBOR_LOCAL_CREDENTIAL_KEY_ENV = "HARBOR_LOCAL_CREDENTIAL_KEY"
+
 export interface HarborLocalCredentialRecord {
   readonly id: string
   readonly workspaceId: typeof LOCAL_WORKSPACE_ID
@@ -36,6 +38,14 @@ export interface HarborLocalCredentialEnvImportInput {
   readonly key: string
   readonly now?: (() => Date) | undefined
 }
+
+export interface HarborLocalCredentialKeyEnvInput {
+  readonly env?: Readonly<Record<string, string | undefined>> | undefined
+  readonly envName?: string | undefined
+}
+
+export type HarborLocalCredentialEnvImportFromKeyInput =
+  Omit<HarborLocalCredentialEnvImportInput, "key"> & HarborLocalCredentialKeyEnvInput
 
 function deriveKey(key: string, salt: Buffer): Buffer {
   return scryptSync(key, salt, 32)
@@ -76,6 +86,18 @@ export function redactHarborSecret(value: string): string {
   return `${value.slice(0, 4)}...${value.slice(-4)}`
 }
 
+export function readHarborLocalCredentialKeyFromEnv(
+  input: HarborLocalCredentialKeyEnvInput = {}
+): string {
+  const envName = input.envName ?? HARBOR_LOCAL_CREDENTIAL_KEY_ENV
+  const env = input.env ?? process.env
+  const key = env[envName]?.trim()
+  if (!key) {
+    throw new Error(`${envName} is required to read or write local Harbor credentials.`)
+  }
+  return key
+}
+
 export async function writeHarborLocalCredentials(
   projectRoot: string,
   file: HarborLocalCredentialsFile,
@@ -100,6 +122,13 @@ export async function readHarborLocalCredentials(
     }
     throw error
   }
+}
+
+export async function readHarborLocalCredentialsFromEnvKey(
+  projectRoot: string,
+  input: HarborLocalCredentialKeyEnvInput = {}
+): Promise<HarborLocalCredentialsFile> {
+  return readHarborLocalCredentials(projectRoot, readHarborLocalCredentialKeyFromEnv(input))
 }
 
 export async function importHarborLocalCredentialsFromEnv(
@@ -137,4 +166,12 @@ export async function importHarborLocalCredentialsFromEnv(
   }
   await writeHarborLocalCredentials(projectRoot, next, input.key)
   return next
+}
+
+export async function importHarborLocalCredentialsFromEnvKey(
+  projectRoot: string,
+  input: HarborLocalCredentialEnvImportFromKeyInput
+): Promise<HarborLocalCredentialsFile> {
+  const key = readHarborLocalCredentialKeyFromEnv(input)
+  return importHarborLocalCredentialsFromEnv(projectRoot, { ...input, key })
 }

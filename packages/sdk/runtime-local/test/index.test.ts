@@ -8,6 +8,7 @@ import {
   buildHarborLocalToolIndexFromSqlite,
   createHarborLocalToolIndex,
   createHarborLocalCredentialResolver,
+  createHarborLocalCredentialResolverFromEnv,
   createHarborLocalWorkflowReplayFixture,
   createHarborLocalSubmissionSnapshot,
   harborLocalDaemonConnection,
@@ -18,13 +19,17 @@ import {
   generateHarborLocalWorkflowPackageManifest,
   harborLocalSecurityAction,
   HARBOR_LOCAL_DIR,
+  HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
   HARBOR_LOCAL_SCHEMA_VERSION,
   importHarborLocalCredentialsFromEnv,
+  importHarborLocalCredentialsFromEnvKey,
   installHarborLocalPluginManifest,
   hashHarborLocalToken,
   listHarborLocalSources,
+  readHarborLocalCredentialKeyFromEnv,
   readHarborLocalRuntimeManifest,
   readHarborLocalCredentials,
+  readHarborLocalCredentialsFromEnvKey,
   redactHarborSecret,
   readHarborRegistryDevRefs,
   removeHarborRegistryDevRef,
@@ -394,6 +399,38 @@ describe("@hrbr/runtime-local credentials", () => {
       expect(redactHarborSecret("sk_live_123456789")).toBe("sk_l...6789")
     })
   })
+
+  it("uses HARBOR_LOCAL_CREDENTIAL_KEY as the setup-time vault key", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      await importHarborLocalCredentialsFromEnvKey(projectRoot, {
+        sourceRefId: "source:linear-mcp:linear-mcp",
+        slots: { LINEAR_API_KEY: "LINEAR_API_KEY" },
+        env: {
+          [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key",
+          LINEAR_API_KEY: "lin_secret",
+        },
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+      })
+
+      await expect(readHarborLocalCredentialsFromEnvKey(projectRoot, {
+        env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key" },
+      })).resolves.toMatchObject({
+        credentials: [{
+          id: "source:linear-mcp:linear-mcp:LINEAR_API_KEY",
+          sourceRefId: "source:linear-mcp:linear-mcp",
+          slot: "LINEAR_API_KEY",
+          value: "lin_secret",
+        }],
+      })
+    })
+  })
+
+  it("requires a non-empty local credential key env value", () => {
+    expect(() => readHarborLocalCredentialKeyFromEnv({
+      env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "" },
+    })).toThrow("HARBOR_LOCAL_CREDENTIAL_KEY is required")
+  })
 })
 
 describe("@hrbr/runtime-local tool search", () => {
@@ -568,6 +605,29 @@ describe("@hrbr/runtime-local plugin install store", () => {
         workspaceId: "local",
         sourceId: "source:other",
       }).then((credentials) => credentials.has("LINEAR_API_KEY"))).resolves.toBe(false)
+    })
+  })
+
+  it("resolves encrypted local credentials using the standard vault key env var", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      await importHarborLocalCredentialsFromEnvKey(projectRoot, {
+        sourceRefId: "source:linear-mcp:linear-mcp",
+        slots: { LINEAR_API_KEY: "LINEAR_API_KEY" },
+        env: {
+          [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key",
+          LINEAR_API_KEY: "lin_secret",
+        },
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+      })
+
+      const resolver = createHarborLocalCredentialResolverFromEnv(projectRoot, {
+        env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key" },
+      })
+      await expect(resolver.resolve({
+        workspaceId: "local",
+        sourceId: "source:linear-mcp:linear-mcp",
+      }).then((credentials) => credentials.require("LINEAR_API_KEY"))).resolves.toBe("lin_secret")
     })
   })
 })

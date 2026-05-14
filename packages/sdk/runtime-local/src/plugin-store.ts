@@ -1,7 +1,11 @@
 import { createRequire } from "node:module"
 import { harborLocalPaths, LOCAL_WORKSPACE_ID } from "./index"
 import { ensureHarborLocalProject } from "./index"
-import { readHarborLocalCredentials } from "./credentials"
+import {
+  readHarborLocalCredentialKeyFromEnv,
+  readHarborLocalCredentials,
+  type HarborLocalCredentialKeyEnvInput,
+} from "./credentials"
 import { createHarborLocalToolIndex, type HarborLocalToolIndex, type HarborLocalToolIndexOptions, type HarborLocalToolIndexRecord } from "./tool-search"
 import type { HarborLocalPackageManifest, HarborLocalPackageToolMetadata } from "./package-format"
 
@@ -39,6 +43,8 @@ export interface HarborLocalSourceRef {
 export interface HarborLocalCredentialResolverInput {
   readonly key: string
 }
+
+export type HarborLocalCredentialResolverFromEnvInput = HarborLocalCredentialKeyEnvInput
 
 export interface HarborLocalCredentialResolveInput {
   readonly workspaceId: string
@@ -304,4 +310,13 @@ export function createHarborLocalCredentialResolver(
       return resolvedCredentials(values)
     },
   }
+}
+
+export function createHarborLocalCredentialResolverFromEnv(
+  projectRoot: string,
+  input: HarborLocalCredentialResolverFromEnvInput = {}
+): HarborLocalCredentialResolver {
+  return createHarborLocalCredentialResolver(projectRoot, {
+    key: readHarborLocalCredentialKeyFromEnv(input),
+  })
 }

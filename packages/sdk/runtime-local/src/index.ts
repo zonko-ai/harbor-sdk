@@ -95,9 +95,11 @@ export {
 export {
   buildHarborLocalToolIndexFromSqlite,
   createHarborLocalCredentialResolver,
+  createHarborLocalCredentialResolverFromEnv,
   installHarborLocalPluginManifest,
   listHarborLocalSources,
   type HarborLocalCredentialResolveInput,
+  type HarborLocalCredentialResolverFromEnvInput,
   type HarborLocalCredentialResolverInput,
   type HarborLocalCredentialResolver,
   type HarborLocalPluginInstallResult,
@@ -106,11 +108,17 @@ export {
 } from "./plugin-store"
 
 export {
+  HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
   importHarborLocalCredentialsFromEnv,
+  importHarborLocalCredentialsFromEnvKey,
+  readHarborLocalCredentialKeyFromEnv,
   readHarborLocalCredentials,
+  readHarborLocalCredentialsFromEnvKey,
   redactHarborSecret,
   writeHarborLocalCredentials,
   type HarborLocalCredentialEnvImportInput,
+  type HarborLocalCredentialEnvImportFromKeyInput,
+  type HarborLocalCredentialKeyEnvInput,
   type HarborLocalCredentialRecord,
   type HarborLocalCredentialsFile,
   type HarborLocalEncryptedCredentialsFile,
