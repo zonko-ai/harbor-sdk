@@ -110,8 +110,10 @@ function notionFixture(body: McpRequestBody): Response {
     return jsonRpc(body.id, {
       structuredContent: {
         results: [{
+          id: "notion-fixture-parent-page",
           title: "SDK plugin examples",
           url: "notion://page/sdk-plugin-examples",
+          type: "page",
         }],
       },
     }, "notion-local-fixture")
