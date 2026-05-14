@@ -20,6 +20,10 @@ export const HARBOR_LOCAL_TABLES = [
   "oauth_clients",
   "oauth_pending_flows",
   "oauth_grants",
+  "mcp_sources",
+  "mcp_source_headers",
+  "mcp_source_query_params",
+  "mcp_tool_bindings",
   "cloudflare_resources",
 ] as const
 
@@ -229,6 +233,67 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS mcp_sources (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  transport TEXT NOT NULL,
+  name TEXT NOT NULL,
+  namespace TEXT NOT NULL,
+  endpoint TEXT,
+  remote_transport TEXT,
+  command TEXT,
+  args_json TEXT,
+  env_json TEXT,
+  cwd TEXT,
+  auth_kind TEXT NOT NULL,
+  auth_header_name TEXT,
+  auth_header_slot TEXT,
+  auth_header_prefix TEXT,
+  auth_connection_slot TEXT,
+  auth_client_id_slot TEXT,
+  auth_client_secret_slot TEXT,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS mcp_source_headers (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  text_value TEXT,
+  slot TEXT,
+  prefix TEXT
+);
+
+CREATE TABLE IF NOT EXISTS mcp_source_query_params (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  text_value TEXT,
+  slot TEXT,
+  prefix TEXT
+);
+
+CREATE TABLE IF NOT EXISTS mcp_tool_bindings (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_id TEXT NOT NULL,
+  namespace TEXT NOT NULL,
+  tool_id TEXT NOT NULL,
+  tool_name TEXT NOT NULL,
+  description TEXT,
+  input_schema_json TEXT,
+  output_schema_json TEXT,
+  annotations_json TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS cloudflare_resources (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -247,6 +312,8 @@ CREATE INDEX IF NOT EXISTS idx_spans_run_started ON spans(run_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_artifact_metadata_workspace_key ON artifact_metadata(workspace_id, key);
 CREATE INDEX IF NOT EXISTS idx_oauth_grants_source_status ON oauth_grants(workspace_id, source_ref_id, status);
 CREATE INDEX IF NOT EXISTS idx_oauth_pending_source_status ON oauth_pending_flows(workspace_id, source_ref_id, status);
+CREATE INDEX IF NOT EXISTS idx_mcp_sources_workspace_namespace ON mcp_sources(workspace_id, namespace);
+CREATE INDEX IF NOT EXISTS idx_mcp_tool_bindings_source ON mcp_tool_bindings(workspace_id, source_id);
 CREATE INDEX IF NOT EXISTS idx_cloudflare_resources_workspace_kind ON cloudflare_resources(workspace_id, kind);
 `.trim(),
   },

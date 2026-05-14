@@ -161,6 +161,21 @@ export {
 } from "./mcp-plugin"
 
 export {
+  listHarborLocalMcpToolBindings,
+  putHarborLocalMcpToolBindings,
+  readHarborLocalMcpSource,
+  upsertHarborLocalMcpSource,
+  type HarborLocalMcpAuthInput,
+  type HarborLocalMcpCredentialInput,
+  type HarborLocalMcpRemoteTransport,
+  type HarborLocalMcpSourceInput,
+  type HarborLocalMcpSourceStatus,
+  type HarborLocalMcpStoredSource,
+  type HarborLocalMcpToolBinding,
+  type HarborLocalMcpToolBindingInput,
+} from "./mcp-store"
+
+export {
   createHarborLocalToken,
   ensureHarborLocalDaemonConnection,
   hashHarborLocalToken,

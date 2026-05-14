@@ -27,12 +27,15 @@ import {
   installHarborLocalPluginManifest,
   installHarborLocalMcpPlugin,
   hashHarborLocalToken,
+  listHarborLocalMcpToolBindings,
   listHarborLocalSources,
   completeHarborLocalOAuthFlow,
+  putHarborLocalMcpToolBindings,
   readHarborLocalCredentialKeyFromEnv,
   readHarborLocalRuntimeManifest,
   readHarborLocalCredentials,
   readHarborLocalCredentialsFromEnvKey,
+  readHarborLocalMcpSource,
   readHarborLocalOAuthStatus,
   redactHarborSecret,
   readHarborRegistryDevRefs,
@@ -44,6 +47,7 @@ import {
   runHarborLocalStaticSecurityChecks,
   startHarborLocalDaemon,
   startHarborLocalOAuthFlow,
+  upsertHarborLocalMcpSource,
   upsertHarborRegistryDevRef,
   validateHarborLocalPackageManifest,
   validateHarborLocalSubmission,
@@ -119,6 +123,10 @@ describe("@hrbr/runtime-local sqlite schema", () => {
     expect(tables).toContain("oauth_clients")
     expect(tables).toContain("oauth_pending_flows")
     expect(tables).toContain("oauth_grants")
+    expect(tables).toContain("mcp_sources")
+    expect(tables).toContain("mcp_source_headers")
+    expect(tables).toContain("mcp_source_query_params")
+    expect(tables).toContain("mcp_tool_bindings")
     expect(tables).toContain("cloudflare_resources")
   })
 
@@ -133,6 +141,8 @@ describe("@hrbr/runtime-local sqlite schema", () => {
     expect(latest).toBe(HARBOR_LOCAL_SCHEMA_VERSION)
     expect(statements).toHaveLength(1)
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS local_workspace")
+    expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS mcp_sources")
+    expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS mcp_tool_bindings")
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS cloudflare_resources")
   })
 })
@@ -352,6 +362,112 @@ describe("@hrbr/runtime-local registry dev refs", () => {
       })
 
       await expect(event).resolves.toBe("sources/acme.ts")
+    })
+  })
+})
+
+describe("@hrbr/runtime-local MCP source store", () => {
+  it("stores MCP source auth, credential maps, and durable tool bindings separately", async () => {
+    await withTempProject(async (projectRoot) => {
+      const source = await upsertHarborLocalMcpSource({
+        projectRoot,
+        source: {
+          transport: "remote",
+          name: "Linear MCP",
+          namespace: "linear-mcp",
+          endpoint: "https://mcp.linear.app/mcp",
+          remoteTransport: "auto",
+          headers: {
+            authorization: { kind: "binding", slot: "auth:oauth2:connection", prefix: "Bearer " },
+          },
+          queryParams: {
+            tenant: "local-dev",
+          },
+          auth: { kind: "oauth2" },
+        },
+        now: () => new Date("2026-05-14T00:00:00.000Z"),
+      })
+
+      expect(source).toMatchObject({
+        id: "linear-mcp",
+        workspaceId: "local",
+        transport: "remote",
+        name: "Linear MCP",
+        namespace: "linear-mcp",
+        endpoint: "https://mcp.linear.app/mcp",
+        remoteTransport: "auto",
+        status: "requires_auth",
+        auth: {
+          kind: "oauth2",
+          connectionSlot: "auth:oauth2:connection",
+        },
+        headers: {
+          authorization: { kind: "binding", slot: "auth:oauth2:connection", prefix: "Bearer " },
+        },
+        queryParams: {
+          tenant: "local-dev",
+        },
+      })
+
+      await expect(readHarborLocalMcpSource(projectRoot, "linear-mcp")).resolves.toMatchObject({
+        auth: { kind: "oauth2" },
+        headers: {
+          authorization: { kind: "binding", slot: "auth:oauth2:connection" },
+        },
+      })
+
+      const bindings = await putHarborLocalMcpToolBindings({
+        projectRoot,
+        sourceId: "linear-mcp",
+        namespace: "linear-mcp",
+        tools: [{
+          toolId: "list_issues",
+          toolName: "list_issues",
+          description: "List Linear issues",
+          inputSchema: { type: "object", properties: { limit: { type: "number" } } },
+          annotations: { readOnlyHint: true },
+        }],
+        now: () => new Date("2026-05-14T00:00:00.000Z"),
+      })
+
+      expect(bindings).toMatchObject([{
+        id: "linear-mcp.list_issues",
+        sourceId: "linear-mcp",
+        namespace: "linear-mcp",
+        toolId: "list_issues",
+        toolName: "list_issues",
+        description: "List Linear issues",
+        inputSchema: { type: "object", properties: { limit: { type: "number" } } },
+        annotations: { readOnlyHint: true },
+      }])
+      await expect(listHarborLocalMcpToolBindings(projectRoot, "linear-mcp")).resolves.toHaveLength(1)
+    })
+  })
+
+  it("stores stdio MCP sources without enabling execution by default", async () => {
+    await withTempProject(async (projectRoot) => {
+      const source = await upsertHarborLocalMcpSource({
+        projectRoot,
+        source: {
+          transport: "stdio",
+          name: "Local Test Server",
+          command: "npx",
+          args: ["-y", "example-mcp"],
+          env: { EXAMPLE: "1" },
+          cwd: "/tmp",
+        },
+        now: () => new Date("2026-05-14T00:00:00.000Z"),
+      })
+
+      expect(source).toMatchObject({
+        id: "local_test_server",
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "example-mcp"],
+        env: { EXAMPLE: "1" },
+        cwd: "/tmp",
+        auth: { kind: "none" },
+      })
     })
   })
 })
