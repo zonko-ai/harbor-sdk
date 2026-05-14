@@ -17,6 +17,9 @@ export const HARBOR_LOCAL_TABLES = [
   "artifact_metadata",
   "cache_metadata",
   "credential_metadata",
+  "oauth_clients",
+  "oauth_pending_flows",
+  "oauth_grants",
   "cloudflare_resources",
 ] as const
 
@@ -186,6 +189,46 @@ CREATE TABLE IF NOT EXISTS credential_metadata (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS oauth_clients (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_ref_id TEXT NOT NULL,
+  client_id TEXT NOT NULL,
+  client_secret_ref TEXT,
+  authorization_endpoint TEXT NOT NULL,
+  token_endpoint TEXT NOT NULL,
+  redirect_uri TEXT NOT NULL,
+  scopes_json TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS oauth_pending_flows (
+  state TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_ref_id TEXT NOT NULL,
+  oauth_client_id TEXT NOT NULL,
+  code_verifier TEXT NOT NULL,
+  code_challenge TEXT NOT NULL,
+  redirect_uri TEXT NOT NULL,
+  status TEXT NOT NULL,
+  authorization_url TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS oauth_grants (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_ref_id TEXT NOT NULL,
+  oauth_client_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  scopes_json TEXT NOT NULL,
+  expires_at TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS cloudflare_resources (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -202,6 +245,8 @@ CREATE INDEX IF NOT EXISTS idx_tool_index_workspace_search ON tool_index(workspa
 CREATE INDEX IF NOT EXISTS idx_runs_workspace_started ON runs(workspace_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_spans_run_started ON spans(run_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_artifact_metadata_workspace_key ON artifact_metadata(workspace_id, key);
+CREATE INDEX IF NOT EXISTS idx_oauth_grants_source_status ON oauth_grants(workspace_id, source_ref_id, status);
+CREATE INDEX IF NOT EXISTS idx_oauth_pending_source_status ON oauth_pending_flows(workspace_id, source_ref_id, status);
 CREATE INDEX IF NOT EXISTS idx_cloudflare_resources_workspace_kind ON cloudflare_resources(workspace_id, kind);
 `.trim(),
   },

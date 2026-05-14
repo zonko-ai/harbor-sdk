@@ -16,6 +16,10 @@ import {
   type HarborLocalJobDefinition,
   type HarborLocalTraceRecord,
 } from "./jobs-apps"
+import {
+  completeHarborLocalOAuthCallback,
+  type HarborLocalOAuthCallbackExchangeInput,
+} from "./oauth"
 import { harborLocalSecurityAction, requireHarborLocalConfirmation } from "./security"
 import {
   ensureHarborLocalProject,
@@ -35,6 +39,19 @@ export interface StartHarborLocalDaemonInput {
   readonly apps?: readonly HarborLocalAppDefinition[] | undefined
   readonly artifacts?: Readonly<Record<string, string>> | undefined
   readonly traceSink?: HarborLocalTraceRecord[] | undefined
+  readonly oauth?: HarborLocalDaemonOAuthInput | undefined
+}
+
+export interface HarborLocalDaemonOAuthInput {
+  readonly env?: Readonly<Record<string, string | undefined>> | undefined
+  readonly envName?: string | undefined
+  readonly exchangeCode: (input: HarborLocalOAuthCallbackExchangeInput) => Promise<{
+    readonly accessToken: string
+    readonly refreshToken?: string | undefined
+    readonly tokenType?: string | undefined
+    readonly expiresAt?: string | undefined
+    readonly scopes?: readonly string[] | undefined
+  }>
 }
 
 export interface HarborLocalDaemonHandle {
@@ -175,6 +192,28 @@ export async function startHarborLocalDaemon(
       }
       if (url.pathname === "/mcp") {
         json(res, 501, { ok: false, code: "mcp_not_implemented" })
+        return
+      }
+      if (url.pathname === "/oauth/callback") {
+        if (!input.oauth) {
+          json(res, 404, { ok: false, code: "oauth_not_configured" })
+          return
+        }
+        const state = url.searchParams.get("state")
+        const code = url.searchParams.get("code")
+        if (!state || !code) {
+          json(res, 400, { ok: false, code: "oauth_callback_missing_params" })
+          return
+        }
+        const grant = await completeHarborLocalOAuthCallback(input.projectRoot, {
+          state,
+          code,
+          env: input.oauth.env,
+          envName: input.oauth.envName,
+          exchangeCode: input.oauth.exchangeCode,
+          now,
+        })
+        html(res, 200, `<h1>Harbor local OAuth connected</h1><p>${grant.sourceRefId}</p>`)
         return
       }
       if (url.pathname === "/control/info") {

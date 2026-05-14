@@ -136,6 +136,22 @@ export {
 } from "./registry"
 
 export {
+  completeHarborLocalOAuthCallback,
+  completeHarborLocalOAuthFlow,
+  readHarborLocalOAuthPendingFlow,
+  readHarborLocalOAuthStatus,
+  startHarborLocalOAuthFlow,
+  type HarborLocalOAuthCallbackExchangeInput,
+  type HarborLocalOAuthCallbackInput,
+  type HarborLocalOAuthClientInput,
+  type HarborLocalOAuthCompleteInput,
+  type HarborLocalOAuthGrant,
+  type HarborLocalOAuthPendingFlow,
+  type HarborLocalOAuthStartResult,
+  type HarborLocalOAuthStatus,
+} from "./oauth"
+
+export {
   createHarborLocalToken,
   ensureHarborLocalDaemonConnection,
   hashHarborLocalToken,

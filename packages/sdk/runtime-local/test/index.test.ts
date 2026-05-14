@@ -26,10 +26,12 @@ import {
   installHarborLocalPluginManifest,
   hashHarborLocalToken,
   listHarborLocalSources,
+  completeHarborLocalOAuthFlow,
   readHarborLocalCredentialKeyFromEnv,
   readHarborLocalRuntimeManifest,
   readHarborLocalCredentials,
   readHarborLocalCredentialsFromEnvKey,
+  readHarborLocalOAuthStatus,
   redactHarborSecret,
   readHarborRegistryDevRefs,
   removeHarborRegistryDevRef,
@@ -39,6 +41,7 @@ import {
   runHarborLocalMigrations,
   runHarborLocalStaticSecurityChecks,
   startHarborLocalDaemon,
+  startHarborLocalOAuthFlow,
   upsertHarborRegistryDevRef,
   validateHarborLocalPackageManifest,
   validateHarborLocalSubmission,
@@ -111,6 +114,9 @@ describe("@hrbr/runtime-local sqlite schema", () => {
     expect(tables).toContain("artifact_metadata")
     expect(tables).toContain("cache_metadata")
     expect(tables).toContain("credential_metadata")
+    expect(tables).toContain("oauth_clients")
+    expect(tables).toContain("oauth_pending_flows")
+    expect(tables).toContain("oauth_grants")
     expect(tables).toContain("cloudflare_resources")
   })
 
@@ -430,6 +436,104 @@ describe("@hrbr/runtime-local credentials", () => {
     expect(() => readHarborLocalCredentialKeyFromEnv({
       env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "" },
     })).toThrow("HARBOR_LOCAL_CREDENTIAL_KEY is required")
+  })
+})
+
+describe("@hrbr/runtime-local local OAuth", () => {
+  it("tracks a local OAuth flow and stores grant tokens encrypted as source credentials", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      const start = await startHarborLocalOAuthFlow({
+        projectRoot,
+        client: {
+          sourceRefId: "source:notion-mcp:notion-mcp",
+          clientId: "client-id",
+          authorizationEndpoint: "https://auth.example.com/authorize",
+          tokenEndpoint: "https://auth.example.com/token",
+          redirectUri: "http://127.0.0.1:7331/oauth/callback",
+          scopes: ["read", "write"],
+        },
+        now: () => new Date("2026-05-12T00:00:00.000Z"),
+      })
+
+      const pending = await readHarborLocalOAuthStatus(projectRoot, "source:notion-mcp:notion-mcp")
+      expect(pending.status).toBe("pending")
+      expect(new URL(start.authorizationUrl).searchParams.get("code_challenge_method")).toBe("S256")
+
+      const grant = await completeHarborLocalOAuthFlow(projectRoot, {
+        state: start.state,
+        code: "provider-code",
+        key: "vault-key",
+        tokens: {
+          accessToken: "access-token",
+          refreshToken: "refresh-token",
+          expiresAt: "2026-05-12T01:00:00.000Z",
+          scopes: ["read"],
+        },
+        now: () => new Date("2026-05-12T00:01:00.000Z"),
+      })
+
+      expect(grant).toMatchObject({
+        sourceRefId: "source:notion-mcp:notion-mcp",
+        status: "active",
+        scopes: ["read"],
+      })
+      await expect(readHarborLocalOAuthStatus(projectRoot, "source:notion-mcp:notion-mcp")).resolves.toMatchObject({
+        status: "ready",
+      })
+      await expect(readHarborLocalCredentials(projectRoot, "vault-key")).resolves.toMatchObject({
+        credentials: [
+          { sourceRefId: "source:notion-mcp:notion-mcp", slot: "access_token", value: "access-token" },
+          { sourceRefId: "source:notion-mcp:notion-mcp", slot: "refresh_token", value: "refresh-token" },
+        ],
+      })
+    })
+  })
+
+  it("handles the local OAuth callback route through a mock token exchanger", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      const daemon = await startHarborLocalDaemon({
+        projectRoot,
+        token: "test-token",
+        oauth: {
+          env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key" },
+          exchangeCode: async (input) => {
+            expect(input.code).toBe("provider-code")
+            expect(input.codeVerifier.length).toBeGreaterThan(10)
+            return {
+              accessToken: "callback-access",
+              refreshToken: "callback-refresh",
+              scopes: ["read"],
+            }
+          },
+        },
+      })
+      try {
+        const flow = await startHarborLocalOAuthFlow({
+          projectRoot,
+          client: {
+            sourceRefId: "source:notion-mcp:notion-mcp",
+            clientId: "client-id",
+            authorizationEndpoint: "https://auth.example.com/authorize",
+            tokenEndpoint: "https://auth.example.com/token",
+            redirectUri: `${daemon.origin}/oauth/callback`,
+            scopes: ["read"],
+          },
+        })
+
+        const callback = await fetch(`${daemon.origin}/oauth/callback?state=${flow.state}&code=provider-code`)
+        expect(callback.status).toBe(200)
+        await expect(readHarborLocalCredentials(projectRoot, "vault-key")).resolves.toMatchObject({
+          credentials: [
+            { sourceRefId: "source:notion-mcp:notion-mcp", slot: "access_token", value: "callback-access" },
+            { sourceRefId: "source:notion-mcp:notion-mcp", slot: "refresh_token", value: "callback-refresh" },
+          ],
+        })
+      } finally {
+        await daemon.close()
+      }
+    })
   })
 })
 
