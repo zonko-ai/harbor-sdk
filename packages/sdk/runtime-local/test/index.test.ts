@@ -43,6 +43,7 @@ import {
   readHarborRegistryDevRefs,
   removeHarborRegistryDevRef,
   refreshHarborLocalMcpSource,
+  runHarborLocalRegistryAction,
   runHarborLocalQuickJS,
   runHarborLocalJob,
   runHarborLocalWorkflow,
@@ -551,6 +552,44 @@ describe("@hrbr/runtime-local MCP source store", () => {
         input: { assignee: "me" },
       })).resolves.toMatchObject({
         output: { structuredContent: { called: "list_issues", input: { assignee: "me" } } },
+      })
+      const actionSearch = await runHarborLocalRegistryAction({
+        projectRoot,
+        fetch,
+        action: { kind: "search", namespace: "linear-mcp", query: "linear tickets" },
+      })
+      expect(actionSearch.kind).toBe("search")
+      if (actionSearch.kind === "search") {
+        expect(actionSearch.hits[0]).toMatchObject({ toolId: "linear-mcp.list_issues" })
+      }
+      await expect(runHarborLocalRegistryAction({
+        projectRoot,
+        fetch,
+        action: { kind: "schema", toolId: "linear-mcp.create_issue" },
+      })).resolves.toMatchObject({
+        kind: "schema",
+        schema: { toolId: "linear-mcp.create_issue" },
+      })
+      await expect(runHarborLocalRegistryAction({
+        projectRoot,
+        fetch,
+        action: { kind: "invoke", toolId: "linear-mcp.create_issue", input: { title: "Bug" } },
+      })).resolves.toMatchObject({
+        kind: "invoke",
+        blocked: true,
+        toolId: "linear-mcp.create_issue",
+      })
+      await expect(runHarborLocalRegistryAction({
+        projectRoot,
+        fetch,
+        confirmWrites: true,
+        action: { kind: "invoke", toolId: "linear-mcp.create_issue", input: "{\"title\":\"Bug\"}" },
+      })).resolves.toMatchObject({
+        kind: "invoke",
+        blocked: false,
+        result: {
+          output: { structuredContent: { called: "create_issue", input: { title: "Bug" } } },
+        },
       })
       expect(seen.some((entry) => entry.method === "tools/call" && entry.tool === "list_issues")).toBe(true)
     })

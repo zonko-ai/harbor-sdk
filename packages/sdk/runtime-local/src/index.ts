@@ -93,6 +93,16 @@ export {
 } from "./tool-search"
 
 export {
+  harborLocalDefaultWriteToolMatcher,
+  runHarborLocalRegistryAction,
+  type HarborLocalRegistryAction,
+  type HarborLocalRegistryActionInput,
+  type HarborLocalRegistryActionResult,
+  type HarborLocalRegistryWriteToolInput,
+  type HarborLocalRegistryWriteToolMatcher,
+} from "./tool-registry-actions"
+
+export {
   buildHarborLocalToolIndexFromSqlite,
   createHarborLocalCredentialResolver,
   createHarborLocalCredentialResolverFromEnv,

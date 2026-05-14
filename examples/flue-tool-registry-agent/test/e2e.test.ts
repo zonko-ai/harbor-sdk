@@ -2,8 +2,8 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "bun:test"
+import { runHarborLocalRegistryAction } from "@hrbr/runtime-local"
 import { flueLinearNotionFixtureFetch } from "../src/fixture-mcp"
-import { runRegistryAction } from "../src/local-registry"
 import { setupFlueLinearNotionE2E } from "../src/setup-e2e"
 
 async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
@@ -25,7 +25,7 @@ describe("flue Linear to Notion local E2E", () => {
       })
       expect(setup.mode).toBe("fixture")
 
-      const linearSearch = await runRegistryAction({
+      const linearSearch = await runHarborLocalRegistryAction({
         projectRoot,
         env,
         fetch: flueLinearNotionFixtureFetch,
@@ -36,7 +36,7 @@ describe("flue Linear to Notion local E2E", () => {
         hits: [expect.objectContaining({ toolId: "linear-mcp.list_issues" })],
       })
 
-      await expect(runRegistryAction({
+      await expect(runHarborLocalRegistryAction({
         projectRoot,
         env,
         fetch: flueLinearNotionFixtureFetch,
@@ -46,7 +46,7 @@ describe("flue Linear to Notion local E2E", () => {
         schema: { toolId: "notion-mcp.notion-create-pages" },
       })
 
-      await expect(runRegistryAction({
+      await expect(runHarborLocalRegistryAction({
         projectRoot,
         env,
         fetch: flueLinearNotionFixtureFetch,
@@ -63,7 +63,7 @@ describe("flue Linear to Notion local E2E", () => {
         blocked: true,
       })
 
-      await expect(runRegistryAction({
+      await expect(runHarborLocalRegistryAction({
         projectRoot,
         env,
         fetch: flueLinearNotionFixtureFetch,

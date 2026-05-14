@@ -2,15 +2,15 @@
 
 This Flue agent consumes Harbor SDK local MCP sources. It does not define fake Linear or Notion tools. The setup flow installs real Linear MCP and Notion MCP source records, connects OAuth when live mode is enabled, and discovers tools into `.harbor/harbor.sqlite`.
 
-At runtime the model owns orchestration:
+At runtime the model owns orchestration and `@hrbr/runtime-local` owns the registry mechanics:
 
 1. The model asks the SDK bridge to `search` tools.
 2. The model asks for `schema` before building non-trivial inputs.
-3. The SDK bridge `invoke`s the selected MCP tool and returns the raw MCP output as an observation.
+3. `runHarborLocalRegistryAction` invokes the selected MCP tool and returns the raw MCP output as an observation.
 4. The model reads that observation and decides the next action.
 5. Notion write tools are blocked unless `HARBOR_CONFIRM_NOTION_WRITE=1`.
 
-The example code does not parse provider-specific MCP outputs to choose parents, extract issues, or build follow-up calls. That responsibility stays with the Flue/Anthropic agent.
+The example code does not implement OAuth storage, MCP discovery, SQLite search, credential resolution, write gating, or provider-specific MCP output parsing. Those reusable pieces live in the Harbor SDK; this example is only the Flue harness plus setup/docs/fixtures.
 
 ## Fixture E2E
 
