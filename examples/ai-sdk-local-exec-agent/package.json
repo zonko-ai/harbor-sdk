@@ -1,0 +1,21 @@
+{
+  "name": "ai-sdk-local-exec-agent-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test",
+    "run": "bun run main.ts \"Get latest Linear issues from Harbor Alpha and latest relevant Notion docs/pages, then summarize current project status.\""
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.77",
+    "@hrbr/runtime-local": "workspace:*",
+    "@hrbr/source-mcp": "workspace:*",
+    "ai": "^6.0.182",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@hrbr/tsconfig": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

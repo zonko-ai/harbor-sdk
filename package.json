@@ -24,7 +24,9 @@
     "example:linear-mcp-local": "bun run examples/plugin-linear-mcp-local/src/index.ts",
     "example:notion-mcp-local": "bun run examples/plugin-notion-mcp-local/src/index.ts",
     "example:flue-tool-registry-agent": "bun run --filter flue-tool-registry-agent-example typecheck",
-    "example:flue-local-exec-agent": "bun run --filter flue-local-exec-agent-example typecheck"
+    "example:flue-local-exec-agent": "bun run --filter flue-local-exec-agent-example typecheck",
+    "example:ai-sdk-tool-registry-agent": "bun run --filter ai-sdk-tool-registry-agent-example typecheck",
+    "example:ai-sdk-local-exec-agent": "bun run --filter ai-sdk-local-exec-agent-example typecheck"
   },
   "catalog": {
     "effect": "4.0.0-beta.64",
