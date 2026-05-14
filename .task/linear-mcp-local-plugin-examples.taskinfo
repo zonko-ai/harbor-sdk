@@ -9,29 +9,51 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 
 ## High-Level Plan
 
-1. Establish the tracked scope and source-of-truth references.
-   - Outcome: task file records the intended work and explicitly pins Linear to `linear-mcp`.
+1. Lock the product shape.
+   - Outcome: build SDK-first plugin examples, not a Flue-first demo. The examples should teach local plugin definition/install, Harbor source-model mapping, tool indexing, encrypted credentials, opt-in OAuth-capable sources, and later Flue consumption of the same local registry.
    - Status: completed
 
-2. Add local runtime support needed by plugin examples.
-   - Outcome: SDK local runtime can persist plugin/source/tool metadata and encrypted credentials in the existing `.harbor` layout in a way QuickJS/local execution can consume.
+2. Add local-runtime plugin install support.
+   - Outcome: extend `@hrbr/runtime-local` so examples can create local plugin/source records, persist tools, and use `.harbor/harbor.sqlite`, `.harbor/credentials.enc`, and `.harbor/registry-dev-refs.json` instead of only hand-building tool indexes.
    - Status: pending
 
-3. Add a `linear-mcp` local plugin example.
-   - Outcome: example demonstrates setup, encrypted credential import, tool indexing, search/describe, and a safe smoke call path using `linear-mcp`-shaped tools.
+3. Use Harbor's real source model as the reference.
+   - Outcome: mirror the relevant ideas from `../harbor` into SDK-local examples: installed sources, indexed tools, encrypted source-scoped credentials, OAuth-capable source state, `linear-mcp`, and `notion-mcp`.
    - Status: pending
 
-4. Add docs that explain the plugin authoring model.
-   - Outcome: docs explain how plugin metadata, local runtime state, encrypted credentials, and eventual Flue consumption fit together.
+4. Make credential storage ergonomic.
+   - Outcome: use `HARBOR_LOCAL_CREDENTIAL_KEY` for encrypted local credentials; env vars are only an import/setup path, while QuickJS/local execution consumes credentials by source and slot.
    - Status: pending
 
-5. Validate and close.
-   - Outcome: relevant typechecks/tests/examples pass, remaining limitations are documented, and this task file is updated with final evidence.
+5. Implement the Linear MCP example first.
+   - Outcome: create a `linear-mcp` local plugin example that demonstrates setup, encrypted credential import, tool indexing, search/describe, and safe smoke calls using `linear-mcp`-shaped tools. Do not use `linear-graphql`.
+   - Status: pending
+
+6. Add local OAuth as a general SDK capability.
+   - Outcome: provide an opt-in local OAuth path around `@hrbr/source-auth` / `@hrbr/runtime-local`, with encrypted token storage and credential-slot resolution, rather than a Notion-only workaround.
+   - Status: pending
+
+7. Implement the Notion MCP example after local OAuth exists.
+   - Outcome: create a `notion-mcp` local plugin example that installs the source from registry metadata, connects OAuth, discovers/indexes MCP tools, and demonstrates safe read calls before documenting gated writes.
+   - Status: pending
+
+8. Add plugin authoring docs.
+   - Outcome: docs explain plugin manifest shape, source config, tool metadata/indexing, credential slots vs secret values, Linear MCP flow, Notion MCP OAuth flow, local runtime files, commit safety, and the hosted Harbor mapping.
+   - Status: pending
+
+9. Add Flue after the plugin examples.
+   - Outcome: create `examples/flue-tool-registry-agent` only after the SDK-local plugin examples exist; the Flue agent should consume the local Harbor SDK runtime registry instead of defining fake tools.
+   - Status: pending
+
+10. Validate in slices and close.
+   - Outcome: run focused package/example checks after each slice, add a mock-provider test before real Notion OAuth docs, document limitations, and update this task file with final evidence.
    - Status: pending
 
 ## Scope Guards
 
 - Do not use `linear-graphql` in the Linear example.
+- Do not create `examples/plugin-linear-graphql-local`.
+- Prefer `linear-mcp` source/tool shapes even if `../harbor` has newer Linear GraphQL registry metadata.
 - Do not copy Harbor SaaS control-plane implementation into the SDK.
 - Do not commit real credentials or generated local `.harbor` state.
 - Keep local OAuth as an SDK capability boundary; do not build a Notion-only workaround.
@@ -40,3 +62,4 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 
 - 2026-05-14T06:29:50Z: Created task tracker and pinned Linear examples to `linear-mcp`.
 - 2026-05-14T06:31:00Z: Completed scope-tracking setup; future implementation steps will update this file before each commit.
+- 2026-05-14T06:36:00Z: Expanded tracker to preserve the full high-level work sequence and replaced the earlier Linear GraphQL implementation path with `linear-mcp`.
