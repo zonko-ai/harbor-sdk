@@ -7,7 +7,7 @@ This Flue agent consumes Harbor SDK local MCP sources. It does not define fake L
 Use fixture mode for local development and tests. It creates encrypted fixture OAuth credentials and indexes fixture MCP tools without opening a browser.
 
 ```sh
-HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun --cwd examples/flue-tool-registry-agent run setup:e2e
+HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run --cwd examples/flue-tool-registry-agent setup:e2e
 bun test examples/flue-tool-registry-agent/test/e2e.test.ts
 ```
 
@@ -18,7 +18,7 @@ Live mode opens browser OAuth URLs for Linear MCP and Notion MCP, one after the 
 ```sh
 HARBOR_LOCAL_CREDENTIAL_KEY=dev-key \
 HARBOR_MCP_LIVE_OAUTH=1 \
-bun --cwd examples/flue-tool-registry-agent run setup:e2e
+bun run --cwd examples/flue-tool-registry-agent setup:e2e
 ```
 
 Expected prompts:
@@ -40,7 +40,7 @@ HARBOR_CONFIRM_NOTION_WRITE="0"
 Run a read-and-plan pass first:
 
 ```sh
-bun --cwd examples/flue-tool-registry-agent run run
+bun run --cwd examples/flue-tool-registry-agent run
 ```
 
 To allow the Notion write tool after reviewing the behavior, set:
