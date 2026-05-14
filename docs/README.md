@@ -7,6 +7,10 @@ Start with the tutorials when learning the SDK shape:
 - [Orbit runtime](tutorials/03-orbit-runtime.md)
 - [Hosted Harbor client](tutorials/04-hosted-client.md)
 
+Architecture notes:
+
+- [Local plugin source model](architecture/local-plugin-source-model.md)
+
 Generate API reference locally with:
 
 ```bash
