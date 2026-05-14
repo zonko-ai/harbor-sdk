@@ -1,1 +1,3 @@
-export { default, triggers } from "../main"
+export { default } from "../main"
+
+export const triggers = { webhook: true }

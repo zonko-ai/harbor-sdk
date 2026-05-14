@@ -4,7 +4,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./promise": "./src/promise.ts"
+    "./promise": {
+      "types": "./src/promise.ts",
+      "default": "./dist/promise.js"
+    }
   },
   "scripts": {
     "build": "tsc --noEmit",
