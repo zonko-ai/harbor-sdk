@@ -1,0 +1,60 @@
+# AI SDK Examples For Harbor Local Runtime
+
+Status: completed
+Last Updated: 2026-05-14T20:45:00Z
+Created: 2026-05-14T19:05:00Z
+
+## Goal
+
+Add two new pure Vercel AI SDK examples for the same Harbor SDK flows. These examples must not use Flue; the existing Flue examples remain intact.
+
+## Success Criteria
+
+- Add two new examples that use Vercel AI SDK model calls directly, with no Flue runtime, Flue agents, or Flue CLI.
+- Preserve the existing Flue examples unchanged; the new examples use distinct directories and CLI commands.
+- Anthropic is configured through AI SDK using the existing Anthropic key path, with a model env override.
+- Structured outputs are validated by the AI SDK path with Zod schemas.
+- Harbor SDK remains responsible for MCP source setup, OAuth, registry actions, local exec, QuickJS, credentials, and policy.
+- README docs explain the AI SDK dependency, env variables, and direct Bun run commands.
+- Focused typechecks and e2e fixture tests pass.
+
+## Plan
+
+### 1. Add Task Tracking
+
+Outcome: create this task file and keep it updated as the implementation progresses.
+
+Status: completed
+
+### 2. Create Tool Registry AI SDK Example
+
+Outcome: add `examples/ai-sdk-tool-registry-agent` as a pure AI SDK example that uses structured object generation while preserving the original Flue example.
+
+Status: completed
+
+### 3. Create Local Exec AI SDK Example
+
+Outcome: add `examples/ai-sdk-local-exec-agent` as a pure AI SDK example that uses code generation and summarization while preserving the original Flue example.
+
+Status: completed
+
+### 4. Update Dependencies And Docs
+
+Outcome: add AI SDK dependencies and document the Anthropic/AI SDK env surface for both new examples.
+
+Status: completed
+
+### 5. Validate
+
+Outcome: run focused typechecks and fixture tests for both examples.
+
+Status: completed
+
+## Validation Notes
+
+- Focused AI SDK example typechecks pass:
+  - `bun run --filter ai-sdk-tool-registry-agent-example typecheck`
+  - `bun run --filter ai-sdk-local-exec-agent-example typecheck`
+- AI SDK example fixture tests pass: `bun test examples/ai-sdk-tool-registry-agent/test/e2e.test.ts examples/ai-sdk-local-exec-agent/test/e2e.test.ts`.
+- Full examples typecheck passes: `bun run typecheck:examples`.
+- Direct AI SDK examples are intentionally not Flue agents and contain no `@flue/*`, `agents/`, `flue run`, or `session.prompt` usage.
