@@ -152,6 +152,15 @@ export {
 } from "./oauth"
 
 export {
+  createHarborLocalMcpPluginRuntime,
+  installHarborLocalMcpPlugin,
+  type HarborLocalMcpPluginAuth,
+  type HarborLocalMcpPluginDefinition,
+  type HarborLocalMcpPluginRuntime,
+  type HarborLocalMcpPluginRuntimeInput,
+} from "./mcp-plugin"
+
+export {
   createHarborLocalToken,
   ensureHarborLocalDaemonConnection,
   hashHarborLocalToken,

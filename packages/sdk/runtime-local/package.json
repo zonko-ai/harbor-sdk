@@ -15,6 +15,7 @@
     "@hrbr/orbit": "workspace:*",
     "@hrbr/runtime-cloudflare": "workspace:*",
     "@hrbr/source-auth": "workspace:*",
+    "@hrbr/source-mcp": "workspace:*",
     "@hrbr/tools": "workspace:*",
     "quickjs-emscripten-core": "^0.32.0"
   },

@@ -272,6 +272,7 @@
         "@hrbr/orbit": "workspace:*",
         "@hrbr/runtime-cloudflare": "workspace:*",
         "@hrbr/source-auth": "workspace:*",
+        "@hrbr/source-mcp": "workspace:*",
         "@hrbr/tools": "workspace:*",
         "@jitl/quickjs-ng-wasmfile-release-sync": "^0.32.0",
         "quickjs-emscripten-core": "^0.32.0",

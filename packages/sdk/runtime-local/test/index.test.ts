@@ -9,6 +9,7 @@ import {
   createHarborLocalToolIndex,
   createHarborLocalCredentialResolver,
   createHarborLocalCredentialResolverFromEnv,
+  createHarborLocalMcpPluginRuntime,
   createHarborLocalWorkflowReplayFixture,
   createHarborLocalSubmissionSnapshot,
   harborLocalDaemonConnection,
@@ -24,6 +25,7 @@ import {
   importHarborLocalCredentialsFromEnv,
   importHarborLocalCredentialsFromEnvKey,
   installHarborLocalPluginManifest,
+  installHarborLocalMcpPlugin,
   hashHarborLocalToken,
   listHarborLocalSources,
   completeHarborLocalOAuthFlow,
@@ -732,6 +734,83 @@ describe("@hrbr/runtime-local plugin install store", () => {
         workspaceId: "local",
         sourceId: "source:linear-mcp:linear-mcp",
       }).then((credentials) => credentials.require("LINEAR_API_KEY"))).resolves.toBe("lin_secret")
+    })
+  })
+
+  it("installs and invokes provider-backed MCP plugins through the SDK runtime helper", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      const seen: Array<{ method: string; authorization: string | null }> = []
+      const fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { id?: number; method: string; params?: { name?: string } }
+        seen.push({ method: body.method, authorization: new Headers(init?.headers).get("authorization") })
+        if (body.method === "initialize") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "linear" } },
+          }), { headers: { "content-type": "application/json", "mcp-session-id": "session-1" } })
+        }
+        if (body.method === "notifications/initialized") return new Response(null, { status: 202 })
+        if (body.method === "tools/list") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              tools: [{
+                name: "list_issues",
+                description: "List issues",
+                inputSchema: { type: "object", properties: { limit: { type: "number" } } },
+              }],
+            },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        if (body.method === "tools/call") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { structuredContent: { ok: true, tool: body.params?.name } },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      }
+
+      await installHarborLocalMcpPlugin({
+        projectRoot,
+        env: {
+          HARBOR_LOCAL_CREDENTIAL_KEY: "vault-key",
+          LINEAR_MCP_ACCESS_TOKEN: "lin-token",
+        },
+        plugin: {
+          slug: "linear-mcp",
+          namespace: "linear-mcp",
+          displayName: "Linear MCP",
+          endpoint: "https://mcp.linear.app/mcp",
+          auth: { method: "bearer", envName: "LINEAR_MCP_ACCESS_TOKEN" },
+        },
+        fetch,
+      })
+      const runtime = await createHarborLocalMcpPluginRuntime({
+        projectRoot,
+        env: { HARBOR_LOCAL_CREDENTIAL_KEY: "vault-key" },
+        plugin: {
+          slug: "linear-mcp",
+          namespace: "linear-mcp",
+          displayName: "Linear MCP",
+          endpoint: "https://mcp.linear.app/mcp",
+          auth: { method: "bearer" },
+        },
+        fetch,
+      })
+
+      expect(runtime.index.search({ query: "issues", namespace: "linear-mcp" })[0]?.toolId).toBe("linear-mcp.list_issues")
+      await expect(runtime.index.call({
+        toolId: "linear-mcp.list_issues",
+        input: { limit: 1 },
+      })).resolves.toMatchObject({
+        output: { structuredContent: { ok: true, tool: "list_issues" } },
+      })
+      expect(seen.every((entry) => entry.authorization === "Bearer lin-token")).toBe(true)
     })
   })
 })
