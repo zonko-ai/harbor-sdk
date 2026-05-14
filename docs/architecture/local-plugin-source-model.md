@@ -12,7 +12,7 @@ Hosted Harbor stores plugin state in Cloudflare D1 tables:
 | `plugin_sources` installed source rows | `source_refs` in `.harbor/harbor.sqlite` |
 | `plugin_tools` discovered/indexed tools | `tool_index` in `.harbor/harbor.sqlite` |
 | `plugin_credentials` encrypted source credentials | `.harbor/credentials.enc` plus `credential_metadata` |
-| `oauth_clients`, `oauth_grants`, `oauth_pending_flows` | future opt-in local OAuth records |
+| `oauth_clients`, `oauth_grants`, `oauth_pending_flows` | opt-in local OAuth records in `.harbor/harbor.sqlite` |
 | registry dev/source references | `.harbor/registry-dev-refs.json` |
 
 The SDK examples should use this mapping to teach the primitives while staying

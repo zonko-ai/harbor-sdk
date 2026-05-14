@@ -17,4 +17,4 @@ LINEAR_MCP_ACCESS_TOKEN=token_value \
 bun run example:linear-mcp-local
 ```
 
-The example intentionally uses `linear-mcp`, not `linear-graphql`. Local OAuth connection is tracked as the next SDK capability slice, so the default run does not attempt a real Linear OAuth browser flow.
+The example intentionally uses `linear-mcp`, not `linear-graphql`. The default run uses a fixture transport so it stays safe and repeatable; real account connection should plug into the SDK local OAuth helpers when Linear's MCP flow is enabled for the caller.

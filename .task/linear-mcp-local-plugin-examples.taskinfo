@@ -39,7 +39,7 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 
 8. Add plugin authoring docs.
    - Outcome: docs explain plugin manifest shape, source config, tool metadata/indexing, credential slots vs secret values, Linear MCP flow, Notion MCP OAuth flow, local runtime files, commit safety, and the hosted Harbor mapping.
-   - Status: pending
+   - Status: completed
 
 9. Add Flue after the plugin examples.
    - Outcome: create `examples/flue-tool-registry-agent` only after the SDK-local plugin examples exist; the Flue agent should consume the local Harbor SDK runtime registry instead of defining fake tools.
@@ -74,3 +74,5 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 - 2026-05-14T07:46:00Z: Verified step 6 with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/source-auth typecheck`, `bun test packages/sdk/source-auth/test packages/sdk/runtime-local/test/index.test.ts`, and `bun run typecheck:packages`.
 - 2026-05-14T08:04:00Z: Added `examples/plugin-notion-mcp-local`, wired `bun run example:notion-mcp-local`, and demonstrated `notion-mcp` OAuth setup through the local daemon callback with encrypted `access_token`/`refresh_token` slots and safe read-only MCP calls.
 - 2026-05-14T08:04:00Z: Verified step 7 with `bun run --filter plugin-notion-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:notion-mcp-local`, and `bun run typecheck:examples`.
+- 2026-05-14T08:13:00Z: Added local plugin authoring docs covering manifests, source config, tool indexing, credential slots, Linear MCP, Notion MCP OAuth, local runtime files, commit safety, and hosted Harbor table mapping.
+- 2026-05-14T08:13:00Z: Verified step 8 with `rg -n "linear-graphql|Linear GraphQL|linear_graphql" docs examples .task packages/sdk/runtime-local packages/sdk/source-auth` to confirm only intentional scope-guard references remain.
