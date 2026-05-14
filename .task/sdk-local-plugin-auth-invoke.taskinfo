@@ -11,7 +11,7 @@ Make local plugin auth and invocation an SDK capability, so plugin authors can d
 
 1. Add SDK-level auth client helpers.
    - Outcome: `@hrbr/source-auth` supports dynamic client registration and authorization-code token exchange for OAuth MCP sources.
-   - Status: pending
+   - Status: completed
 
 2. Add SDK-level local MCP plugin runtime helpers.
    - Outcome: `@hrbr/runtime-local` can create a provider-backed MCP tool runtime from installed local plugin state and encrypted credential slots.
@@ -40,3 +40,5 @@ Make local plugin auth and invocation an SDK capability, so plugin authors can d
 ## Progress Log
 
 - 2026-05-14T09:10:00Z: Created tracker after identifying that Linear had a bearer-token live path, Notion only had mock OAuth, and Flue used a stubbed registry call.
+- 2026-05-14T09:18:00Z: Added `@hrbr/source-auth` helpers for OAuth dynamic client registration, authorization-code token exchange, and refresh token exchange with injectable fetch support.
+- 2026-05-14T09:18:00Z: Verified step 1 with `bun run --filter @hrbr/source-auth typecheck` and `bun test packages/sdk/source-auth/test`.
