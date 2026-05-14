@@ -38,6 +38,7 @@
       "name": "flue-tool-registry-agent-example",
       "dependencies": {
         "@flue/runtime": "^0.6.1",
+        "@hrbr/registry-catalog": "workspace:*",
         "@hrbr/runtime-local": "workspace:*",
         "valibot": "^1.1.0",
       },

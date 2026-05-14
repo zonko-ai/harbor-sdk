@@ -27,15 +27,26 @@ function envString(env: unknown, key: string): string | undefined {
   return typeof value === "string" && value.trim() ? value : undefined
 }
 
+function envRecord(env: unknown): Readonly<Record<string, string | undefined>> | undefined {
+  if (!env || typeof env !== "object") return undefined
+  const out: Record<string, string | undefined> = {}
+  for (const [key, value] of Object.entries(env as Record<string, unknown>)) {
+    if (typeof value === "string") out[key] = value
+  }
+  return out
+}
+
 export default async function ({ init, payload, env }: FlueContext) {
   const prompt = payloadPrompt(payload)
   const preview = await loadLocalRegistryPreview({
     prompt,
     linearRoot: envString(env, "HARBOR_LINEAR_LOCAL_ROOT"),
     notionRoot: envString(env, "HARBOR_NOTION_LOCAL_ROOT"),
+    invokeProvider: envString(env, "HARBOR_INVOKE_PROVIDER") === "1",
+    env: envRecord(env),
   })
 
-  const harness = await init({ model: "openai/gpt-5.5" })
+  const harness = await init({ model: "anthropic/claude-sonnet-4-6" })
   const session = await harness.session()
   const { data } = await session.prompt(
     [

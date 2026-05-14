@@ -23,7 +23,7 @@ Make local plugin auth and invocation an SDK capability, so plugin authors can d
 
 4. Upgrade the Flue example to invoke provider-backed local tools.
    - Outcome: Flue can use Anthropic and dispatch through the SDK local MCP runtime when credentials are connected.
-   - Status: pending
+   - Status: completed
 
 5. Validate and document real-account setup.
    - Outcome: docs explain Anthropic env, Linear bearer auth, Notion OAuth/DCR, fixture mode, provider invoke mode, and validation results.
@@ -47,3 +47,5 @@ Make local plugin auth and invocation an SDK capability, so plugin authors can d
 - 2026-05-14T09:45:00Z: Reviewed `RhysSullivan/executor/packages/plugins/mcp` for SDK MCP plugin patterns. The important shape is source config separate from tool bindings, auth represented as credential slots or OAuth connection slots, discovery producing a tool manifest, and invocation resolving credentials just-in-time into the MCP transport.
 - 2026-05-14T09:49:00Z: Upgraded the Linear and Notion examples to use the SDK local MCP plugin runtime helper instead of hand-assembling local plugin/tool records.
 - 2026-05-14T09:49:00Z: Verified step 3 with `bun run --filter plugin-linear-mcp-local-example typecheck`, `bun run --filter plugin-notion-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:linear-mcp-local`, and `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:notion-mcp-local`.
+- 2026-05-14T09:58:00Z: Updated the Flue tool-registry example to use Anthropic, choose Linear or Notion from the prompt, and optionally invoke through `createHarborLocalMcpPluginRuntime` when `HARBOR_INVOKE_PROVIDER=1`.
+- 2026-05-14T09:58:00Z: Verified step 4 with `bun run --filter flue-tool-registry-agent-example typecheck` and a non-provider `loadLocalRegistryPreview` smoke run.

@@ -1,19 +1,36 @@
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
+import { REGISTRY_CATALOG_ENTRY_BY_SLUG } from "@hrbr/registry-catalog"
 import {
   buildHarborLocalToolIndexFromSqlite,
+  createHarborLocalMcpPluginRuntime,
   type HarborLocalToolCallResult,
 } from "@hrbr/runtime-local"
+
+type McpSource = "linear-mcp" | "notion-mcp"
+
+interface McpRegistryEntry {
+  readonly slug: McpSource
+  readonly display_name: string
+  readonly kind: "mcp"
+  readonly config: {
+    readonly mcp_endpoint: string
+  }
+  readonly default_namespace: McpSource
+}
 
 export interface LocalRegistryPreviewInput {
   readonly prompt: string
   readonly linearRoot?: string | undefined
   readonly notionRoot?: string | undefined
+  readonly invokeProvider?: boolean | undefined
+  readonly env?: Readonly<Record<string, string | undefined>> | undefined
 }
 
 export interface LocalRegistryPreview {
-  readonly source: "linear-mcp" | "notion-mcp"
+  readonly source: McpSource
   readonly projectRoot: string
+  readonly providerInvokeEnabled: boolean
   readonly hits: readonly {
     readonly toolId: string
     readonly displayName: string
@@ -25,23 +42,43 @@ export interface LocalRegistryPreview {
 
 const exampleRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
-function chooseSource(prompt: string): "linear-mcp" | "notion-mcp" {
+function chooseSource(prompt: string): McpSource {
   return /notion|doc|page|workspace/i.test(prompt) ? "notion-mcp" : "linear-mcp"
 }
 
-function defaultRoot(source: "linear-mcp" | "notion-mcp"): string {
+function defaultRoot(source: McpSource): string {
   return source === "linear-mcp" ? "../plugin-linear-mcp-local" : "../plugin-notion-mcp-local"
 }
 
-function safeReadTool(source: "linear-mcp" | "notion-mcp"): string {
+function safeReadTool(source: McpSource): string {
   return source === "linear-mcp" ? "linear-mcp.list_issues" : "notion-mcp.notion-search"
+}
+
+function registryPlugin(source: McpSource) {
+  const entry = REGISTRY_CATALOG_ENTRY_BY_SLUG[source] as McpRegistryEntry
+  return {
+    slug: entry.slug,
+    namespace: entry.default_namespace,
+    displayName: entry.display_name,
+    endpoint: entry.config.mcp_endpoint,
+    auth: source === "linear-mcp"
+      ? { method: "bearer" as const, envName: "LINEAR_MCP_ACCESS_TOKEN" }
+      : { method: "oauth2" as const },
+  }
 }
 
 export async function loadLocalRegistryPreview(input: LocalRegistryPreviewInput): Promise<LocalRegistryPreview> {
   const source = chooseSource(input.prompt)
   const configuredRoot = source === "linear-mcp" ? input.linearRoot : input.notionRoot
   const projectRoot = resolve(exampleRoot, configuredRoot ?? defaultRoot(source))
-  const index = await buildHarborLocalToolIndexFromSqlite(projectRoot, {
+  const runtime = input.invokeProvider
+    ? await createHarborLocalMcpPluginRuntime({
+        projectRoot,
+        plugin: registryPlugin(source),
+        env: input.env,
+      })
+    : undefined
+  const index = runtime?.index ?? await buildHarborLocalToolIndexFromSqlite(projectRoot, {
     callTool: async (call, tool) => ({
       toolId: call.toolId,
       output: {
@@ -49,7 +86,7 @@ export async function loadLocalRegistryPreview(input: LocalRegistryPreviewInput)
         sourceRefId: tool.namespace,
         tool: tool.name,
         input: call.input,
-        note: "The Flue starter loads tool metadata from the local Harbor runtime. Provider-backed invocation stays in the installed plugin adapter.",
+        note: "Set HARBOR_INVOKE_PROVIDER=1 after connecting credentials to dispatch through the SDK local MCP runtime.",
       },
     }),
   })
@@ -65,6 +102,7 @@ export async function loadLocalRegistryPreview(input: LocalRegistryPreviewInput)
   return {
     source,
     projectRoot,
+    providerInvokeEnabled: input.invokeProvider === true,
     hits: hits.map((hit) => ({
       toolId: hit.toolId,
       displayName: hit.displayName,
