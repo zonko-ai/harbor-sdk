@@ -5,6 +5,7 @@ import {
   connectHarborLocalMcpOAuthSource,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
   importHarborLocalCredentialsFromEnv,
+  readHarborLocalOAuthStatus,
   refreshHarborLocalMcpSource,
   upsertHarborLocalMcpSource,
   type HarborLocalMcpOAuthDiscovery,
@@ -78,6 +79,9 @@ async function connectLiveOAuth(input: {
   readonly entry: McpCatalogEntry
   readonly env: Readonly<Record<string, string | undefined>>
 }): Promise<void> {
+  const status = await readHarborLocalOAuthStatus(input.projectRoot, input.entry.default_namespace)
+  if (status.status === "ready") return
+
   const connect = await connectHarborLocalMcpOAuthSource({
     projectRoot: input.projectRoot,
     sourceId: input.entry.default_namespace,
