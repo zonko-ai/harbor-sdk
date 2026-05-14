@@ -2,15 +2,24 @@
 
 This Flue agent consumes Harbor SDK local MCP sources. It does not define fake Linear or Notion tools. The setup flow installs real Linear MCP and Notion MCP source records, connects OAuth when live mode is enabled, and discovers tools into `.harbor/harbor.sqlite`.
 
-At runtime the model owns orchestration and `@hrbr/runtime-local` owns the registry mechanics:
+At runtime the model owns orchestration and `@hrbr/runtime-local/promise` owns the registry mechanics:
 
 1. The model asks the SDK bridge to `search` tools.
 2. The model asks for `schema` before building non-trivial inputs.
-3. `runHarborLocalRegistryAction` invokes the selected MCP tool and returns the raw MCP output as an observation.
+3. `harbor.tools.runAction(...)` invokes the selected MCP tool and returns the raw MCP output as an observation.
 4. The model reads that observation and decides the next action.
 5. Notion write tools are blocked unless `HARBOR_CONFIRM_NOTION_WRITE=1`.
 
 The example code does not implement OAuth storage, MCP discovery, SQLite search, credential resolution, write gating, provider-specific MCP output parsing, or hand-rolled MCP fixture protocol handling. Those reusable pieces live in the Harbor SDK; the Flue harness is in `main.ts`.
+
+The SDK usage in the agent is ordinary promise-style application code:
+
+```ts
+import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
+
+const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env })
+const result = await harbor.tools.runAction(action, { confirmWrites })
+```
 
 ## Fixture E2E
 

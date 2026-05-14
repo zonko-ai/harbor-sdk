@@ -61,6 +61,7 @@ import {
   LOCAL_WORKSPACE_ID,
   type HarborRegistryDevRefsFile,
 } from "../src/index"
+import { createHarborLocalRuntime } from "../src/promise"
 
 async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   const dir = await mkdtemp(join(tmpdir(), "hrbr-runtime-local-"))
@@ -590,6 +591,23 @@ describe("@hrbr/runtime-local MCP source store", () => {
         result: {
           output: { structuredContent: { called: "create_issue", input: { title: "Bug" } } },
         },
+      })
+      const promiseRuntime = createHarborLocalRuntime({ projectRoot, fetch })
+      const promiseHits = await promiseRuntime.tools.search({
+        namespace: "linear-mcp",
+        query: "linear tickets",
+      })
+      expect(promiseHits[0]).toMatchObject({ toolId: "linear-mcp.list_issues" })
+      await expect(promiseRuntime.tools.schema("linear-mcp.create_issue")).resolves.toMatchObject({
+        toolId: "linear-mcp.create_issue",
+      })
+      await expect(promiseRuntime.tools.runAction({
+        kind: "invoke",
+        toolId: "linear-mcp.create_issue",
+        input: { title: "Promise bug" },
+      })).resolves.toMatchObject({
+        kind: "invoke",
+        blocked: true,
       })
       expect(seen.some((entry) => entry.method === "tools/call" && entry.tool === "list_issues")).toBe(true)
     })

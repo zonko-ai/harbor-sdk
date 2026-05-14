@@ -20,35 +20,35 @@ Make Harbor SDK feel like a publishable npm SDK for local MCP/plugin usage: app 
 
 1. Design the public local runtime facade.
    - Outcome: choose the package/export path and method shape for `createHarborLocalRuntime(...)`, including `sources`, `tools`, `credentials`, and optional `mcp` helpers.
-   - Status: pending
+   - Status: completed
 
 2. Add the promise-first runtime API.
    - Outcome: wrap the existing `@hrbr/runtime-local` primitives behind a cohesive object with methods for install/connect/refresh/search/schema/invoke/runAction.
-   - Status: pending
+   - Status: completed
 
 3. Make source setup package-style.
    - Outcome: Linear/Notion MCP setup can be expressed as SDK calls without example-owned orchestration beyond choosing slugs and passing env/project root.
-   - Status: pending
+   - Status: completed
 
 4. Remove subprocess registry execution.
    - Outcome: delete or demote `registry-action-cli.ts` from the app path, and update Flue to call the runtime object directly.
-   - Status: pending
+   - Status: completed
 
 5. Simplify the Flue example.
    - Outcome: `examples/flue-tool-registry-agent/main.ts` demonstrates only Flue orchestration plus direct Harbor SDK calls, with no monorepo-relative paths.
-   - Status: pending
+   - Status: completed
 
 6. Keep testing helpers separate.
    - Outcome: MCP fixture servers stay under SDK testing exports; example tests define only scenario tools and use the public promise API for runtime behavior.
-   - Status: pending
+   - Status: completed
 
 7. Update docs around SDK ergonomics.
    - Outcome: README and architecture docs show npm-package usage, real OAuth setup, local runtime files, and the Flue agent flow using promise APIs.
-   - Status: pending
+   - Status: completed
 
 8. Validate publishable-package assumptions.
    - Outcome: typechecks/tests pass, example E2E passes, no example code imports repo-internal source paths or shells out to SDK source files.
-   - Status: pending
+   - Status: completed
 
 ## Scope Guards
 
@@ -66,3 +66,10 @@ Make Harbor SDK feel like a publishable npm SDK for local MCP/plugin usage: app 
 ## Progress Log
 
 - 2026-05-14T09:39:44Z: Created tracker after identifying that `execFileSync("bun", ["run", "../../packages/sdk/runtime-local/src/registry-action-cli.ts"])` is not acceptable for a publishable SDK or Executor-style promise example ergonomics.
+- 2026-05-14T10:05:00Z: Added `@hrbr/runtime-local/promise` with `createHarborLocalRuntime(...)`, exposing cohesive `sources`, `credentials`, and `tools` methods over the existing local runtime primitives.
+- 2026-05-14T10:05:00Z: Updated the Flue agent to import `createHarborLocalRuntime` directly and call `harbor.tools.runAction(...)`; removed the required `execFileSync`/`bun run ../../packages/...` registry bridge from the example path.
+- 2026-05-14T10:05:00Z: Updated Linear/Notion setup and fixture E2E to use the promise facade, while keeping MCP server fixtures behind `@hrbr/source-mcp/testing`.
+- 2026-05-14T10:05:00Z: Verified the implementation slice with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter flue-tool-registry-agent-example typecheck`, and `bun test packages/sdk/runtime-local/test/index.test.ts examples/flue-tool-registry-agent/test/e2e.test.ts`.
+- 2026-05-14T10:20:00Z: Updated `examples/flue-tool-registry-agent/README.md` and `docs/architecture/executor-style-mcp-sdk-contract.md` to show `@hrbr/runtime-local/promise` imports, `createHarborLocalRuntime(...)`, `harbor.sources.*`, and `harbor.tools.*` usage.
+- 2026-05-14T10:20:00Z: Completed publishable-package validation with `bun run --filter @hrbr/source-mcp typecheck`, `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter flue-tool-registry-agent-example typecheck`, and `bun test examples/flue-tool-registry-agent/test/e2e.test.ts packages/sdk/source-mcp/test/index.test.ts packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T10:20:00Z: Verified no required example path contains `execFileSync`, `registry-action-cli`, `HARBOR_REGISTRY_ACTION_INPUT`, or `bun run ../../packages`; `examples/flue-tool-registry-agent/main.ts` is 85 lines and imports the promise runtime directly.

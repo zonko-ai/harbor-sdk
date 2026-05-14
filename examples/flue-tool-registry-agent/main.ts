@@ -1,5 +1,5 @@
-import { execFileSync } from "node:child_process"
 import type { FlueContext } from "@flue/runtime"
+import { createHarborLocalRuntime, type HarborLocalRegistryAction } from "@hrbr/runtime-local/promise"
 import * as v from "valibot"
 
 export const triggers = { webhook: true }
@@ -35,23 +35,11 @@ function envFrom(env: unknown): Record<string, string | undefined> {
     .filter((entry): entry is [string, string] => typeof entry[1] === "string"))
 }
 
-function toRegistryAction(next: Action): Record<string, unknown> {
+function toRegistryAction(next: Action): HarborLocalRegistryAction {
   if (next.action === "search") return { kind: "search", query: next.query ?? "", namespace: next.namespace, limit: next.limit }
   if (next.action === "schema") return { kind: "schema", toolId: next.toolId ?? "" }
   if (next.action === "invoke") return { kind: "invoke", toolId: next.toolId ?? "", input: next.input ?? {} }
   throw new Error("Final actions are not registry calls.")
-}
-
-function runRegistry(next: Action, env: Record<string, string | undefined>, confirmWrites: boolean): unknown {
-  const projectRoot = process.cwd()
-  const output = execFileSync("bun", ["run", "../../packages/sdk/runtime-local/src/registry-action-cli.ts"], {
-    cwd: projectRoot,
-    encoding: "utf8",
-    env: { ...process.env, ...env, HARBOR_REGISTRY_ACTION_INPUT: JSON.stringify({
-      action: toRegistryAction(next), confirmWrites, projectRoot,
-    }) },
-  })
-  return JSON.parse(output)
 }
 
 function systemPrompt(prompt: string, confirmWrites: boolean, observations: readonly unknown[]): string {
@@ -69,6 +57,7 @@ export default async function ({ init, payload, env }: FlueContext) {
   const registryEnv = envFrom(env)
   const confirmWrites = registryEnv.HARBOR_CONFIRM_NOTION_WRITE === "1"
   const observations: unknown[] = []
+  const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env: registryEnv })
   const session = await (await init({ model: "anthropic/claude-sonnet-4-6" })).session()
 
   for (let step = 0; step < 12; step++) {
@@ -82,7 +71,8 @@ export default async function ({ init, payload, env }: FlueContext) {
       localRegistryCall: next.localRegistryCall ?? observations,
     }
     try {
-      observations.push({ step: step + 1, request: next, result: runRegistry(next, registryEnv, confirmWrites) })
+      const result = await harbor.tools.runAction(toRegistryAction(next), { confirmWrites })
+      observations.push({ step: step + 1, request: next, result })
     } catch (error) {
       observations.push({ step: step + 1, request: next, error: error instanceof Error ? error.message : String(error) })
     }

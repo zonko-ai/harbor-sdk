@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "bun:test"
-import { runHarborLocalRegistryAction } from "@hrbr/runtime-local"
+import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
 import { setupFlueLinearNotionE2E } from "../src/setup-e2e"
 import { serveLinearNotionFixtureServers } from "./fixtures"
 
@@ -30,59 +30,42 @@ describe("flue Linear to Notion local E2E", () => {
           },
         })
         expect(setup.mode).toBe("fixture")
+        const harbor = createHarborLocalRuntime({ projectRoot, env, allowLocalNetwork: true })
 
-        const linearSearch = await runHarborLocalRegistryAction({
-          projectRoot,
-          env,
-          allowLocalNetwork: true,
-          action: { kind: "search", namespace: "linear-mcp", query: "linear tickets issues list" },
-        })
+        const linearSearch = await harbor.tools.runAction({ kind: "search", namespace: "linear-mcp", query: "linear tickets issues list" })
         expect(linearSearch).toMatchObject({
           kind: "search",
           hits: [expect.objectContaining({ toolId: "linear-mcp.list_issues" })],
         })
 
-        await expect(runHarborLocalRegistryAction({
-          projectRoot,
-          env,
-          allowLocalNetwork: true,
-          action: { kind: "schema", toolId: "notion-mcp.notion-create-pages" },
+        await expect(harbor.tools.runAction({
+          kind: "schema",
+          toolId: "notion-mcp.notion-create-pages",
         })).resolves.toMatchObject({
           kind: "schema",
           schema: { toolId: "notion-mcp.notion-create-pages" },
         })
 
-        await expect(runHarborLocalRegistryAction({
-          projectRoot,
-          env,
-          allowLocalNetwork: true,
-          action: {
-            kind: "invoke",
-            toolId: "notion-mcp.notion-create-pages",
-            input: {
-              parent: { page_id: "notion-fixture-parent-page" },
-              pages: [{ properties: { title: "Linear summary" }, content: "No parsing in host code." }],
-            },
+        await expect(harbor.tools.runAction({
+          kind: "invoke",
+          toolId: "notion-mcp.notion-create-pages",
+          input: {
+            parent: { page_id: "notion-fixture-parent-page" },
+            pages: [{ properties: { title: "Linear summary" }, content: "No parsing in host code." }],
           },
         })).resolves.toMatchObject({
           kind: "invoke",
           blocked: true,
         })
 
-        await expect(runHarborLocalRegistryAction({
-          projectRoot,
-          env,
-          allowLocalNetwork: true,
-          confirmWrites: true,
-          action: {
-            kind: "invoke",
-            toolId: "notion-mcp.notion-create-pages",
-            input: {
-              parent: { page_id: "notion-fixture-parent-page" },
-              pages: [{ properties: { title: "Linear summary" }, content: "No parsing in host code." }],
-            },
+        await expect(harbor.tools.runAction({
+          kind: "invoke",
+          toolId: "notion-mcp.notion-create-pages",
+          input: {
+            parent: { page_id: "notion-fixture-parent-page" },
+            pages: [{ properties: { title: "Linear summary" }, content: "No parsing in host code." }],
           },
-        })).resolves.toMatchObject({
+        }, { confirmWrites: true })).resolves.toMatchObject({
           kind: "invoke",
           blocked: false,
           result: {

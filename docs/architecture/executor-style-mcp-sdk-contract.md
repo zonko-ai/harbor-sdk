@@ -8,20 +8,24 @@ The goal is not to copy Executor's Effect internals. The goal is to match the
 developer experience and boundary:
 
 ```ts
-const runtime = await createHarborLocalRuntime({ projectRoot })
+import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
 
-const source = await runtime.mcp.addSource({
+const harbor = createHarborLocalRuntime({ projectRoot, env: process.env })
+
+const source = await harbor.sources.upsertMcp({
   transport: "remote",
   name: "Linear",
   endpoint: "https://mcp.linear.app/mcp",
   auth: { kind: "oauth2" },
 })
 
-await runtime.mcp.connect(source.id)
-await runtime.mcp.refreshSource(source.id)
+const connect = await harbor.sources.connectMcpOAuth({ sourceId: source.id, discovery })
+console.log(connect.authorizationUrl)
+await connect.waitForReady()
+await harbor.sources.refreshMcp(source.id)
 
-const hits = await runtime.tools.search({ query: "my Linear issues" })
-const result = await runtime.tools.invoke(hits[0].toolId, { assignee: "me" })
+const hits = await harbor.tools.search({ query: "my Linear issues" })
+const result = await harbor.tools.invoke(hits[0].toolId, { assignee: "me" })
 ```
 
 OAuth-capable MCP sources must not require users to paste provider credentials.
@@ -35,25 +39,25 @@ surface:
 
 ```ts
 interface HarborLocalRuntime {
-  readonly mcp: HarborLocalMcpRuntime
+  readonly sources: HarborLocalSourceRuntime
+  readonly credentials: HarborLocalCredentialRuntime
   readonly tools: HarborLocalToolRuntime
 }
 
-interface HarborLocalMcpRuntime {
-  probeEndpoint(input: HarborMcpProbeInput): Promise<HarborMcpProbeResult>
-  addSource(input: HarborMcpSourceInput): Promise<HarborMcpSourceRef>
-  connect(sourceId: string, options?: HarborMcpConnectOptions): Promise<HarborMcpConnectResult>
-  refreshSource(sourceId: string): Promise<HarborMcpRefreshResult>
-  getSource(sourceId: string): Promise<HarborMcpSourceRef | null>
-  listSources(): Promise<readonly HarborMcpSourceRef[]>
-  removeSource(sourceId: string): Promise<void>
+interface HarborLocalSourceRuntime {
+  list(): Promise<readonly HarborLocalSourceRef[]>
+  getMcp(sourceId: string): Promise<HarborLocalMcpStoredSource | null>
+  upsertMcp(input: HarborLocalMcpSourceInput): Promise<HarborLocalMcpStoredSource>
+  connectMcpOAuth(input: HarborLocalMcpOAuthConnectInput): Promise<HarborLocalMcpOAuthConnectHandle>
+  refreshMcp(sourceId: string): Promise<HarborLocalMcpRefreshSourceResult>
+  setupMcp(input: HarborLocalMcpSetupInput): Promise<HarborLocalMcpSetupResult>
 }
 
 interface HarborLocalToolRuntime {
-  list(input?: HarborToolListInput): Promise<readonly HarborToolDescription[]>
   search(input: HarborToolSearchInput): Promise<readonly HarborToolSearchHit[]>
   schema(toolId: string): Promise<HarborToolSchema>
   invoke(toolId: string, input: unknown, options?: HarborToolInvokeOptions): Promise<unknown>
+  runAction(action: HarborLocalRegistryAction, options?: HarborToolInvokeOptions): Promise<HarborLocalRegistryActionResult>
 }
 ```
 
@@ -205,19 +209,23 @@ tests.
 The Linear and Notion examples should become thin setup scripts:
 
 ```ts
-const runtime = await createHarborLocalRuntime({ projectRoot })
+import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
 
-const linear = await runtime.mcp.addSource({
+const harbor = createHarborLocalRuntime({ projectRoot, env: process.env })
+
+const linear = await harbor.sources.upsertMcp({
   transport: "remote",
   name: "Linear",
   endpoint: "https://mcp.linear.app/mcp",
   auth: { kind: "oauth2" },
 })
 
-await runtime.mcp.connect(linear.id)
-await runtime.mcp.refreshSource(linear.id)
+const connect = await harbor.sources.connectMcpOAuth({ sourceId: linear.id, discovery })
+console.log(connect.authorizationUrl)
+await connect.waitForReady()
+await harbor.sources.refreshMcp(linear.id)
 
-const result = await runtime.tools.invoke("linear-mcp.list_issues", {
+const result = await harbor.tools.invoke("linear-mcp.list_issues", {
   assignee: "me",
 })
 ```
@@ -225,9 +233,9 @@ const result = await runtime.tools.invoke("linear-mcp.list_issues", {
 The Flue example should only point at the same runtime:
 
 ```ts
-const runtime = await createHarborLocalRuntime({ projectRoot })
-const hits = await runtime.tools.search({ query: prompt })
-const output = await runtime.tools.invoke(hits[0].toolId, input)
+const harbor = createHarborLocalRuntime({ projectRoot, env })
+const hits = await harbor.tools.search({ query: prompt })
+const output = await harbor.tools.invoke(hits[0].toolId, input)
 ```
 
 Flue owns the agent session and model. Harbor SDK owns MCP source lifecycle,

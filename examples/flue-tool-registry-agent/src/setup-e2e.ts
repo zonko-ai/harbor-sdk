@@ -2,14 +2,10 @@ import { dirname } from "node:path"
 import { fileURLToPath } from "node:url"
 import { REGISTRY_CATALOG_ENTRY_BY_SLUG } from "@hrbr/registry-catalog"
 import {
-  connectHarborLocalMcpOAuthSource,
+  createHarborLocalRuntime,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
-  importHarborLocalCredentialsFromEnv,
-  readHarborLocalOAuthStatus,
-  refreshHarborLocalMcpSource,
-  upsertHarborLocalMcpSource,
   type HarborLocalMcpOAuthDiscovery,
-} from "@hrbr/runtime-local"
+} from "@hrbr/runtime-local/promise"
 
 type SourceSlug = "linear-mcp" | "notion-mcp"
 
@@ -75,19 +71,16 @@ function discoveryFor(entry: McpCatalogEntry): HarborLocalMcpOAuthDiscovery {
 }
 
 async function connectLiveOAuth(input: {
-  readonly projectRoot: string
+  readonly runtime: ReturnType<typeof createHarborLocalRuntime>
   readonly entry: McpCatalogEntry
-  readonly env: Readonly<Record<string, string | undefined>>
 }): Promise<void> {
-  const status = await readHarborLocalOAuthStatus(input.projectRoot, input.entry.default_namespace)
+  const status = await input.runtime.sources.oauthStatus(input.entry.default_namespace)
   if (status.status === "ready") return
 
-  const connect = await connectHarborLocalMcpOAuthSource({
-    projectRoot: input.projectRoot,
+  const connect = await input.runtime.sources.connectMcpOAuth({
     sourceId: input.entry.default_namespace,
     discovery: discoveryFor(input.entry),
     clientName: `Harbor SDK Local ${input.entry.display_name}`,
-    env: input.env,
   })
   try {
     console.log(`Open this URL to connect ${input.entry.display_name}:\n${connect.authorizationUrl}\n`)
@@ -98,29 +91,26 @@ async function connectLiveOAuth(input: {
 }
 
 async function installSource(input: {
-  readonly projectRoot: string
+  readonly runtime: ReturnType<typeof createHarborLocalRuntime>
   readonly entry: McpCatalogEntry
   readonly endpoint: string
 }): Promise<void> {
-  await upsertHarborLocalMcpSource({
-    projectRoot: input.projectRoot,
-    source: {
-      transport: "remote",
-      name: input.entry.display_name,
-      namespace: input.entry.default_namespace,
-      endpoint: input.endpoint,
-      remoteTransport: "auto",
-      auth: { kind: "oauth2" },
-    },
+  await input.runtime.sources.upsertMcp({
+    transport: "remote",
+    name: input.entry.display_name,
+    namespace: input.entry.default_namespace,
+    endpoint: input.endpoint,
+    remoteTransport: "auto",
+    auth: { kind: "oauth2" },
   })
 }
 
 async function importFixtureCredential(input: {
-  readonly projectRoot: string
+  readonly runtime: ReturnType<typeof createHarborLocalRuntime>
   readonly sourceId: SourceSlug
   readonly env: Readonly<Record<string, string | undefined>>
 }): Promise<void> {
-  await importHarborLocalCredentialsFromEnv(input.projectRoot, {
+  await input.runtime.credentials.importFromEnv({
     sourceRefId: input.sourceId,
     slots: { access_token: "HARBOR_FIXTURE_MCP_ACCESS_TOKEN" },
     env: {
@@ -138,6 +128,11 @@ export async function setupFlueLinearNotionE2E(
   requireCredentialKey(env)
   const projectRoot = input.projectRoot ?? exampleRoot
   const liveOAuth = input.liveOAuth === true
+  const runtime = createHarborLocalRuntime({
+    projectRoot,
+    env,
+    allowLocalNetwork: !liveOAuth,
+  })
   const sources: Array<SetupFlueLinearNotionE2EResult["sources"][number]> = []
 
   for (const slug of sourceSlugs) {
@@ -146,18 +141,13 @@ export async function setupFlueLinearNotionE2E(
     if (!liveOAuth && !input.endpoints?.[slug]) {
       throw new Error(`Fixture setup for ${slug} requires a local MCP test server endpoint. Set HARBOR_MCP_LIVE_OAUTH=1 for real OAuth setup.`)
     }
-    await installSource({ projectRoot, entry, endpoint })
+    await installSource({ runtime, entry, endpoint })
     if (liveOAuth) {
-      await connectLiveOAuth({ projectRoot, entry, env })
+      await connectLiveOAuth({ runtime, entry })
     } else {
-      await importFixtureCredential({ projectRoot, sourceId: entry.default_namespace, env })
+      await importFixtureCredential({ runtime, sourceId: entry.default_namespace, env })
     }
-    const refresh = await refreshHarborLocalMcpSource({
-      projectRoot,
-      sourceId: entry.default_namespace,
-      env,
-      allowLocalNetwork: !liveOAuth,
-    })
+    const refresh = await runtime.sources.refreshMcp(entry.default_namespace)
     sources.push({
       slug,
       namespace: entry.default_namespace,
