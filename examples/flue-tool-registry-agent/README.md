@@ -1,6 +1,16 @@
 # Flue Tool Registry Agent
 
-This Flue agent consumes Harbor SDK local MCP sources. It does not define fake Linear or Notion tools. The setup flow installs real Linear MCP and Notion MCP source records, connects OAuth when live mode is enabled, discovers tools into `.harbor/harbor.sqlite`, and the agent uses `search -> schema -> invoke`.
+This Flue agent consumes Harbor SDK local MCP sources. It does not define fake Linear or Notion tools. The setup flow installs real Linear MCP and Notion MCP source records, connects OAuth when live mode is enabled, and discovers tools into `.harbor/harbor.sqlite`.
+
+At runtime the model owns orchestration:
+
+1. The model asks the SDK bridge to `search` tools.
+2. The model asks for `schema` before building non-trivial inputs.
+3. The SDK bridge `invoke`s the selected MCP tool and returns the raw MCP output as an observation.
+4. The model reads that observation and decides the next action.
+5. Notion write tools are blocked unless `HARBOR_CONFIRM_NOTION_WRITE=1`.
+
+The example code does not parse provider-specific MCP outputs to choose parents, extract issues, or build follow-up calls. That responsibility stays with the Flue/Anthropic agent.
 
 ## Fixture E2E
 
