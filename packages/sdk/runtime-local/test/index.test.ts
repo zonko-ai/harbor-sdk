@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { describe, expect, it } from "bun:test"
+import * as v from "valibot"
 import {
   ensureHarborLocalProject,
   expectedHarborLocalTables,
@@ -20,6 +21,9 @@ import {
   generateHarborLocalPluginPackageManifest,
   generateHarborLocalWorkflowPackageManifest,
   harborLocalSecurityAction,
+  harborLocalRegistryActionFromAgentStep,
+  harborLocalRegistryActionSchema,
+  harborLocalRegistryAgentStepSchema,
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
   HARBOR_LOCAL_SCHEMA_VERSION,
@@ -953,6 +957,37 @@ describe("@hrbr/runtime-local local OAuth", () => {
 })
 
 describe("@hrbr/runtime-local tool search", () => {
+  it("exports registry action schemas for agent loops", () => {
+    expect(v.parse(harborLocalRegistryActionSchema, {
+      kind: "search",
+      query: "linear issues",
+    })).toEqual({
+      kind: "search",
+      query: "linear issues",
+    })
+
+    const invokeStep = v.parse(harborLocalRegistryAgentStepSchema, {
+      action: "invoke",
+      toolId: "linear-mcp.list_issues",
+      input: { limit: 3 },
+    })
+
+    expect(harborLocalRegistryActionFromAgentStep(invokeStep)).toEqual({
+      kind: "invoke",
+      toolId: "linear-mcp.list_issues",
+      input: { limit: 3 },
+    })
+
+    const finalStep = v.parse(harborLocalRegistryAgentStepSchema, {
+      action: "final",
+      answer: "done",
+    })
+
+    expect(() => harborLocalRegistryActionFromAgentStep(finalStep)).toThrow(
+      "Final agent steps are not executable Harbor registry actions."
+    )
+  })
+
   it("ranks local tools with lexical BM25-style scoring and supports describe/schema", () => {
     const index = createHarborLocalToolIndex([
       {

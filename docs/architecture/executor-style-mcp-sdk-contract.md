@@ -233,13 +233,23 @@ const result = await harbor.tools.invoke("linear-mcp.list_issues", {
 The Flue example should only point at the same runtime:
 
 ```ts
+import {
+  createHarborLocalRuntime,
+  harborLocalRegistryActionFromAgentStep,
+  harborLocalRegistryAgentStepSchema,
+} from "@hrbr/runtime-local/promise"
+
 const harbor = createHarborLocalRuntime({ projectRoot, env })
-const hits = await harbor.tools.search({ query: prompt })
-const output = await harbor.tools.invoke(hits[0].toolId, input)
+const { data: next } = await session.prompt(prompt, {
+  result: harborLocalRegistryAgentStepSchema,
+})
+const output = await harbor.tools.runAction(harborLocalRegistryActionFromAgentStep(next))
 ```
 
 Flue owns the agent session and model. Harbor SDK owns MCP source lifecycle,
-OAuth, credential resolution, search, schema lookup, policy, and invocation.
+OAuth, credential resolution, search, schema lookup, policy, invocation, and
+registry action validation. Example code may define its final response schema,
+because that contract belongs to the app or agent using the SDK.
 
 ## First Implementation Target
 

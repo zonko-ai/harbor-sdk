@@ -2,6 +2,7 @@ import {
   createHarborLocalMcpToolRuntime,
   type HarborLocalMcpToolRuntimeInput,
 } from "./mcp-runtime"
+import * as v from "valibot"
 import type {
   HarborLocalToolCallResult,
   HarborLocalToolDescription,
@@ -25,6 +26,54 @@ export type HarborLocalRegistryAction =
       readonly toolId: string
       readonly input: unknown
     }
+
+export const harborLocalRegistryActionSchema = v.variant("kind", [
+  v.object({
+    kind: v.literal("search"),
+    query: v.string(),
+    namespace: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  }),
+  v.object({
+    kind: v.literal("schema"),
+    toolId: v.string(),
+  }),
+  v.object({
+    kind: v.literal("invoke"),
+    toolId: v.string(),
+    input: v.unknown(),
+  }),
+])
+
+export const harborLocalRegistryAgentStepSchema = v.object({
+  action: v.picklist(["search", "schema", "invoke", "final"]),
+  query: v.optional(v.string()),
+  namespace: v.optional(v.string()),
+  limit: v.optional(v.number()),
+  toolId: v.optional(v.string()),
+  input: v.optional(v.unknown()),
+  answer: v.optional(v.string()),
+  selectedToolId: v.optional(v.nullable(v.string())),
+  localRegistryCall: v.optional(v.unknown()),
+})
+
+export type HarborLocalRegistryAgentStep = v.InferOutput<typeof harborLocalRegistryAgentStepSchema>
+
+export function harborLocalRegistryActionFromAgentStep(
+  step: HarborLocalRegistryAgentStep
+): HarborLocalRegistryAction {
+  if (step.action === "search") {
+    return {
+      kind: "search",
+      query: step.query ?? "",
+      ...(step.namespace !== undefined ? { namespace: step.namespace } : {}),
+      ...(step.limit !== undefined ? { limit: step.limit } : {}),
+    }
+  }
+  if (step.action === "schema") return { kind: "schema", toolId: step.toolId ?? "" }
+  if (step.action === "invoke") return { kind: "invoke", toolId: step.toolId ?? "", input: step.input ?? {} }
+  throw new Error("Final agent steps are not executable Harbor registry actions.")
+}
 
 export interface HarborLocalRegistryWriteToolInput {
   readonly toolId: string

@@ -15,6 +15,7 @@ import {
   type HarborLocalMcpSourceInput,
   type HarborLocalMcpStoredSource,
   type HarborLocalOAuthStatus,
+  type HarborLocalRegistryAgentStep,
   type HarborLocalRegistryAction,
   type HarborLocalRegistryActionResult,
   type HarborLocalRegistryWriteToolMatcher,
@@ -26,7 +27,13 @@ import {
 import type { McpSourceFetch } from "@hrbr/source-mcp"
 
 export { HARBOR_LOCAL_CREDENTIAL_KEY_ENV } from "./credentials"
+export {
+  harborLocalRegistryActionFromAgentStep,
+  harborLocalRegistryActionSchema,
+  harborLocalRegistryAgentStepSchema,
+} from "./tool-registry-actions"
 export type {
+  HarborLocalRegistryAgentStep,
   HarborLocalRegistryAction,
   HarborLocalRegistryActionResult,
   HarborLocalRegistryWriteToolMatcher,

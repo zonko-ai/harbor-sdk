@@ -18,7 +18,8 @@
     "@hrbr/source-auth": "workspace:*",
     "@hrbr/source-mcp": "workspace:*",
     "@hrbr/tools": "workspace:*",
-    "quickjs-emscripten-core": "^0.32.0"
+    "quickjs-emscripten-core": "^0.32.0",
+    "valibot": "^1.1.0"
   },
   "devDependencies": {
     "@hrbr/tsconfig": "workspace:*",

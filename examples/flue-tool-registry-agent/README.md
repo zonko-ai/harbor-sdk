@@ -15,11 +15,21 @@ The example code does not implement OAuth storage, MCP discovery, SQLite search,
 The SDK usage in the agent is ordinary promise-style application code:
 
 ```ts
-import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
+import {
+  createHarborLocalRuntime,
+  harborLocalRegistryActionFromAgentStep,
+  harborLocalRegistryAgentStepSchema,
+} from "@hrbr/runtime-local/promise"
 
 const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env })
-const result = await harbor.tools.runAction(action, { confirmWrites })
+const { data: next } = await session.prompt(prompt, {
+  result: harborLocalRegistryAgentStepSchema,
+})
+const result = await harbor.tools.runAction(harborLocalRegistryActionFromAgentStep(next), { confirmWrites })
 ```
+
+The SDK owns registry action validation and conversion. This example only keeps
+the final answer schema because that shape is specific to this Flue agent.
 
 ## Fixture E2E
 

@@ -94,7 +94,11 @@ export {
 
 export {
   harborLocalDefaultWriteToolMatcher,
+  harborLocalRegistryActionFromAgentStep,
+  harborLocalRegistryActionSchema,
+  harborLocalRegistryAgentStepSchema,
   runHarborLocalRegistryAction,
+  type HarborLocalRegistryAgentStep,
   type HarborLocalRegistryAction,
   type HarborLocalRegistryActionInput,
   type HarborLocalRegistryActionResult,

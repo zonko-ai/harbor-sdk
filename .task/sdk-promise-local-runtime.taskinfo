@@ -15,6 +15,7 @@ Make Harbor SDK feel like a publishable npm SDK for local MCP/plugin usage: app 
 - The Flue example remains small and understandable, comparable in ergonomics to Executor's `examples/promise-sdk`.
 - Optional CLIs, if kept, are package binaries for humans rather than required app integration paths.
 - Fixture/test helpers remain behind testing exports and do not leak into the production SDK surface.
+- Registry action and agent-step validation are exported by the SDK; examples only own app-specific final response schemas.
 
 ## High-Level Plan
 
@@ -73,3 +74,4 @@ Make Harbor SDK feel like a publishable npm SDK for local MCP/plugin usage: app 
 - 2026-05-14T10:20:00Z: Updated `examples/flue-tool-registry-agent/README.md` and `docs/architecture/executor-style-mcp-sdk-contract.md` to show `@hrbr/runtime-local/promise` imports, `createHarborLocalRuntime(...)`, `harbor.sources.*`, and `harbor.tools.*` usage.
 - 2026-05-14T10:20:00Z: Completed publishable-package validation with `bun run --filter @hrbr/source-mcp typecheck`, `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter flue-tool-registry-agent-example typecheck`, and `bun test examples/flue-tool-registry-agent/test/e2e.test.ts packages/sdk/source-mcp/test/index.test.ts packages/sdk/runtime-local/test/index.test.ts`.
 - 2026-05-14T10:20:00Z: Verified no required example path contains `execFileSync`, `registry-action-cli`, `HARBOR_REGISTRY_ACTION_INPUT`, or `bun run ../../packages`; `examples/flue-tool-registry-agent/main.ts` is 85 lines and imports the promise runtime directly.
+- 2026-05-14T10:45:00Z: Moved registry action/agent-step validation into `@hrbr/runtime-local/promise`, kept only the Flue final answer schema in the example, and added an SDK regression test for action schema parsing and agent-step conversion.
