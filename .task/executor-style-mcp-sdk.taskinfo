@@ -18,7 +18,7 @@ Executor reference inspected from:
 
 1. Lock the SDK contract against the Executor pattern.
    - Outcome: agree on the public MCP SDK surface for `probe`, `addSource`, `connect`, `refresh`, `search/list`, and `invoke`.
-   - Status: pending
+   - Status: completed
 
 2. Model MCP sources and auth as SDK primitives.
    - Outcome: local runtime stores MCP source config, auth mode, credential bindings, OAuth connection bindings, and tool bindings separately instead of hiding everything inside examples.
@@ -56,3 +56,4 @@ Executor reference inspected from:
 ## Progress Log
 
 - 2026-05-14T10:22:00Z: Created this tracker after inspecting Executor's MCP SDK implementation and identifying that Harbor SDK should expose MCP as a first-class plugin lifecycle rather than example-specific helpers.
+- 2026-05-14T10:27:00Z: Locked the Executor-style MCP SDK contract in `docs/architecture/executor-style-mcp-sdk-contract.md`, covering public runtime APIs, source/auth inputs, OAuth-first connect flow, normalized local storage, lifecycle behavior, safety tests, and thin example expectations.
