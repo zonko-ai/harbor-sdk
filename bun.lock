@@ -34,6 +34,18 @@
         "typescript": "catalog:",
       },
     },
+    "examples/plugin-linear-mcp-local": {
+      "name": "plugin-linear-mcp-local-example",
+      "dependencies": {
+        "@hrbr/registry-catalog": "workspace:*",
+        "@hrbr/runtime-local": "workspace:*",
+        "@hrbr/source-mcp": "workspace:*",
+      },
+      "devDependencies": {
+        "@hrbr/tsconfig": "workspace:*",
+        "typescript": "catalog:",
+      },
+    },
     "examples/sdk-custom-source": {
       "name": "sdk-custom-source-example",
       "dependencies": {
@@ -582,6 +594,8 @@
     "multipasta": ["multipasta@0.2.7", "", {}, "sha512-KPA58d68KgGil15oDqXjkUBEBYc00XvbPj5/X+dyzeo/lWm9Nc25pQRlf1D+gv4OpK7NM0J1odrbu9JNNGvynA=="],
 
     "node-gyp-build-optional-packages": ["node-gyp-build-optional-packages@5.2.2", "", { "dependencies": { "detect-libc": "^2.0.1" }, "bin": { "node-gyp-build-optional-packages": "bin.js", "node-gyp-build-optional-packages-optional": "optional.js", "node-gyp-build-optional-packages-test": "build-test.js" } }, "sha512-s+w+rBWnpTMwSFbaE0UXsRlg7hU4FjekKU4eyAih5T8nJuNZT1nNsskXpxmeqSK9UzkBl6UgRlnKc8hz8IEqOw=="],
+
+    "plugin-linear-mcp-local-example": ["plugin-linear-mcp-local-example@workspace:examples/plugin-linear-mcp-local"],
 
     "punycode.js": ["punycode.js@2.3.1", "", {}, "sha512-uxFIHU0YlHYhDQtV4R9J6a52SLx28BCjT+4ieh7IGbgwVJWO+km431c4yRlREUAsAmt/uMjQUyQHNEPf0M39CA=="],
 

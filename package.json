@@ -20,7 +20,8 @@
     "example:tool-catalog": "bun run examples/sdk-tool-catalog/src/index.ts",
     "example:orbit-runtime": "bun run examples/sdk-orbit-runtime/src/index.ts",
     "example:platform-runtime": "bun run examples/sdk-platform-runtime/src/index.ts",
-    "example:linear-notion": "bun run examples/tool-registry-linear-notion/src/index.ts"
+    "example:linear-notion": "bun run examples/tool-registry-linear-notion/src/index.ts",
+    "example:linear-mcp-local": "bun run examples/plugin-linear-mcp-local/src/index.ts"
   },
   "catalog": {
     "effect": "4.0.0-beta.64",

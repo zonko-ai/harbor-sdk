@@ -27,7 +27,7 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 
 5. Implement the Linear MCP example first.
    - Outcome: create a `linear-mcp` local plugin example that demonstrates setup, encrypted credential import, tool indexing, search/describe, and safe smoke calls using `linear-mcp`-shaped tools. Do not use `linear-graphql`.
-   - Status: pending
+   - Status: completed
 
 6. Add local OAuth as a general SDK capability.
    - Outcome: provide an opt-in local OAuth path around `@hrbr/source-auth` / `@hrbr/runtime-local`, with encrypted token storage and credential-slot resolution, rather than a Notion-only workaround.
@@ -68,3 +68,5 @@ Add SDK-local plugin examples that show how developers build and run Harbor-styl
 - 2026-05-14T06:55:00Z: Added `docs/architecture/local-plugin-source-model.md` to pin SDK-local examples to Harbor's hosted source/tool/credential/OAuth model while keeping Linear on `linear-mcp`.
 - 2026-05-14T07:08:00Z: Added `HARBOR_LOCAL_CREDENTIAL_KEY` helpers for local credential import/read and source-slot credential resolver creation, so setup can import env secrets while runtime code resolves encrypted credentials by source ref and slot.
 - 2026-05-14T07:08:00Z: Verified step 4 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T07:23:00Z: Added `examples/plugin-linear-mcp-local`, wired `bun run example:linear-mcp-local`, and kept it pinned to the real `linear-mcp` registry entry with a fixture MCP smoke path plus optional live bearer-token import.
+- 2026-05-14T07:23:00Z: Verified step 5 with `bun run --filter plugin-linear-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:linear-mcp-local`, and `bun run typecheck:examples`.
