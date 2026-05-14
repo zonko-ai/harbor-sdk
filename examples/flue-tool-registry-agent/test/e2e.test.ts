@@ -21,6 +21,7 @@ describe("flue Linear to Notion local E2E", () => {
       const env = { HARBOR_LOCAL_CREDENTIAL_KEY: "vault-key" }
       try {
         const harbor = createHarborLocalRuntime({ projectRoot, env, allowLocalNetwork: true })
+        const setupEvents: string[] = []
         const setup = await harbor.sources.ensureMcpSources({
           sources: [
             {
@@ -36,9 +37,18 @@ describe("flue Linear to Notion local E2E", () => {
               auth: "none",
             },
           ],
+          onStatus: (event) => setupEvents.push(event.stage),
         })
         expect(setup.ready).toBe(true)
         expect(setup.sources.map((source) => source.status)).toEqual(["ready", "ready"])
+        expect(setupEvents).toEqual([
+          "install",
+          "refresh",
+          "ready",
+          "install",
+          "refresh",
+          "ready",
+        ])
 
         const linearSearch = await harbor.tools.runAction({ kind: "search", namespace: "linear-mcp", query: "linear tickets issues list" })
         expect(linearSearch).toMatchObject({

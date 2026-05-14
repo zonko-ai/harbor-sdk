@@ -62,6 +62,7 @@ bun run --cwd examples/flue-tool-registry-agent flue run tool-registry \
 
 Expected prompts:
 
+- The SDK logs each setup stage: install/update, OAuth status, callback waiting, tool refresh, and ready/error state.
 - If Linear or Notion is not connected, the terminal prints an authorization URL. Open it, approve access, and wait for the local callback to complete.
 - If a source is already connected, the SDK skips OAuth and refreshes the tool index.
 - If a source cannot be installed, connected, or refreshed, the agent receives that source setup status as an observation and reports it instead of inventing tool results.
@@ -100,8 +101,12 @@ The setup command writes local runtime state under `examples/flue-tool-registry-
 
 Do not commit `.harbor/`, `.env`, OAuth grants, tokens, or user data.
 
-To reset local auth and indexed tools:
+To reset local auth, indexed tools, and force a true first-run migration/OAuth test:
 
 ```sh
 rm -rf examples/flue-tool-registry-agent/.harbor
 ```
+
+That removes the SQLite database, encrypted credential vault, runtime metadata,
+and indexed tool rows. The next run recreates the local layout and runs
+migrations before installing the MCP sources.

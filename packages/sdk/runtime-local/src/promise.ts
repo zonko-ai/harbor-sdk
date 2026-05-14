@@ -83,11 +83,42 @@ export interface HarborLocalMcpEnsureSourcesInput {
   readonly sources: readonly HarborLocalMcpUrlSourceInput[]
   readonly connect?: boolean | undefined
   readonly refresh?: boolean | undefined
+  readonly onStatus?: ((event: HarborLocalMcpEnsureStatusEvent) => void | Promise<void>) | undefined
   readonly onAuthorizationUrl?: ((input: {
     readonly sourceId: string
     readonly authorizationUrl: string
   }) => void | Promise<void>) | undefined
 }
+
+export type HarborLocalMcpEnsureStatusEvent =
+  | {
+      readonly stage: "install"
+      readonly sourceId: string
+      readonly endpoint: string
+      readonly message: string
+    }
+  | {
+      readonly stage: "oauth"
+      readonly sourceId: string
+      readonly status: HarborLocalOAuthStatus["status"]
+      readonly message: string
+    }
+  | {
+      readonly stage: "refresh"
+      readonly sourceId: string
+      readonly message: string
+    }
+  | {
+      readonly stage: "ready"
+      readonly sourceId: string
+      readonly toolCount: number
+      readonly message: string
+    }
+  | {
+      readonly stage: "error"
+      readonly sourceId: string
+      readonly message: string
+    }
 
 export type HarborLocalMcpEnsureSourceStatus =
   | "ready"
@@ -172,6 +203,13 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
       : sourceInput.auth === "oauth2" || discovery
         ? "oauth2"
         : "none"
+    const sourceId = sourceInput.namespace ?? catalog?.default_namespace ?? nameFromEndpoint(sourceInput.endpoint)
+    await ensureInput.onStatus?.({
+      stage: "install",
+      sourceId,
+      endpoint: sourceInput.endpoint,
+      message: `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`,
+    })
     const source = await upsertHarborLocalMcpSource({
       projectRoot: input.projectRoot,
       source: {
@@ -186,6 +224,12 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
 
     if (authKind === "oauth2") {
       const oauth = await readHarborLocalOAuthStatus(input.projectRoot, source.id)
+      await ensureInput.onStatus?.({
+        stage: "oauth",
+        sourceId: source.id,
+        status: oauth.status,
+        message: `OAuth status for MCP source "${source.id}" is ${oauth.status}.`,
+      })
       if (oauth.status === "reconnect_required") {
         return {
           source,
@@ -215,6 +259,12 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
           clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`,
         })
         try {
+          await ensureInput.onStatus?.({
+            stage: "oauth",
+            sourceId: source.id,
+            status: "pending",
+            message: `Waiting for OAuth callback for MCP source "${source.id}".`,
+          })
           await ensureInput.onAuthorizationUrl?.({
             sourceId: source.id,
             authorizationUrl: connect.authorizationUrl,
@@ -235,7 +285,18 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
     }
 
     try {
+      await ensureInput.onStatus?.({
+        stage: "refresh",
+        sourceId: source.id,
+        message: `Refreshing MCP tools for source "${source.id}".`,
+      })
       const refresh = await refreshMcp(source.id)
+      await ensureInput.onStatus?.({
+        stage: "ready",
+        sourceId: source.id,
+        toolCount: refresh.toolCount,
+        message: `MCP source "${source.id}" is ready with ${refresh.toolCount} tools.`,
+      })
       return {
         source: await readHarborLocalMcpSource(input.projectRoot, source.id) ?? source,
         status: "ready",
@@ -243,11 +304,17 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
         refresh,
       }
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      await ensureInput.onStatus?.({
+        stage: "error",
+        sourceId: source.id,
+        message: `Failed refreshing MCP source "${source.id}": ${message}`,
+      })
       return {
         source,
         status: "refresh_failed",
         ...(catalog ? { matchedCatalogSlug: catalog.slug } : {}),
-        error: error instanceof Error ? error.message : String(error),
+        error: message,
       }
     }
   }

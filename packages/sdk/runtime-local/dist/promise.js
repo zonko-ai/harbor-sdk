@@ -40474,6 +40474,13 @@ function createHarborLocalRuntime(input) {
     const catalog = catalogEntryForEndpoint(sourceInput.endpoint);
     const discovery = sourceInput.discovery ?? catalogDiscovery(catalog);
     const authKind = sourceInput.auth === "none" ? "none" : sourceInput.auth === "oauth2" || discovery ? "oauth2" : "none";
+    const sourceId = sourceInput.namespace ?? catalog?.default_namespace ?? nameFromEndpoint(sourceInput.endpoint);
+    await ensureInput.onStatus?.({
+      stage: "install",
+      sourceId,
+      endpoint: sourceInput.endpoint,
+      message: `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`
+    });
     const source = await upsertHarborLocalMcpSource({
       projectRoot: input.projectRoot,
       source: {
@@ -40487,6 +40494,12 @@ function createHarborLocalRuntime(input) {
     });
     if (authKind === "oauth2") {
       const oauth = await readHarborLocalOAuthStatus(input.projectRoot, source.id);
+      await ensureInput.onStatus?.({
+        stage: "oauth",
+        sourceId: source.id,
+        status: oauth.status,
+        message: `OAuth status for MCP source "${source.id}" is ${oauth.status}.`
+      });
       if (oauth.status === "reconnect_required") {
         return {
           source,
@@ -40516,6 +40529,12 @@ function createHarborLocalRuntime(input) {
           clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`
         });
         try {
+          await ensureInput.onStatus?.({
+            stage: "oauth",
+            sourceId: source.id,
+            status: "pending",
+            message: `Waiting for OAuth callback for MCP source "${source.id}".`
+          });
           await ensureInput.onAuthorizationUrl?.({
             sourceId: source.id,
             authorizationUrl: connect.authorizationUrl
@@ -40534,7 +40553,18 @@ function createHarborLocalRuntime(input) {
       };
     }
     try {
+      await ensureInput.onStatus?.({
+        stage: "refresh",
+        sourceId: source.id,
+        message: `Refreshing MCP tools for source "${source.id}".`
+      });
       const refresh = await refreshMcp(source.id);
+      await ensureInput.onStatus?.({
+        stage: "ready",
+        sourceId: source.id,
+        toolCount: refresh.toolCount,
+        message: `MCP source "${source.id}" is ready with ${refresh.toolCount} tools.`
+      });
       return {
         source: await readHarborLocalMcpSource(input.projectRoot, source.id) ?? source,
         status: "ready",
@@ -40542,11 +40572,17 @@ function createHarborLocalRuntime(input) {
         refresh
       };
     } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await ensureInput.onStatus?.({
+        stage: "error",
+        sourceId: source.id,
+        message: `Failed refreshing MCP source "${source.id}": ${message}`
+      });
       return {
         source,
         status: "refresh_failed",
         ...catalog ? { matchedCatalogSlug: catalog.slug } : {},
-        error: error instanceof Error ? error.message : String(error)
+        error: message
       };
     }
   };
