@@ -1,0 +1,42 @@
+# Linear MCP Local Plugin Examples
+
+Status: in_progress
+Created: 2026-05-14T06:29:50Z
+
+## Goal
+
+Add SDK-local plugin examples that show how developers build and run Harbor-style plugins locally with encrypted credentials, local runtime state, and real plugin-shaped metadata. Use `linear-mcp` for Linear examples, not `linear-graphql`.
+
+## High-Level Plan
+
+1. Establish the tracked scope and source-of-truth references.
+   - Outcome: task file records the intended work and explicitly pins Linear to `linear-mcp`.
+   - Status: completed
+
+2. Add local runtime support needed by plugin examples.
+   - Outcome: SDK local runtime can persist plugin/source/tool metadata and encrypted credentials in the existing `.harbor` layout in a way QuickJS/local execution can consume.
+   - Status: pending
+
+3. Add a `linear-mcp` local plugin example.
+   - Outcome: example demonstrates setup, encrypted credential import, tool indexing, search/describe, and a safe smoke call path using `linear-mcp`-shaped tools.
+   - Status: pending
+
+4. Add docs that explain the plugin authoring model.
+   - Outcome: docs explain how plugin metadata, local runtime state, encrypted credentials, and eventual Flue consumption fit together.
+   - Status: pending
+
+5. Validate and close.
+   - Outcome: relevant typechecks/tests/examples pass, remaining limitations are documented, and this task file is updated with final evidence.
+   - Status: pending
+
+## Scope Guards
+
+- Do not use `linear-graphql` in the Linear example.
+- Do not copy Harbor SaaS control-plane implementation into the SDK.
+- Do not commit real credentials or generated local `.harbor` state.
+- Keep local OAuth as an SDK capability boundary; do not build a Notion-only workaround.
+
+## Progress Log
+
+- 2026-05-14T06:29:50Z: Created task tracker and pinned Linear examples to `linear-mcp`.
+- 2026-05-14T06:31:00Z: Completed scope-tracking setup; future implementation steps will update this file before each commit.
