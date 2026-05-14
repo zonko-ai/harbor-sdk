@@ -19,7 +19,7 @@ Make local plugin auth and invocation an SDK capability, so plugin authors can d
 
 3. Upgrade Notion and Linear local examples.
    - Outcome: Linear keeps bearer auth; Notion can use real OAuth when enabled, while fixture flows remain safe defaults.
-   - Status: pending
+   - Status: completed
 
 4. Upgrade the Flue example to invoke provider-backed local tools.
    - Outcome: Flue can use Anthropic and dispatch through the SDK local MCP runtime when credentials are connected.
@@ -44,3 +44,6 @@ Make local plugin auth and invocation an SDK capability, so plugin authors can d
 - 2026-05-14T09:18:00Z: Verified step 1 with `bun run --filter @hrbr/source-auth typecheck` and `bun test packages/sdk/source-auth/test`.
 - 2026-05-14T09:31:00Z: Added `@hrbr/runtime-local` MCP plugin helpers to install/discover MCP tools, import bearer env credentials into encrypted storage, resolve credential slots, and create a provider-backed local tool index whose calls invoke the MCP adapter.
 - 2026-05-14T09:31:00Z: Verified step 2 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T09:45:00Z: Reviewed `RhysSullivan/executor/packages/plugins/mcp` for SDK MCP plugin patterns. The important shape is source config separate from tool bindings, auth represented as credential slots or OAuth connection slots, discovery producing a tool manifest, and invocation resolving credentials just-in-time into the MCP transport.
+- 2026-05-14T09:49:00Z: Upgraded the Linear and Notion examples to use the SDK local MCP plugin runtime helper instead of hand-assembling local plugin/tool records.
+- 2026-05-14T09:49:00Z: Verified step 3 with `bun run --filter plugin-linear-mcp-local-example typecheck`, `bun run --filter plugin-notion-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:linear-mcp-local`, and `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:notion-mcp-local`.

@@ -64,6 +64,7 @@
       "dependencies": {
         "@hrbr/registry-catalog": "workspace:*",
         "@hrbr/runtime-local": "workspace:*",
+        "@hrbr/source-auth": "workspace:*",
         "@hrbr/source-mcp": "workspace:*",
       },
       "devDependencies": {

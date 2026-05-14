@@ -2,18 +2,18 @@ import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
 import { REGISTRY_CATALOG_ENTRY_BY_SLUG } from "@hrbr/registry-catalog"
 import {
-  buildHarborLocalToolIndexFromSqlite,
-  createHarborLocalCredentialResolverFromEnv,
-  generateHarborLocalPluginPackageManifest,
+  createHarborLocalMcpPluginRuntime,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
-  installHarborLocalPluginManifest,
+  installHarborLocalMcpPlugin,
   listHarborLocalSources,
   readHarborLocalOAuthStatus,
   startHarborLocalDaemon,
   startHarborLocalOAuthFlow,
-  type HarborLocalToolIndexRecord,
 } from "@hrbr/runtime-local"
-import { createMcpHttpSourceAdapter } from "@hrbr/source-mcp"
+import {
+  exchangeOAuthAuthorizationCode,
+  registerOAuthDynamicClient,
+} from "@hrbr/source-auth"
 
 interface NotionMcpRegistryEntry {
   readonly slug: "notion-mcp"
@@ -26,6 +26,7 @@ interface NotionMcpRegistryEntry {
     readonly oauth_discovery: {
       readonly authorization_endpoint: string
       readonly token_endpoint: string
+      readonly registration_endpoint?: string | undefined
       readonly scopes_supported: readonly string[]
       readonly resource?: string | undefined
     }
@@ -43,6 +44,7 @@ const exampleRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const registryEntry = REGISTRY_CATALOG_ENTRY_BY_SLUG["notion-mcp"] as NotionMcpRegistryEntry
 const namespace = registryEntry.default_namespace
 const sourceRefId = `source:${registryEntry.slug}:${namespace}`
+const liveMode = process.env.NOTION_MCP_LIVE === "1"
 
 function jsonRpc(id: number | string | undefined, result: unknown): Response {
   return new Response(JSON.stringify({ jsonrpc: "2.0", id, result }), {
@@ -144,45 +146,38 @@ function fixtureNotionMcpFetch(_url: string | URL | Request, init?: RequestInit)
   }), { status: 200, headers: { "content-type": "application/json" } }))
 }
 
-function titleFromToolName(name: string): string {
-  return name
-    .split(/[_-]+/g)
-    .filter(Boolean)
-    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join(" ")
-}
-
-function recordsFromTools(
-  tools: Awaited<ReturnType<ReturnType<typeof createMcpHttpSourceAdapter>["listTools"]>>
-): readonly HarborLocalToolIndexRecord[] {
-  return tools.map((tool) => ({
-    id: `tool:${sourceRefId}:${tool.name}`,
-    workspaceId: "local",
-    sourceRefId,
-    namespace,
-    name: tool.name,
-    displayName: tool.displayName ?? titleFromToolName(tool.name),
-    ...(tool.description !== undefined ? { description: tool.description } : {}),
-    ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
-    ...(tool.outputSchema !== undefined ? { outputSchema: tool.outputSchema } : {}),
-    searchText: [
-      registryEntry.slug,
-      namespace,
-      tool.name,
-      tool.displayName ?? "",
-      tool.description ?? "",
-    ].join(" "),
-  }))
-}
-
 if (!process.env[HARBOR_LOCAL_CREDENTIAL_KEY_ENV]) {
   throw new Error(`${HARBOR_LOCAL_CREDENTIAL_KEY_ENV}=dev-key is required so OAuth tokens can be encrypted locally.`)
+}
+
+async function waitForOAuthReady(timeoutMs = 300_000): Promise<void> {
+  const started = Date.now()
+  while (Date.now() - started < timeoutMs) {
+    const status = await readHarborLocalOAuthStatus(exampleRoot, sourceRefId)
+    if (status.status === "ready") return
+    await new Promise((resolve) => setTimeout(resolve, 1000))
+  }
+  throw new Error("Timed out waiting for Notion OAuth callback.")
+}
+
+let oauthClient: { clientId: string; clientSecret?: string | undefined } = {
+  clientId: "local-public-client",
 }
 
 const daemon = await startHarborLocalDaemon({
   projectRoot: exampleRoot,
   oauth: {
     exchangeCode: async (input) => {
+      if (liveMode) {
+        return exchangeOAuthAuthorizationCode({
+          tokenEndpoint: registryEntry.config.oauth_discovery.token_endpoint,
+          code: input.code,
+          codeVerifier: input.codeVerifier,
+          clientId: oauthClient.clientId,
+          clientSecret: oauthClient.clientSecret,
+          redirectUri: input.redirectUri,
+        })
+      }
       if (input.code !== "mock-provider-code") throw new Error("Unexpected mock OAuth code")
       return {
         accessToken: "mock-notion-access-token",
@@ -194,80 +189,64 @@ const daemon = await startHarborLocalDaemon({
 })
 
 try {
+  const redirectUri = `${daemon.origin}/oauth/callback`
+  if (liveMode) {
+    const registrationEndpoint = registryEntry.config.oauth_discovery.registration_endpoint
+    if (!registrationEndpoint) throw new Error("Notion MCP registry metadata does not include registration_endpoint.")
+    oauthClient = await registerOAuthDynamicClient({
+      registrationEndpoint,
+      clientName: "Harbor SDK Local Notion MCP",
+      redirectUris: [redirectUri],
+      scopes: registryEntry.config.oauth_discovery.scopes_supported,
+    })
+  }
   const flow = await startHarborLocalOAuthFlow({
     projectRoot: exampleRoot,
     client: {
       sourceRefId,
-      clientId: "local-public-client",
+      clientId: oauthClient.clientId,
       authorizationEndpoint: registryEntry.config.oauth_discovery.authorization_endpoint,
       tokenEndpoint: registryEntry.config.oauth_discovery.token_endpoint,
-      redirectUri: `${daemon.origin}/oauth/callback`,
+      redirectUri,
       scopes: registryEntry.config.oauth_discovery.scopes_supported,
+      resource: registryEntry.config.oauth_discovery.resource,
+      ...(oauthClient.clientSecret ? { clientSecretRef: "dynamic-client-secret" } : {}),
     },
     now: () => new Date("2026-05-14T00:00:00.000Z"),
   })
-  await fetch(`${daemon.origin}/oauth/callback?state=${flow.state}&code=mock-provider-code`)
+  if (liveMode) {
+    console.log(`Open this URL to connect Notion MCP:\n${flow.authorizationUrl}\n`)
+    await waitForOAuthReady()
+  } else {
+    await fetch(`${daemon.origin}/oauth/callback?state=${flow.state}&code=mock-provider-code`)
+  }
 
-  const credentialResolver = createHarborLocalCredentialResolverFromEnv(exampleRoot)
-  const credentials = await credentialResolver.resolve({
-    workspaceId: "local",
-    sourceId: sourceRefId,
-  })
-  const notionMcp = createMcpHttpSourceAdapter({
-    id: registryEntry.slug,
+  const plugin = {
+    slug: registryEntry.slug,
     namespace,
     displayName: registryEntry.display_name,
     endpoint: registryEntry.config.mcp_endpoint,
-    bearerCredentialSlot: "access_token",
-    fetch: fixtureNotionMcpFetch,
-  })
-
-  const discoveredTools = await notionMcp.listTools({ credentials })
-  const toolRecords = recordsFromTools(discoveredTools)
-  const manifest = generateHarborLocalPluginPackageManifest({
-    name: registryEntry.slug,
-    version: "0.1.0",
-    owner: { name: "Harbor SDK" },
-    source: {
-      kind: "local",
-      path: join("examples", "plugin-notion-mcp-local"),
-      entrypoint: "src/index.ts",
-    },
-    tools: toolRecords,
-    docs: {
-      readme: "README.md",
-      examples: ["bun run example:notion-mcp-local"],
-    },
-    auth: { required: true, slots: ["access_token", "refresh_token"] },
-    scopes: ["notion.read"],
-    policies: ["confirm before calling notion-mcp create/update/delete tools"],
-    tests: ["bun run --filter plugin-notion-mcp-local-example typecheck", "bun run example:notion-mcp-local"],
-    compatibility: { sdk: ">=0.0.0", runtimeLocal: ">=0.0.0" },
-    changelog: ["Initial local Notion MCP plugin example."],
-  })
-  const install = await installHarborLocalPluginManifest({
+    sourcePath: join("examples", "plugin-notion-mcp-local"),
+    auth: { method: "oauth2" as const },
+  }
+  const install = await installHarborLocalMcpPlugin({
     projectRoot: exampleRoot,
-    manifest,
-    now: () => new Date("2026-05-14T00:00:00.000Z"),
+    plugin,
+    ...(liveMode ? {} : { fetch: fixtureNotionMcpFetch }),
   })
   const localSources = await listHarborLocalSources(exampleRoot)
-  const localIndex = await buildHarborLocalToolIndexFromSqlite(exampleRoot, {
-    callTool: async (input, tool) => ({
-      toolId: input.toolId,
-      output: await notionMcp.invokeTool(
-        tool.name,
-        input.input as Readonly<Record<string, unknown>>,
-        { credentials }
-      ),
-    }),
+  const runtime = await createHarborLocalMcpPluginRuntime({
+    projectRoot: exampleRoot,
+    plugin,
+    ...(liveMode ? {} : { fetch: fixtureNotionMcpFetch }),
   })
 
-  const searchHits = localIndex.search({ query: "search Notion docs", namespace, limit: 3 })
-  const search = await localIndex.call({
+  const searchHits = runtime.index.search({ query: "search Notion docs", namespace, limit: 3 })
+  const search = await runtime.index.call({
     toolId: `${namespace}.notion-search`,
     input: { query: "SDK plugin examples", filters: {} },
   })
-  const fetchResult = await localIndex.call({
+  const fetchResult = await runtime.index.call({
     toolId: `${namespace}.notion-fetch`,
     input: { id: "notion://page/sdk-plugin-examples" },
   })
@@ -283,7 +262,7 @@ try {
     oauth: {
       status: oauthStatus.status,
       authorizationUrlHost: new URL(flow.authorizationUrl).host,
-      encryptedSlots: credentials.slots(),
+      encryptedSlots: runtime.credentials?.slots() ?? [],
     },
     localRuntime: {
       projectRoot: exampleRoot,

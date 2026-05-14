@@ -39,6 +39,7 @@ export interface HarborLocalOAuthClientInput {
   readonly tokenEndpoint: string
   readonly redirectUri: string
   readonly scopes?: readonly string[] | undefined
+  readonly resource?: string | undefined
 }
 
 export interface HarborLocalOAuthPendingFlow {
@@ -181,6 +182,7 @@ export async function startHarborLocalOAuthFlow(input: {
     state,
     codeChallenge: pkce.challenge,
     scopes,
+    resource: input.client.resource,
   })
 
   const db = openDatabase(input.projectRoot)
