@@ -13,6 +13,7 @@ Make the Flue example perform a real local E2E workflow: authenticate actual Lin
 - Connected OAuth grants are stored encrypted through the local runtime credential store.
 - MCP tool discovery writes durable bindings and searchable `tool_index` rows for both sources.
 - The Flue example uses `search -> schema/describe -> invoke`, not hardcoded tool IDs or provider-specific branches.
+- The Flue/Anthropic model reads MCP outputs as observations and decides follow-up calls; host code does not parse provider-specific MCP payloads.
 - The E2E can read real Linear tickets and create or update a Notion page/database entry.
 - Notion write calls are gated by confirmation/policy before execution.
 - Fixture-mode tests cover the full workflow without real credentials.
@@ -61,6 +62,7 @@ Make the Flue example perform a real local E2E workflow: authenticate actual Lin
 - Do not require `LINEAR_MCP_ACCESS_TOKEN` or `NOTION_*` provider tokens for the primary OAuth MCP path.
 - Do not put OAuth or provider-specific credential logic inside the Flue agent.
 - Do not rely on hardcoded tool names as the main routing mechanism; use the SQLite search index and schemas.
+- Do not parse Linear or Notion MCP result payloads in host code to extract issues, select parents, or assemble follow-up provider calls.
 - Do not auto-run Notion write tools without confirmation.
 - Do not commit `.harbor` state, OAuth grants, tokens, or user data.
 - Do not mix this E2E work with the interrupted Linear OAuth shortcut patch unless it is intentionally reconciled into the new SDK primitives.
@@ -87,4 +89,8 @@ Make the Flue example perform a real local E2E workflow: authenticate actual Lin
 - 2026-05-14T14:23:00Z: Documented fixture setup, live Linear/Notion OAuth setup, Anthropic key usage, confirmation behavior, local runtime files, and reset instructions in `examples/flue-tool-registry-agent/README.md`.
 - 2026-05-14T14:23:00Z: Verified steps 4 through 8 with `bun run --filter flue-tool-registry-agent-example typecheck` and `bun test examples/flue-tool-registry-agent/test/e2e.test.ts`.
 - 2026-05-14T14:31:00Z: Completed final validation with `bun run --filter @hrbr/runtime-local typecheck`, `bun test packages/sdk/runtime-local/test/index.test.ts`, `bun run --filter @hrbr/source-policy typecheck`, `bun test packages/sdk/source-policy/src/index.test.ts packages/sdk/registry/test/index.test.ts packages/sdk/registry-catalog/test/index.test.ts`, `bun run typecheck:packages`, `bun run typecheck:examples`, `bun test examples/flue-tool-registry-agent/test/e2e.test.ts`, and fixture setup via `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run --cwd examples/flue-tool-registry-agent setup:e2e`.
-- 2026-05-14T14:31:00Z: Live Linear/Notion OAuth was not executed because it requires user browser approval and real accounts; the live path is implemented and documented, while fixture mode covers the full flow without real credentials.
+- 2026-05-14T14:31:00Z: Live Linear/Notion OAuth was initially blocked on browser approval; the live path was implemented and documented, while fixture mode covered the full flow without real credentials.
+- 2026-05-14T15:25:00Z: Fixed live MCP provider compatibility by sending an MCP `clientInfo.version` string during initialize, then made setup idempotent for already-connected OAuth grants.
+- 2026-05-14T15:40:00Z: Ran the live Linear-to-Notion path with real OAuth grants and Anthropic through Flue, found the relevant Linear issues, and created a Notion page at `https://www.notion.so/3606f052e86d8150933dfd45abe64cce`.
+- 2026-05-14T16:05:00Z: Refactored the Flue example into a generic model-driven registry action loop: the model chooses `search`, `schema`, `invoke`, or `final`, while host code only executes registry actions, enforces write confirmation, and returns opaque MCP observations.
+- 2026-05-14T16:10:00Z: Verified the model-driven loop with `bun run --filter flue-tool-registry-agent-example typecheck`, `bun test examples/flue-tool-registry-agent/test/e2e.test.ts`, and a no-write live Flue smoke using Anthropic that read Linear issues and prepared the Notion page content without host-side MCP output parsing.
