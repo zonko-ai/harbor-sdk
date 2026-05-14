@@ -1,6 +1,6 @@
 # SDK Local Plugin Auth And Invoke
 
-Status: in_progress
+Status: completed
 Created: 2026-05-14T09:10:00Z
 
 ## Goal
@@ -27,7 +27,7 @@ Make local plugin auth and invocation an SDK capability, so plugin authors can d
 
 5. Validate and document real-account setup.
    - Outcome: docs explain Anthropic env, Linear bearer auth, Notion OAuth/DCR, fixture mode, provider invoke mode, and validation results.
-   - Status: pending
+   - Status: completed
 
 ## Scope Guards
 
@@ -49,3 +49,5 @@ Make local plugin auth and invocation an SDK capability, so plugin authors can d
 - 2026-05-14T09:49:00Z: Verified step 3 with `bun run --filter plugin-linear-mcp-local-example typecheck`, `bun run --filter plugin-notion-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:linear-mcp-local`, and `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:notion-mcp-local`.
 - 2026-05-14T09:58:00Z: Updated the Flue tool-registry example to use Anthropic, choose Linear or Notion from the prompt, and optionally invoke through `createHarborLocalMcpPluginRuntime` when `HARBOR_INVOKE_PROVIDER=1`.
 - 2026-05-14T09:58:00Z: Verified step 4 with `bun run --filter flue-tool-registry-agent-example typecheck` and a non-provider `loadLocalRegistryPreview` smoke run.
+- 2026-05-14T10:08:00Z: Updated local plugin authoring docs and example READMEs with SDK-first MCP plugin definition, auth method selection, encrypted credential setup, live Linear bearer mode, live Notion OAuth mode, Anthropic env, and Flue provider invoke mode.
+- 2026-05-14T10:08:00Z: Verified step 5 with `bun run typecheck:packages`, `bun run typecheck:examples`, `bun test packages/sdk/runtime-local/test packages/sdk/source-auth/test packages/sdk/source-mcp/test`, fixture Linear and Notion example runs, and a Flue local registry preview smoke run.
