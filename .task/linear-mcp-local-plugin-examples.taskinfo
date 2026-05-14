@@ -1,0 +1,82 @@
+# Linear MCP Local Plugin Examples
+
+Status: completed
+Created: 2026-05-14T06:29:50Z
+
+## Goal
+
+Add SDK-local plugin examples that show how developers build and run Harbor-style plugins locally with encrypted credentials, local runtime state, and real plugin-shaped metadata. Use `linear-mcp` for Linear examples, not `linear-graphql`.
+
+## High-Level Plan
+
+1. Lock the product shape.
+   - Outcome: build SDK-first plugin examples, not a Flue-first demo. The examples should teach local plugin definition/install, Harbor source-model mapping, tool indexing, encrypted credentials, opt-in OAuth-capable sources, and later Flue consumption of the same local registry.
+   - Status: completed
+
+2. Add local-runtime plugin install support.
+   - Outcome: extend `@hrbr/runtime-local` so examples can create local plugin/source records, persist tools, and use `.harbor/harbor.sqlite`, `.harbor/credentials.enc`, and `.harbor/registry-dev-refs.json` instead of only hand-building tool indexes.
+   - Status: completed
+
+3. Use Harbor's real source model as the reference.
+   - Outcome: mirror the relevant ideas from `../harbor` into SDK-local examples: installed sources, indexed tools, encrypted source-scoped credentials, OAuth-capable source state, `linear-mcp`, and `notion-mcp`.
+   - Status: completed
+
+4. Make credential storage ergonomic.
+   - Outcome: use `HARBOR_LOCAL_CREDENTIAL_KEY` for encrypted local credentials; env vars are only an import/setup path, while QuickJS/local execution consumes credentials by source and slot.
+   - Status: completed
+
+5. Implement the Linear MCP example first.
+   - Outcome: create a `linear-mcp` local plugin example that demonstrates setup, encrypted credential import, tool indexing, search/describe, and safe smoke calls using `linear-mcp`-shaped tools. Do not use `linear-graphql`.
+   - Status: completed
+
+6. Add local OAuth as a general SDK capability.
+   - Outcome: provide an opt-in local OAuth path around `@hrbr/source-auth` / `@hrbr/runtime-local`, with encrypted token storage and credential-slot resolution, rather than a Notion-only workaround.
+   - Status: completed
+
+7. Implement the Notion MCP example after local OAuth exists.
+   - Outcome: create a `notion-mcp` local plugin example that installs the source from registry metadata, connects OAuth, discovers/indexes MCP tools, and demonstrates safe read calls before documenting gated writes.
+   - Status: completed
+
+8. Add plugin authoring docs.
+   - Outcome: docs explain plugin manifest shape, source config, tool metadata/indexing, credential slots vs secret values, Linear MCP flow, Notion MCP OAuth flow, local runtime files, commit safety, and the hosted Harbor mapping.
+   - Status: completed
+
+9. Add Flue after the plugin examples.
+   - Outcome: create `examples/flue-tool-registry-agent` only after the SDK-local plugin examples exist; the Flue agent should consume the local Harbor SDK runtime registry instead of defining fake tools.
+   - Status: completed
+
+10. Validate in slices and close.
+   - Outcome: run focused package/example checks after each slice, add a mock-provider test before real Notion OAuth docs, document limitations, and update this task file with final evidence.
+   - Status: completed
+
+## Scope Guards
+
+- Do not use `linear-graphql` in the Linear example.
+- Do not create `examples/plugin-linear-graphql-local`.
+- Prefer `linear-mcp` source/tool shapes even if `../harbor` has newer Linear GraphQL registry metadata.
+- Do not copy Harbor SaaS control-plane implementation into the SDK.
+- Do not commit real credentials or generated local `.harbor` state.
+- Keep local OAuth as an SDK capability boundary; do not build a Notion-only workaround.
+
+## Progress Log
+
+- 2026-05-14T06:29:50Z: Created task tracker and pinned Linear examples to `linear-mcp`.
+- 2026-05-14T06:31:00Z: Completed scope-tracking setup; future implementation steps will update this file before each commit.
+- 2026-05-14T06:36:00Z: Expanded tracker to preserve the full high-level work sequence and replaced the earlier Linear GraphQL implementation path with `linear-mcp`.
+- 2026-05-14T06:47:00Z: Added local runtime plugin install/store support: plugin manifests now persist package/source/tool rows into `.harbor/harbor.sqlite`, rebuild local tool indexes from SQLite, and resolve encrypted local credentials by source ref and slot.
+- 2026-05-14T06:47:00Z: Verified step 2 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T06:55:00Z: Added `docs/architecture/local-plugin-source-model.md` to pin SDK-local examples to Harbor's hosted source/tool/credential/OAuth model while keeping Linear on `linear-mcp`.
+- 2026-05-14T07:08:00Z: Added `HARBOR_LOCAL_CREDENTIAL_KEY` helpers for local credential import/read and source-slot credential resolver creation, so setup can import env secrets while runtime code resolves encrypted credentials by source ref and slot.
+- 2026-05-14T07:08:00Z: Verified step 4 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T07:23:00Z: Added `examples/plugin-linear-mcp-local`, wired `bun run example:linear-mcp-local`, and kept it pinned to the real `linear-mcp` registry entry with a fixture MCP smoke path plus optional live bearer-token import.
+- 2026-05-14T07:23:00Z: Verified step 5 with `bun run --filter plugin-linear-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:linear-mcp-local`, and `bun run typecheck:examples`.
+- 2026-05-14T07:46:00Z: Added reusable local OAuth support: PKCE authorization URL helpers in `@hrbr/source-auth`, local OAuth client/pending/grant tables in `@hrbr/runtime-local`, encrypted token persistence as `access_token`/`refresh_token` credential slots, and a daemon `/oauth/callback` hook for mock or provider-backed token exchange.
+- 2026-05-14T07:46:00Z: Verified step 6 with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/source-auth typecheck`, `bun test packages/sdk/source-auth/test packages/sdk/runtime-local/test/index.test.ts`, and `bun run typecheck:packages`.
+- 2026-05-14T08:04:00Z: Added `examples/plugin-notion-mcp-local`, wired `bun run example:notion-mcp-local`, and demonstrated `notion-mcp` OAuth setup through the local daemon callback with encrypted `access_token`/`refresh_token` slots and safe read-only MCP calls.
+- 2026-05-14T08:04:00Z: Verified step 7 with `bun run --filter plugin-notion-mcp-local-example typecheck`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:notion-mcp-local`, and `bun run typecheck:examples`.
+- 2026-05-14T08:13:00Z: Added local plugin authoring docs covering manifests, source config, tool indexing, credential slots, Linear MCP, Notion MCP OAuth, local runtime files, commit safety, and hosted Harbor table mapping.
+- 2026-05-14T08:13:00Z: Verified step 8 with `rg -n "linear-graphql|Linear GraphQL|linear_graphql" docs examples .task packages/sdk/runtime-local packages/sdk/source-auth` to confirm only intentional scope-guard references remain.
+- 2026-05-14T08:31:00Z: Added `examples/flue-tool-registry-agent` using Flue's Node layout, `openai/gpt-5.5`, and the Harbor SDK local runtime registry generated by the Linear/Notion plugin examples instead of defining fake agent-local tools.
+- 2026-05-14T08:31:00Z: Verified step 9 with `bun run --filter flue-tool-registry-agent-example typecheck`, `bun run typecheck:examples`, and a direct `loadLocalRegistryPreview({ prompt: "find my Linear issues" })` smoke check against the local `linear-mcp` SQLite tool index.
+- 2026-05-14T08:42:00Z: Completed final validation slice: package and example typechecks, source-auth/runtime-local/source-mcp tests, and runnable Linear/Notion local examples all passed.
+- 2026-05-14T08:42:00Z: Final commands passed: `bun run typecheck:packages`, `bun run typecheck:examples`, `bun test packages/sdk/runtime-local/test packages/sdk/source-auth/test packages/sdk/source-mcp/test`, `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:linear-mcp-local`, and `HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run example:notion-mcp-local`.

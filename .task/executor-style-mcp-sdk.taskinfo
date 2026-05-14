@@ -1,0 +1,67 @@
+# Executor-Style MCP SDK Redesign
+
+Status: in_progress
+Created: 2026-05-14T10:22:00Z
+
+## Goal
+
+Replace the current example-first MCP helper shape with a first-class SDK MCP plugin surface that is as easy to use as Executor's MCP plugin: define a source, select auth, connect through OAuth when required, discover/index tools, and invoke tools without users manually handling provider credentials.
+
+## Reference
+
+Executor reference inspected from:
+
+- `/tmp/executor-mcp-reference-1778744165/packages/plugins/mcp/src/sdk`
+- `types.ts`, `plugin.ts`, `binding-store.ts`, `connection.ts`, `discover.ts`, `manifest.ts`, `invoke.ts`, `probe-shape.ts`, and the isolation/pooling/elicitation tests
+
+## High-Level Plan
+
+1. Lock the SDK contract against the Executor pattern.
+   - Outcome: agree on the public MCP SDK surface for `probe`, `addSource`, `connect`, `refresh`, `search/list`, and `invoke`.
+   - Status: completed
+
+2. Model MCP sources and auth as SDK primitives.
+   - Outcome: local runtime stores MCP source config, auth mode, credential bindings, OAuth connection bindings, and tool bindings separately instead of hiding everything inside examples.
+   - Status: completed
+
+3. Implement OAuth-first MCP connect flow.
+   - Outcome: OAuth-capable MCP sources such as Linear and Notion open a browser auth URL, receive the callback locally, store encrypted OAuth grant tokens, and invoke without manual user-provided tokens.
+   - Status: completed
+
+4. Implement provider-backed discovery and invocation lifecycle.
+   - Outcome: MCP discovery produces durable tool bindings, refresh updates tools, invocation resolves credentials just-in-time, and agents call tools through the SDK runtime.
+   - Status: completed
+
+5. Add runtime safety and correctness gates.
+   - Outcome: source scope isolation, per-user credential isolation, connection reuse, destructive-tool annotations, stdio gating, and elicitation behavior are covered by tests.
+   - Status: pending
+
+6. Rework examples and docs around the SDK surface.
+   - Outcome: Linear MCP, Notion MCP, and Flue examples become thin consumers of the SDK MCP surface, not custom auth/indexing demos.
+   - Status: pending
+
+7. Validate with fixture and live-capable flows.
+   - Outcome: package/example typechecks, targeted SDK tests, fixture MCP runs, and documented live Linear/Notion OAuth setup all pass or have explicit blockers recorded.
+   - Status: pending
+
+## Scope Guards
+
+- OAuth-capable MCPs must use OAuth callback as the primary user flow; manual bearer/env tokens are fallback-only.
+- Do not keep provider-specific auth logic inside the Flue example.
+- Do not treat a passing example smoke test as enough; add SDK-level lifecycle and isolation tests.
+- Do not make stdio available by default; gate it for trusted local contexts.
+- Do not commit generated `.harbor` state or secrets.
+- Do not silently carry forward the interrupted Linear bearer/OAuth patch; reconcile it during the planned SDK redesign.
+
+## Progress Log
+
+- 2026-05-14T10:22:00Z: Created this tracker after inspecting Executor's MCP SDK implementation and identifying that Harbor SDK should expose MCP as a first-class plugin lifecycle rather than example-specific helpers.
+- 2026-05-14T10:27:00Z: Locked the Executor-style MCP SDK contract in `docs/architecture/executor-style-mcp-sdk-contract.md`, covering public runtime APIs, source/auth inputs, OAuth-first connect flow, normalized local storage, lifecycle behavior, safety tests, and thin example expectations.
+- 2026-05-14T10:39:00Z: Added local runtime MCP primitive storage tables and typed helpers for MCP sources, auth modes, header/query credential maps, and durable MCP tool bindings.
+- 2026-05-14T10:39:00Z: Verified step 2 with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T10:58:00Z: Started the discovery/invocation lifecycle by adding `refreshHarborLocalMcpSource` to discover MCP tools into durable bindings plus searchable SQLite rows, and `createHarborLocalMcpToolRuntime` to search and invoke through stored MCP bindings.
+- 2026-05-14T10:58:00Z: Verified the lifecycle slice with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T13:55:00Z: Completed the OAuth-first MCP connect flow with `connectHarborLocalMcpOAuthSource`, which starts the local daemon callback, performs dynamic client registration when available, starts a PKCE OAuth flow, exchanges the callback code, and stores encrypted grant credentials for MCP sources.
+- 2026-05-14T13:55:00Z: Verified the OAuth connect slice with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T14:31:00Z: Completed the provider-backed discovery/invocation lifecycle by marking refreshed MCP sources ready, persisting tool bindings and SQLite index rows, and proving OAuth access-token resolution during MCP refresh and invoke.
+- 2026-05-14T14:31:00Z: Verified the lifecycle with `bun run --filter @hrbr/runtime-local typecheck` and `bun test packages/sdk/runtime-local/test/index.test.ts`.

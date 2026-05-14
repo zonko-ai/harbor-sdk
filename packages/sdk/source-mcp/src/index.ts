@@ -344,7 +344,7 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
       {
         protocolVersion: input.protocolVersion ?? '2025-03-26',
         capabilities: {},
-        clientInfo: input.clientInfo ?? { name: '@hrbr/source-mcp' },
+        clientInfo: input.clientInfo ?? { name: '@hrbr/source-mcp', version: '0.0.0' },
       },
       ctx,
       { signal: ctx.signal }

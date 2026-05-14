@@ -3,7 +3,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./promise": {
+      "types": "./src/promise.ts",
+      "default": "./dist/promise.js"
+    }
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -13,9 +17,13 @@
   "dependencies": {
     "@jitl/quickjs-ng-wasmfile-release-sync": "^0.32.0",
     "@hrbr/orbit": "workspace:*",
+    "@hrbr/registry-catalog": "workspace:*",
     "@hrbr/runtime-cloudflare": "workspace:*",
+    "@hrbr/source-auth": "workspace:*",
+    "@hrbr/source-mcp": "workspace:*",
     "@hrbr/tools": "workspace:*",
-    "quickjs-emscripten-core": "^0.32.0"
+    "quickjs-emscripten-core": "^0.32.0",
+    "valibot": "^1.1.0"
   },
   "devDependencies": {
     "@hrbr/tsconfig": "workspace:*",

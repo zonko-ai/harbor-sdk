@@ -18,6 +18,7 @@ function json(payload: unknown, init?: ResponseInit): Response {
 describe('@hrbr/source-mcp', () => {
   it('adapts a developer-owned MCP HTTP endpoint into a local tool registry source', async () => {
     const seen: Array<{ method: string; authorization: string | null; session: string | null }> = []
+    const initializeParams: unknown[] = []
     const fetch: typeof globalThis.fetch = async (_url, init) => {
       const body = JSON.parse(String(init?.body)) as { method: string; params?: unknown }
       const headers = new Headers(init?.headers)
@@ -28,6 +29,7 @@ describe('@hrbr/source-mcp', () => {
       })
 
       if (body.method === 'initialize') {
+        initializeParams.push(body.params)
         return json(
           {
             jsonrpc: '2.0',
@@ -115,6 +117,9 @@ describe('@hrbr/source-mcp', () => {
       'tools/list',
       'tools/call',
     ])
+    expect(initializeParams[0]).toMatchObject({
+      clientInfo: { name: '@hrbr/source-mcp', version: '0.0.0' },
+    })
     expect(seen.every((entry) => entry.authorization === 'Bearer cf-dev-token')).toBe(true)
     expect(seen.slice(1).every((entry) => entry.session === 'session-1')).toBe(true)
   })

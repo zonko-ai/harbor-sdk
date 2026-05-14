@@ -7,7 +7,22 @@
   "kind": "mcp",
   "config": {
     "mcp_endpoint": "https://mcp.linear.app/mcp",
-    "mcp_transport": "http"
+    "mcp_transport": "http",
+    "oauth_discovery": {
+      "authorization_server": "https://mcp.linear.app",
+      "authorization_endpoint": "https://mcp.linear.app/authorize",
+      "token_endpoint": "https://mcp.linear.app/token",
+      "registration_endpoint": "https://mcp.linear.app/register",
+      "scopes_supported": [],
+      "has_dynamic_registration": true,
+      "token_endpoint_auth_methods_supported": [
+        "client_secret_basic",
+        "client_secret_post",
+        "none"
+      ],
+      "resource": "https://mcp.linear.app",
+      "revocation_endpoint": "https://mcp.linear.app/token"
+    }
   },
   "auth": {
     "method": "none",

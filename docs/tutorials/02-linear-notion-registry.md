@@ -14,4 +14,4 @@ The important pieces are:
 - `createToolRegistry` for `search`, `describe`, `schema`, `invoke`, and `call`.
 - `createMemoryTraceWriter` for run graph inspection.
 
-In production, replace the mocked `invokeTool` bodies with real Linear GraphQL and Notion API calls. The registry contract does not change.
+For plugin-shaped local runtime examples, prefer the newer `linear-mcp` and `notion-mcp` tutorials instead of expanding this mocked registry into provider-specific API calls. The registry contract does not change.

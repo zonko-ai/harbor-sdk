@@ -93,11 +93,46 @@ export {
 } from "./tool-search"
 
 export {
+  harborLocalDefaultWriteToolMatcher,
+  harborLocalRegistryActionFromAgentStep,
+  harborLocalRegistryActionSchema,
+  harborLocalRegistryAgentStepSchema,
+  runHarborLocalRegistryAction,
+  type HarborLocalRegistryAgentStep,
+  type HarborLocalRegistryAction,
+  type HarborLocalRegistryActionInput,
+  type HarborLocalRegistryActionResult,
+  type HarborLocalRegistryWriteToolInput,
+  type HarborLocalRegistryWriteToolMatcher,
+} from "./tool-registry-actions"
+
+export {
+  buildHarborLocalToolIndexFromSqlite,
+  createHarborLocalCredentialResolver,
+  createHarborLocalCredentialResolverFromEnv,
+  installHarborLocalPluginManifest,
+  listHarborLocalSources,
+  type HarborLocalCredentialResolveInput,
+  type HarborLocalCredentialResolverFromEnvInput,
+  type HarborLocalCredentialResolverInput,
+  type HarborLocalCredentialResolver,
+  type HarborLocalPluginInstallResult,
+  type HarborLocalResolvedCredentials,
+  type HarborLocalSourceRef,
+} from "./plugin-store"
+
+export {
+  HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
   importHarborLocalCredentialsFromEnv,
+  importHarborLocalCredentialsFromEnvKey,
+  readHarborLocalCredentialKeyFromEnv,
   readHarborLocalCredentials,
+  readHarborLocalCredentialsFromEnvKey,
   redactHarborSecret,
   writeHarborLocalCredentials,
   type HarborLocalCredentialEnvImportInput,
+  type HarborLocalCredentialEnvImportFromKeyInput,
+  type HarborLocalCredentialKeyEnvInput,
   type HarborLocalCredentialRecord,
   type HarborLocalCredentialsFile,
   type HarborLocalEncryptedCredentialsFile,
@@ -113,6 +148,60 @@ export {
   type HarborRegistryWatchEvent,
   type HarborRegistryWatcher,
 } from "./registry"
+
+export {
+  completeHarborLocalOAuthCallback,
+  completeHarborLocalOAuthFlow,
+  readHarborLocalOAuthPendingFlow,
+  readHarborLocalOAuthStatus,
+  startHarborLocalOAuthFlow,
+  type HarborLocalOAuthCallbackExchangeInput,
+  type HarborLocalOAuthCallbackInput,
+  type HarborLocalOAuthClientInput,
+  type HarborLocalOAuthCompleteInput,
+  type HarborLocalOAuthGrant,
+  type HarborLocalOAuthPendingFlow,
+  type HarborLocalOAuthStartResult,
+  type HarborLocalOAuthStatus,
+} from "./oauth"
+
+export {
+  createHarborLocalMcpPluginRuntime,
+  installHarborLocalMcpPlugin,
+  type HarborLocalMcpPluginAuth,
+  type HarborLocalMcpPluginDefinition,
+  type HarborLocalMcpPluginRuntime,
+  type HarborLocalMcpPluginRuntimeInput,
+} from "./mcp-plugin"
+
+export {
+  listHarborLocalMcpToolBindings,
+  putHarborLocalMcpToolBindings,
+  readHarborLocalMcpSource,
+  updateHarborLocalMcpSourceStatus,
+  upsertHarborLocalMcpSource,
+  type HarborLocalMcpAuthInput,
+  type HarborLocalMcpCredentialInput,
+  type HarborLocalMcpRemoteTransport,
+  type HarborLocalMcpSourceInput,
+  type HarborLocalMcpSourceStatus,
+  type HarborLocalMcpStoredSource,
+  type HarborLocalMcpToolBinding,
+  type HarborLocalMcpToolBindingInput,
+} from "./mcp-store"
+
+export {
+  connectHarborLocalMcpOAuthSource,
+  createHarborLocalMcpToolIndexFromBindings,
+  createHarborLocalMcpToolRuntime,
+  refreshHarborLocalMcpSource,
+  type HarborLocalMcpOAuthConnectHandle,
+  type HarborLocalMcpOAuthConnectInput,
+  type HarborLocalMcpOAuthDiscovery,
+  type HarborLocalMcpRefreshSourceInput,
+  type HarborLocalMcpRefreshSourceResult,
+  type HarborLocalMcpToolRuntimeInput,
+} from "./mcp-runtime"
 
 export {
   createHarborLocalToken,

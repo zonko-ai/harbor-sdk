@@ -1,0 +1,81 @@
+# SDK Promise Local Runtime
+
+Status: completed
+Created: 2026-05-14T09:39:44Z
+
+## Goal
+
+Make Harbor SDK feel like a publishable npm SDK for local MCP/plugin usage: app and example code should use normal imports and promise-based methods, not repo-relative `bun run` subprocesses, TypeScript source paths, or monorepo-only assumptions.
+
+## Success Criteria
+
+- A user can build against a published package-style import such as `@hrbr/sdk/local` or `@hrbr/runtime-local/promise`.
+- Local setup, source install/connect/refresh, tool search/schema/invoke, credential resolution, and write confirmation are available through a cohesive promise API.
+- The Flue example uses direct SDK imports and method calls, with no `execFileSync`, no `bun run ../../packages/...`, and no JSON-over-env bridge.
+- The Flue example only declares MCP URLs; SDK code owns install, OAuth, refresh, discovery, SQLite writes, and source setup status reporting.
+- The Flue example remains small and understandable, comparable in ergonomics to Executor's `examples/promise-sdk`.
+- Optional CLIs, if kept, are package binaries for humans rather than required app integration paths.
+- Fixture/test helpers remain behind testing exports and do not leak into the production SDK surface.
+- Registry action and agent-step validation are exported by the SDK; examples only own app-specific final response schemas.
+
+## High-Level Plan
+
+1. Design the public local runtime facade.
+   - Outcome: choose the package/export path and method shape for `createHarborLocalRuntime(...)`, including `sources`, `tools`, `credentials`, and optional `mcp` helpers.
+   - Status: completed
+
+2. Add the promise-first runtime API.
+   - Outcome: wrap the existing `@hrbr/runtime-local` primitives behind a cohesive object with methods for install/connect/refresh/search/schema/invoke/runAction.
+   - Status: completed
+
+3. Make source setup package-style.
+   - Outcome: Linear/Notion MCP setup can be expressed as SDK calls without example-owned orchestration beyond choosing slugs and passing env/project root.
+   - Status: completed
+
+4. Remove subprocess registry execution.
+   - Outcome: delete or demote `registry-action-cli.ts` from the app path, and update Flue to call the runtime object directly.
+   - Status: completed
+
+5. Simplify the Flue example.
+   - Outcome: `examples/flue-tool-registry-agent/main.ts` demonstrates only Flue orchestration plus direct Harbor SDK calls, with no monorepo-relative paths.
+   - Status: completed
+
+6. Keep testing helpers separate.
+   - Outcome: MCP fixture servers stay under SDK testing exports; example tests define only scenario tools and use the public promise API for runtime behavior.
+   - Status: completed
+
+7. Update docs around SDK ergonomics.
+   - Outcome: README and architecture docs show npm-package usage, real OAuth setup, local runtime files, and the Flue agent flow using promise APIs.
+   - Status: completed
+
+8. Validate publishable-package assumptions.
+   - Outcome: typechecks/tests pass, example E2E passes, no example code imports repo-internal source paths or shells out to SDK source files.
+   - Status: completed
+
+## Scope Guards
+
+- Do not make Bun subprocess execution part of the required SDK integration path.
+- Do not expose fake Linear/Notion tools as production SDK APIs.
+- Do not collapse testing helpers into the main runtime export.
+- Do not require users to understand internal SQLite tables, OAuth storage files, or MCP JSON-RPC protocol details for normal usage.
+- Do not rename package exports casually; choose a stable npm-facing shape before updating examples.
+
+## Dependencies
+
+- `.task/executor-style-mcp-sdk.taskinfo`: MCP source/auth/discovery/invoke contract.
+- `.task/flue-linear-notion-e2e.taskinfo`: current Flue Linear-to-Notion E2E behavior and live OAuth validation.
+
+## Progress Log
+
+- 2026-05-14T09:39:44Z: Created tracker after identifying that `execFileSync("bun", ["run", "../../packages/sdk/runtime-local/src/registry-action-cli.ts"])` is not acceptable for a publishable SDK or Executor-style promise example ergonomics.
+- 2026-05-14T10:05:00Z: Added `@hrbr/runtime-local/promise` with `createHarborLocalRuntime(...)`, exposing cohesive `sources`, `credentials`, and `tools` methods over the existing local runtime primitives.
+- 2026-05-14T10:05:00Z: Updated the Flue agent to import `createHarborLocalRuntime` directly and call `harbor.tools.runAction(...)`; removed the required `execFileSync`/`bun run ../../packages/...` registry bridge from the example path.
+- 2026-05-14T10:05:00Z: Updated Linear/Notion setup and fixture E2E to use the promise facade, while keeping MCP server fixtures behind `@hrbr/source-mcp/testing`.
+- 2026-05-14T10:05:00Z: Verified the implementation slice with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter flue-tool-registry-agent-example typecheck`, and `bun test packages/sdk/runtime-local/test/index.test.ts examples/flue-tool-registry-agent/test/e2e.test.ts`.
+- 2026-05-14T10:20:00Z: Updated `examples/flue-tool-registry-agent/README.md` and `docs/architecture/executor-style-mcp-sdk-contract.md` to show `@hrbr/runtime-local/promise` imports, `createHarborLocalRuntime(...)`, `harbor.sources.*`, and `harbor.tools.*` usage.
+- 2026-05-14T10:20:00Z: Completed publishable-package validation with `bun run --filter @hrbr/source-mcp typecheck`, `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter flue-tool-registry-agent-example typecheck`, and `bun test examples/flue-tool-registry-agent/test/e2e.test.ts packages/sdk/source-mcp/test/index.test.ts packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-14T10:20:00Z: Verified no required example path contains `execFileSync`, `registry-action-cli`, `HARBOR_REGISTRY_ACTION_INPUT`, or `bun run ../../packages`; `examples/flue-tool-registry-agent/main.ts` is 85 lines and imports the promise runtime directly.
+- 2026-05-14T10:45:00Z: Moved registry action/agent-step validation into `@hrbr/runtime-local/promise`, kept only the Flue final answer schema in the example, and added an SDK regression test for action schema parsing and agent-step conversion.
+- 2026-05-14T16:10:00Z: Fixed the `@hrbr/runtime-local/promise` subpath for both TypeScript and Flue Node execution by adding a typed export condition, committing the bundled promise runtime artifact, and changing the Flue agent shim to use a literal `triggers` export accepted by the Flue CLI.
+- 2026-05-14T16:40:00Z: Moved Linear/Notion MCP setup lifecycle out of the Flue example into SDK-owned `harbor.sources.ensureMcpSources(...)`; removed the example `src/setup-e2e.ts` lifecycle script so the example only declares MCP URLs and consumes source setup status.
+- 2026-05-14T17:30:00Z: Added SDK setup status events for MCP install/OAuth/refresh/ready/error logging, wired the Flue example to print those logs, and documented that deleting `.harbor` is the true first-run migration/OAuth reset path.
