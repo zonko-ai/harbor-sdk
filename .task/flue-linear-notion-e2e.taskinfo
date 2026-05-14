@@ -1,0 +1,77 @@
+# Flue Linear To Notion E2E
+
+Status: pending
+Created: 2026-05-14T11:09:00Z
+
+## Goal
+
+Make the Flue example perform a real local E2E workflow: authenticate actual Linear MCP and Notion MCP accounts through OAuth callback, discover and index their MCP tools into local SQLite, use lexical/BM25 search to select the right tools, read Linear tickets, and save the result into Notion with an explicit write confirmation gate.
+
+## Success Criteria
+
+- A user can run one setup flow that connects Linear MCP and Notion MCP through browser OAuth callback without pasting provider tokens.
+- Connected OAuth grants are stored encrypted through the local runtime credential store.
+- MCP tool discovery writes durable bindings and searchable `tool_index` rows for both sources.
+- The Flue example uses `search -> schema/describe -> invoke`, not hardcoded tool IDs or provider-specific branches.
+- The E2E can read real Linear tickets and create or update a Notion page/database entry.
+- Notion write calls are gated by confirmation/policy before execution.
+- Fixture-mode tests cover the full workflow without real credentials.
+- Real-account setup is documented with exact commands and expected prompts.
+
+## High-Level Plan
+
+1. Finish the local MCP OAuth connect primitive.
+   - Outcome: `runtime.mcp.connect(sourceId)` or equivalent opens/returns the OAuth URL, handles callback through the local daemon, performs DCR/PKCE/token exchange, and stores encrypted grant tokens for OAuth MCP sources.
+   - Status: pending
+
+2. Make Linear MCP and Notion MCP registry metadata OAuth-correct.
+   - Outcome: both sources carry OAuth discovery metadata, registration endpoint, token endpoint, resource value, and default `oauth2` auth behavior.
+   - Status: pending
+
+3. Complete MCP refresh and invocation lifecycle.
+   - Outcome: after connect, `refreshSource` discovers tools, persists MCP bindings, updates searchable SQLite rows, and `runtime.tools.invoke` resolves stored OAuth credentials just-in-time.
+   - Status: pending
+
+4. Add a local E2E setup command or script.
+   - Outcome: one command installs Linear and Notion sources, starts OAuth connect flows, refreshes tools, and leaves `.harbor` ready for Flue.
+   - Status: pending
+
+5. Rework the Flue agent around tool search.
+   - Outcome: Flue searches the local SQLite tool index for Linear read and Notion write tools, inspects schemas, invokes the selected tools, and does not hardcode Linear/Notion tool IDs except as optional fallback hints.
+   - Status: pending
+
+6. Add confirmation/policy for Notion writes.
+   - Outcome: write/destructive Notion tools require explicit confirmation before invocation, while read-only Linear tools can run without write confirmation.
+   - Status: pending
+
+7. Add fixture E2E tests.
+   - Outcome: tests simulate Linear MCP and Notion MCP servers, prove search finds the intended tools, Linear ticket data flows into Notion input, and write confirmation is enforced.
+   - Status: pending
+
+8. Add real-account validation docs.
+   - Outcome: docs explain required env vars, OAuth browser steps, Anthropic key setup, local runtime files, expected output, and how to reset local auth state safely.
+   - Status: pending
+
+9. Run final validation.
+   - Outcome: package and example typechecks pass, SDK MCP lifecycle tests pass, fixture E2E passes, and any live-account blockers are recorded with exact failure text.
+   - Status: pending
+
+## Scope Guards
+
+- Do not require `LINEAR_MCP_ACCESS_TOKEN` or `NOTION_*` provider tokens for the primary OAuth MCP path.
+- Do not put OAuth or provider-specific credential logic inside the Flue agent.
+- Do not rely on hardcoded tool names as the main routing mechanism; use the SQLite search index and schemas.
+- Do not auto-run Notion write tools without confirmation.
+- Do not commit `.harbor` state, OAuth grants, tokens, or user data.
+- Do not mix this E2E work with the interrupted Linear OAuth shortcut patch unless it is intentionally reconciled into the new SDK primitives.
+
+## Dependencies
+
+- `.task/executor-style-mcp-sdk.taskinfo` step 3: OAuth-first MCP connect flow.
+- `.task/executor-style-mcp-sdk.taskinfo` step 4: provider-backed discovery and invocation lifecycle.
+- `.task/executor-style-mcp-sdk.taskinfo` step 5: runtime safety and correctness gates.
+- `.task/executor-style-mcp-sdk.taskinfo` step 6: examples and docs reworked around the SDK surface.
+
+## Progress Log
+
+- 2026-05-14T11:09:00Z: Created dedicated E2E tracker for the real Flue Linear-to-Notion workflow after confirming that discovery/search/invoke primitives are starting to exist but OAuth connect, Flue search orchestration, and write confirmation remain incomplete.
