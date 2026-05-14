@@ -51,13 +51,19 @@ bun test examples/flue-tool-registry-agent/test/e2e.test.ts
 
 On first run, the SDK opens browser OAuth URLs for any source that is not connected yet. After each provider redirects back to the local callback, the SDK stores grant tokens encrypted in `.harbor/credentials.enc` and refreshes the MCP tool index. Later runs reuse the stored grants.
 
+Install the Flue CLI/runtime packages before running the example:
+
+```sh
+npm install -g @flue/cli @flue/runtime
+```
+
 ```sh
 HARBOR_LOCAL_CREDENTIAL_KEY=dev-key \
 bun run --cwd examples/flue-tool-registry-agent flue run tool-registry \
   --target node \
-  --id local-test \
+  --id fresh-local-test \
   --env .env \
-  --payload '{"prompt":"find my Linear issues"}'
+  --payload '{"prompt":"find open Linear issues assigned to me in last 24 hours  and then put them in a notion page and give me the link"}'
 ```
 
 Expected prompts:
