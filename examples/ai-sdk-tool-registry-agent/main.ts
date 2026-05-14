@@ -1,3 +1,5 @@
+import { existsSync, readFileSync } from "node:fs"
+import { resolve } from "node:path"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { generateObject } from "ai"
 import {
@@ -34,8 +36,31 @@ function promptFromArgv(argv: readonly string[]): string {
   return prompt || "Find my Linear issues or search Notion using the local Harbor tool registry."
 }
 
+function parseEnvFile(path: string): Record<string, string> {
+  if (!existsSync(path)) return {}
+  const entries: Record<string, string> = {}
+  for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
+    const trimmed = line.trim()
+    if (!trimmed || trimmed.startsWith("#")) continue
+    const index = trimmed.indexOf("=")
+    if (index === -1) continue
+    const key = trimmed.slice(0, index).trim()
+    const raw = trimmed.slice(index + 1).trim()
+    entries[key] = raw.replace(/^(["'])(.*)\1$/, "$2")
+  }
+  return entries
+}
+
 function envFromProcess(): Record<string, string | undefined> {
-  return process.env as Record<string, string | undefined>
+  return {
+    ...parseEnvFile(resolve(process.cwd(), ".env")),
+    ...(process.env as Record<string, string | undefined>),
+  }
+}
+
+function projectRootFrom(env: Record<string, string | undefined>, fallback: string): string {
+  const configured = env.HARBOR_LOCAL_PROJECT_ROOT ?? env.HARBOR_PROJECT_ROOT
+  return configured ? resolve(fallback, configured) : fallback
 }
 
 function anthropicModelFrom(env: Record<string, string | undefined>) {
@@ -65,7 +90,7 @@ export async function runAiSdkToolRegistryAgent(input: {
   const registryEnv = input.env ?? envFromProcess()
   const confirmWrites = registryEnv.HARBOR_CONFIRM_NOTION_WRITE === "1"
   const observations: unknown[] = []
-  const harbor = createHarborLocalRuntime({ projectRoot: input.projectRoot ?? process.cwd(), env: registryEnv })
+  const harbor = createHarborLocalRuntime({ projectRoot: input.projectRoot ?? projectRootFrom(registryEnv, process.cwd()), env: registryEnv })
   const sourceSetup = await harbor.sources.ensureMcpSources({
     sources: mcpSources,
     connect: true,

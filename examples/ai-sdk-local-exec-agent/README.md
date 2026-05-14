@@ -16,13 +16,15 @@ The original Flue example remains at `examples/flue-local-exec-agent`.
 
 ## Run
 
-Create `examples/ai-sdk-local-exec-agent/.env`:
+The example automatically loads `.env` from its own directory. Create `examples/ai-sdk-local-exec-agent/.env`:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...
 HARBOR_LOCAL_CREDENTIAL_KEY=dev-key
 # optional
 AI_SDK_ANTHROPIC_MODEL=claude-sonnet-4-6
+# optional: reuse an existing authenticated .harbor directory
+HARBOR_LOCAL_PROJECT_ROOT=../flue-tool-registry-agent
 ```
 
 Run from the repo root:
@@ -37,7 +39,9 @@ Or pass a custom prompt:
 bun run --cwd examples/ai-sdk-local-exec-agent main.ts "Get latest Linear issues from Harbor Alpha and latest relevant Notion docs/pages, then summarize current project status."
 ```
 
-On first run, Harbor SDK installs Linear and Notion MCP sources, opens OAuth URLs when needed, stores encrypted grants, refreshes tools into `.harbor/harbor.sqlite`, and then runs generated code through `harbor.exec.run(code)`.
+By default, this example stores local Harbor state in its own `.harbor/` directory. If you already authenticated in another example, set `HARBOR_LOCAL_PROJECT_ROOT` to that example directory and keep the same `HARBOR_LOCAL_CREDENTIAL_KEY`. Then Harbor SDK will reuse the existing encrypted credentials instead of starting OAuth again.
+
+On first run without a shared project root, Harbor SDK installs Linear and Notion MCP sources, opens OAuth URLs when needed, stores encrypted grants, refreshes tools into `.harbor/harbor.sqlite`, and then runs generated code through `harbor.exec.run(code)`.
 
 ## Safety
 

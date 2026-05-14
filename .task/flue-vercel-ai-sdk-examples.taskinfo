@@ -1,7 +1,7 @@
 # AI SDK Examples For Harbor Local Runtime
 
 Status: completed
-Last Updated: 2026-05-14T20:45:00Z
+Last Updated: 2026-05-14T21:05:00Z
 Created: 2026-05-14T19:05:00Z
 
 ## Goal
@@ -15,7 +15,7 @@ Add two new pure Vercel AI SDK examples for the same Harbor SDK flows. These exa
 - Anthropic is configured through AI SDK using the existing Anthropic key path, with a model env override.
 - Structured outputs are validated by the AI SDK path with Zod schemas.
 - Harbor SDK remains responsible for MCP source setup, OAuth, registry actions, local exec, QuickJS, credentials, and policy.
-- README docs explain the AI SDK dependency, env variables, and direct Bun run commands.
+- README docs explain the AI SDK dependency, env variables, direct Bun run commands, automatic `.env` loading, and shared `HARBOR_LOCAL_PROJECT_ROOT` credential reuse.
 - Focused typechecks and e2e fixture tests pass.
 
 ## Plan
@@ -58,3 +58,4 @@ Status: completed
 - AI SDK example fixture tests pass: `bun test examples/ai-sdk-tool-registry-agent/test/e2e.test.ts examples/ai-sdk-local-exec-agent/test/e2e.test.ts`.
 - Full examples typecheck passes: `bun run typecheck:examples`.
 - Direct AI SDK examples are intentionally not Flue agents and contain no `@flue/*`, `agents/`, `flue run`, or `session.prompt` usage.
+- The examples load `.env` from their current working directory and support `HARBOR_LOCAL_PROJECT_ROOT`/`HARBOR_PROJECT_ROOT` to reuse a previously authenticated `.harbor` store.
