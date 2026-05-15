@@ -182,6 +182,10 @@ describe("@hrbr/sdk release smoke", () => {
           error: { code: "local_write_confirmation_required" },
           namespaces: ["release-mcp"],
         })
+        await expect(harbor.invocations.list({ namespace: "release-mcp" })).resolves.toEqual(expect.arrayContaining([
+          expect.objectContaining({ toolId: "release-mcp.list_items", ok: true }),
+          expect.objectContaining({ toolId: "release-mcp.create_item", ok: false }),
+        ]))
       } finally {
         await server.close()
       }

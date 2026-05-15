@@ -103,6 +103,7 @@ var init_sqlite = __esm(() => {
     "oauth_clients",
     "oauth_pending_flows",
     "oauth_grants",
+    "tool_invocations",
     "mcp_sources",
     "mcp_source_headers",
     "mcp_source_query_params",
@@ -302,6 +303,20 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tool_invocations (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_ref_id TEXT,
+  namespace TEXT NOT NULL,
+  tool_id TEXT NOT NULL,
+  input_json TEXT,
+  output_json TEXT,
+  error_json TEXT,
+  ok INTEGER NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mcp_sources (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -369,6 +384,8 @@ CREATE INDEX IF NOT EXISTS idx_spans_run_started ON spans(run_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_artifact_metadata_workspace_key ON artifact_metadata(workspace_id, key);
 CREATE INDEX IF NOT EXISTS idx_oauth_grants_source_status ON oauth_grants(workspace_id, source_ref_id, status);
 CREATE INDEX IF NOT EXISTS idx_oauth_pending_source_status ON oauth_pending_flows(workspace_id, source_ref_id, status);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_workspace_created ON tool_invocations(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_tool ON tool_invocations(workspace_id, tool_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_mcp_sources_workspace_namespace ON mcp_sources(workspace_id, namespace);
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_bindings_source ON mcp_tool_bindings(workspace_id, source_id);
 `.trim()
@@ -26160,10 +26177,117 @@ function toolDefinition(tool) {
     kind: "mcp"
   };
 }
+function sanitizeName(value3) {
+  return value3.replace(/[^a-zA-Z0-9_.-]/g, "_") || "mcp";
+}
+function humanize(value3) {
+  return value3.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()).trim();
+}
+function promptDefinition(prompt) {
+  const properties = {};
+  const required2 = [];
+  for (const arg of prompt.arguments ?? []) {
+    properties[arg.name] = {
+      type: "string",
+      ...arg.description !== undefined ? { description: arg.description } : {}
+    };
+    if (arg.required)
+      required2.push(arg.name);
+  }
+  return {
+    definition: {
+      name: `prompt_${sanitizeName(prompt.name)}`,
+      displayName: prompt.description ?? humanize(prompt.name),
+      ...prompt.description !== undefined ? { description: prompt.description } : {},
+      inputSchema: {
+        type: "object",
+        properties,
+        ...required2.length > 0 ? { required: required2 } : {}
+      },
+      annotations: { readOnlyHint: true, harborMcpBinding: { kind: "prompt", name: prompt.name } },
+      tags: ["prompt", "read_only"],
+      kind: "mcp"
+    },
+    invoke: { kind: "prompt", name: prompt.name }
+  };
+}
+function resourceDefinition(resource) {
+  const label = resource.name ?? resource.uri;
+  return {
+    definition: {
+      name: `resource_${sanitizeName(resource.name ?? resource.uri.split("/").pop() ?? "read")}`,
+      displayName: label,
+      description: resource.description ?? `Read MCP resource: ${resource.uri}`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          uri: { type: "string", const: resource.uri }
+        }
+      },
+      annotations: { readOnlyHint: true, harborMcpBinding: { kind: "resource", uri: resource.uri } },
+      tags: ["resource", "read_only"],
+      kind: "mcp"
+    },
+    invoke: { kind: "resource", uri: resource.uri }
+  };
+}
+function resourceTemplateDefinition(template) {
+  const params = (template.uriTemplate.match(/\{([^}]+)\}/g) ?? []).map((param) => param.slice(1, -1));
+  const properties = {};
+  for (const param of params) {
+    properties[param] = { type: "string", description: `Template parameter: ${param}` };
+  }
+  return {
+    definition: {
+      name: `resource_template_${sanitizeName(template.name ?? template.uriTemplate.split("/").pop() ?? "read")}`,
+      displayName: template.name ?? template.uriTemplate,
+      description: template.description ?? `Read MCP resource template: ${template.uriTemplate}`,
+      inputSchema: {
+        type: "object",
+        properties,
+        ...params.length > 0 ? { required: params } : {}
+      },
+      annotations: {
+        readOnlyHint: true,
+        harborMcpBinding: { kind: "resource_template", uriTemplate: template.uriTemplate }
+      },
+      tags: ["resource", "template", "read_only"],
+      kind: "mcp"
+    },
+    invoke: { kind: "resource_template", uriTemplate: template.uriTemplate }
+  };
+}
+function protocolVersions(input) {
+  if (input.protocolVersions?.length)
+    return [...input.protocolVersions];
+  if (input.protocolVersion)
+    return [input.protocolVersion];
+  return DEFAULT_PROTOCOL_VERSIONS;
+}
+async function initializeSession(input, send, ctx) {
+  let lastError;
+  for (const version2 of protocolVersions(input)) {
+    try {
+      const result2 = await send("initialize", {
+        protocolVersion: version2,
+        capabilities: {},
+        clientInfo: input.clientInfo ?? { name: "@hrbr/source-mcp", version: "0.0.0" }
+      }, ctx, { signal: ctx.signal });
+      await send("notifications/initialized", undefined, ctx, { notification: true, signal: ctx.signal });
+      return result2;
+    } catch (error) {
+      lastError = error;
+      if (input.protocolVersion || error instanceof McpSourceError && error.status !== undefined)
+        break;
+    }
+  }
+  throw lastError;
+}
 function createMcpHttpSourceAdapter(input) {
   validateEndpointUrl(input);
   validateTimeoutMs(input);
   let initialized = false;
+  let listedDefinitions = null;
   const state = { nextId: 1, sessionId: undefined };
   async function send(method, params, ctx, options) {
     return sendRpc(input, state, method, params, ctx, options);
@@ -26171,24 +26295,46 @@ function createMcpHttpSourceAdapter(input) {
   async function initialize(ctx) {
     if (initialized)
       return;
-    await send("initialize", {
-      protocolVersion: input.protocolVersion ?? "2025-03-26",
-      capabilities: {},
-      clientInfo: input.clientInfo ?? { name: "@hrbr/source-mcp", version: "0.0.0" }
-    }, ctx, { signal: ctx.signal });
-    await send("notifications/initialized", undefined, ctx, { notification: true, signal: ctx.signal });
+    await initializeSession(input, send, ctx);
     initialized = true;
   }
-  async function listTools(ctx) {
+  async function listOptional(method, key, ctx, mapItem) {
+    const items2 = [];
+    let cursor;
+    do {
+      const result2 = await send(method, cursor === undefined ? {} : { cursor }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
+      const page = result2[key];
+      if (Array.isArray(page))
+        items2.push(...page.map(mapItem));
+      cursor = typeof result2.nextCursor === "string" ? result2.nextCursor : undefined;
+    } while (cursor !== undefined);
+    return items2;
+  }
+  async function listDefinitions(ctx) {
     await initialize({ credentials: ctx?.credentials, signal: ctx?.signal });
-    const tools = [];
+    if (listedDefinitions)
+      return listedDefinitions;
+    const definitions = [];
     let cursor;
     do {
       const result2 = await send("tools/list", cursor === undefined ? {} : { cursor }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
-      tools.push(...(result2.tools ?? []).map(toolDefinition));
+      definitions.push(...(result2.tools ?? []).map((tool) => ({
+        definition: toolDefinition(tool),
+        invoke: { kind: "tool", name: tool.name }
+      })));
       cursor = result2.nextCursor;
     } while (cursor !== undefined);
-    return tools;
+    const optional2 = await Promise.all([
+      listOptional("prompts/list", "prompts", ctx, promptDefinition).catch(() => []),
+      listOptional("resources/list", "resources", ctx, resourceDefinition).catch(() => []),
+      listOptional("resources/templates/list", "resourceTemplates", ctx, resourceTemplateDefinition).catch(() => [])
+    ]);
+    definitions.push(...optional2.flat());
+    listedDefinitions = definitions;
+    return definitions;
+  }
+  async function listTools(ctx) {
+    return (await listDefinitions(ctx)).map((item) => item.definition);
   }
   return defineSourceAdapter({
     id: input.id,
@@ -26202,8 +26348,23 @@ function createMcpHttpSourceAdapter(input) {
     },
     invokeTool: async (name, toolInput, ctx) => {
       await initialize({ credentials: ctx?.credentials, signal: ctx?.signal });
+      const binding = (await listDefinitions(ctx)).find((item) => item.definition.name === name)?.invoke ?? { kind: "tool", name };
+      if (binding.kind === "prompt") {
+        return send("prompts/get", { name: binding.name, arguments: toolInput }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
+      }
+      if (binding.kind === "resource") {
+        return send("resources/read", { uri: binding.uri }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
+      }
+      if (binding.kind === "resource_template") {
+        let uri = binding.uriTemplate;
+        const templateInput = isRecord(toolInput) ? toolInput : {};
+        for (const [key, value3] of Object.entries(templateInput)) {
+          uri = uri.replace(`{${key}}`, encodeURIComponent(String(value3)));
+        }
+        return send("resources/read", { uri }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
+      }
       return send("tools/call", {
-        name,
+        name: binding.name,
         arguments: toolInput
       }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
     }
@@ -26214,11 +26375,10 @@ async function probeMcpHttpSource(input) {
     validateEndpointUrl(input);
     validateTimeoutMs(input);
     const state = { nextId: 1, sessionId: undefined };
-    const result2 = await sendRpc(input, state, "initialize", {
-      protocolVersion: input.protocolVersion ?? "2025-03-26",
-      capabilities: {},
-      clientInfo: input.clientInfo ?? { name: "@hrbr/source-mcp", version: "0.0.0" }
-    }, { credentials: input.credentials }, { signal: input.signal });
+    const result2 = await initializeSession(input, (method, params, ctx, options) => sendRpc(input, state, method, params, ctx, options), {
+      credentials: input.credentials,
+      signal: input.signal
+    });
     if (!isRecord(result2)) {
       return {
         ok: false,
@@ -26231,10 +26391,6 @@ async function probeMcpHttpSource(input) {
         ...state.sessionId !== undefined ? { sessionId: state.sessionId } : {}
       };
     }
-    await sendRpc(input, state, "notifications/initialized", undefined, { credentials: input.credentials }, {
-      notification: true,
-      signal: input.signal
-    });
     const initialize = result2;
     return {
       ok: true,
@@ -26253,7 +26409,7 @@ async function probeMcpHttpSource(input) {
     return probeError(input, error);
   }
 }
-var McpSourceError, DEFAULT_TIMEOUT_MS2 = 30000;
+var McpSourceError, DEFAULT_TIMEOUT_MS2 = 30000, DEFAULT_PROTOCOL_VERSIONS;
 var init_src2 = __esm(() => {
   init_src();
   McpSourceError = class McpSourceError extends Error {
@@ -26270,6 +26426,13 @@ var init_src2 = __esm(() => {
       this.data = input.data;
     }
   };
+  DEFAULT_PROTOCOL_VERSIONS = [
+    "2025-11-25",
+    "2025-06-18",
+    "2025-03-26",
+    "2024-11-05",
+    "2024-10-07"
+  ];
 });
 
 // packages/sdk/source-auth/src/index.ts
@@ -27546,10 +27709,18 @@ function hashHarborLocalToken(token) {
 function createHarborLocalToken() {
   return randomBytes3(32).toString("base64url");
 }
-async function listen(server) {
+function validatePort(port) {
+  if (port === undefined)
+    return 0;
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error("Harbor local daemon port must be an integer between 1 and 65535.");
+  }
+  return port;
+}
+async function listen(server, port) {
   return await new Promise((resolve2, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
+    server.listen(validatePort(port), "127.0.0.1", () => {
       server.off("error", reject);
       const address = server.address();
       resolve2(address.port);
@@ -27689,7 +27860,7 @@ async function startHarborLocalDaemon(input) {
       json3(res, 500, { ok: false, code: "runtime_error", message: error.message });
     });
   });
-  const port = await listen(server);
+  const port = await listen(server, input.port);
   info = {
     projectRoot: input.projectRoot,
     workspaceId: LOCAL_WORKSPACE_ID,
@@ -27859,6 +28030,7 @@ async function connectHarborLocalMcpOAuthSource(input) {
   };
   const daemon = await startHarborLocalDaemon({
     projectRoot: input.projectRoot,
+    port: input.port,
     now: input.now,
     oauth: {
       env: input.env,
@@ -28080,6 +28252,138 @@ var init_mcp_runtime = __esm(() => {
   init_oauth();
   init_daemon();
   init_errors();
+});
+
+// packages/sdk/runtime-local/src/invocations.ts
+import { createRequire as createRequire6 } from "node:module";
+function loadDatabase4() {
+  const req = createRequire6(import.meta.url);
+  try {
+    return req("bun:sqlite").Database;
+  } catch {
+    try {
+      return req("node:sqlite").DatabaseSync;
+    } catch {
+      throw new Error("Local invocation store requires bun:sqlite or node:sqlite");
+    }
+  }
+}
+function openDatabase4(projectRoot) {
+  const Database = loadDatabase4();
+  return new Database(harborLocalPaths(projectRoot).sqlite);
+}
+function ensureInvocationTable(db) {
+  db.exec(`
+CREATE TABLE IF NOT EXISTS tool_invocations (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_ref_id TEXT,
+  namespace TEXT NOT NULL,
+  tool_id TEXT NOT NULL,
+  input_json TEXT,
+  output_json TEXT,
+  error_json TEXT,
+  ok INTEGER NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_workspace_created ON tool_invocations(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_tool ON tool_invocations(workspace_id, tool_id, created_at DESC);
+`.trim());
+}
+function json4(value3) {
+  return value3 === undefined ? null : JSON.stringify(value3);
+}
+function parseJson5(value3) {
+  if (typeof value3 !== "string" || value3.length === 0)
+    return;
+  return JSON.parse(value3);
+}
+function timestamp4(now2) {
+  return (now2 ?? (() => new Date))().toISOString();
+}
+function randomId() {
+  return globalThis.crypto?.randomUUID?.() ?? `invocation_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+function rowToInvocation(row) {
+  return {
+    id: String(row["id"]),
+    workspaceId: LOCAL_WORKSPACE_ID,
+    ...typeof row["source_ref_id"] === "string" ? { sourceRefId: row["source_ref_id"] } : {},
+    namespace: String(row["namespace"]),
+    toolId: String(row["tool_id"]),
+    ...parseJson5(row["input_json"]) !== undefined ? { input: parseJson5(row["input_json"]) } : {},
+    ...parseJson5(row["output_json"]) !== undefined ? { output: parseJson5(row["output_json"]) } : {},
+    ...parseJson5(row["error_json"]) !== undefined ? { error: parseJson5(row["error_json"]) } : {},
+    ok: Number(row["ok"]) === 1,
+    durationMs: Number(row["duration_ms"] ?? 0),
+    createdAt: String(row["created_at"])
+  };
+}
+async function recordHarborLocalToolInvocation(input) {
+  await ensureHarborLocalProject({ projectRoot: input.projectRoot });
+  const db = openDatabase4(input.projectRoot);
+  const id2 = randomId();
+  const createdAt = timestamp4(input.invocation.now);
+  try {
+    ensureInvocationTable(db);
+    db.prepare(`
+      INSERT INTO tool_invocations (
+        id, workspace_id, source_ref_id, namespace, tool_id, input_json,
+        output_json, error_json, ok, duration_ms, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id2, LOCAL_WORKSPACE_ID, input.invocation.sourceRefId ?? null, input.invocation.namespace, input.invocation.toolId, json4(input.invocation.input), json4(input.invocation.output), json4(input.invocation.error), input.invocation.ok ? 1 : 0, Math.max(0, Math.round(input.invocation.durationMs)), createdAt);
+  } finally {
+    db.close();
+  }
+  return {
+    id: id2,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    ...input.invocation.sourceRefId !== undefined ? { sourceRefId: input.invocation.sourceRefId } : {},
+    namespace: input.invocation.namespace,
+    toolId: input.invocation.toolId,
+    ...input.invocation.input !== undefined ? { input: input.invocation.input } : {},
+    ...input.invocation.output !== undefined ? { output: input.invocation.output } : {},
+    ...input.invocation.error !== undefined ? { error: input.invocation.error } : {},
+    ok: input.invocation.ok,
+    durationMs: Math.max(0, Math.round(input.invocation.durationMs)),
+    createdAt
+  };
+}
+async function listHarborLocalToolInvocations(projectRoot, input = {}) {
+  await ensureHarborLocalProject({ projectRoot });
+  const db = openDatabase4(projectRoot);
+  try {
+    ensureInvocationTable(db);
+    const clauses = ["workspace_id = ?"];
+    const args2 = [LOCAL_WORKSPACE_ID];
+    if (input.namespace !== undefined) {
+      clauses.push("namespace = ?");
+      args2.push(input.namespace);
+    }
+    if (input.toolId !== undefined) {
+      clauses.push("tool_id = ?");
+      args2.push(input.toolId);
+    }
+    if (input.sourceRefId !== undefined) {
+      clauses.push("source_ref_id = ?");
+      args2.push(input.sourceRefId);
+    }
+    const limit = Math.max(1, Math.min(input.limit ?? 50, 500));
+    const rows = db.prepare(`
+      SELECT *
+        FROM tool_invocations
+       WHERE ${clauses.join(" AND ")}
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?
+    `).all(...args2, limit);
+    return rows.map(rowToInvocation);
+  } finally {
+    db.close();
+  }
+}
+var init_invocations = __esm(() => {
+  init_src4();
 });
 
 // node_modules/.bun/valibot@1.4.0+1fb4c65d43e298b9/node_modules/valibot/dist/index.mjs
@@ -28505,6 +28809,36 @@ function normalizeInvokeInput(input) {
     return input;
   }
 }
+function namespaceFromToolId(toolId2) {
+  const index2 = toolId2.indexOf(".");
+  return index2 === -1 ? toolId2 : toolId2.slice(0, index2);
+}
+function errorPayload(error) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ..."code" in error ? { code: error.code } : {},
+      ..."details" in error ? { details: error.details } : {}
+    };
+  }
+  return error;
+}
+async function recordInvocation(input, invocation) {
+  await recordHarborLocalToolInvocation({
+    projectRoot: input.projectRoot,
+    invocation: {
+      sourceRefId: namespaceFromToolId(invocation.toolId),
+      namespace: namespaceFromToolId(invocation.toolId),
+      toolId: invocation.toolId,
+      input: invocation.input,
+      ...invocation.output !== undefined ? { output: invocation.output } : {},
+      ...invocation.error !== undefined ? { error: invocation.error } : {},
+      ok: invocation.ok,
+      durationMs: invocation.durationMs
+    }
+  });
+}
 async function runHarborLocalRegistryAction(input) {
   const runtime = await createHarborLocalMcpToolRuntime({
     projectRoot: input.projectRoot,
@@ -28531,22 +28865,51 @@ async function runHarborLocalRegistryAction(input) {
   }
   const tool = runtime.describe(input.action.toolId);
   const isWriteTool = input.isWriteTool ?? harborLocalDefaultWriteToolMatcher;
+  const invokeInput = normalizeInvokeInput(input.action.input);
+  const startedAt = Date.now();
   if (isWriteTool({ toolId: input.action.toolId, tool }) && input.confirmWrites !== true) {
+    const reason = input.writeBlockedReason ?? "Write tool blocked. Pass confirmWrites: true to allow this local tool invocation.";
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      error: { code: "local_write_confirmation_required", message: reason },
+      ok: false,
+      durationMs: Date.now() - startedAt
+    });
     return {
       kind: "invoke",
       blocked: true,
       toolId: input.action.toolId,
-      reason: input.writeBlockedReason ?? "Write tool blocked. Pass confirmWrites: true to allow this local tool invocation."
+      reason
     };
   }
-  return {
-    kind: "invoke",
-    blocked: false,
-    result: await runtime.call({
+  try {
+    const result2 = await runtime.call({
       toolId: input.action.toolId,
-      input: normalizeInvokeInput(input.action.input)
-    })
-  };
+      input: invokeInput
+    });
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      output: result2.output,
+      ok: true,
+      durationMs: Date.now() - startedAt
+    });
+    return {
+      kind: "invoke",
+      blocked: false,
+      result: result2
+    };
+  } catch (error) {
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      error: errorPayload(error),
+      ok: false,
+      durationMs: Date.now() - startedAt
+    });
+    throw error;
+  }
 }
 var harborLocalRegistryActionSchema, harborLocalRegistryAgentStepSchema, WRITE_TOOL_PATTERN, harborLocalDefaultWriteToolMatcher = ({
   toolId: toolId2,
@@ -28555,6 +28918,7 @@ var harborLocalRegistryActionSchema, harborLocalRegistryAgentStepSchema, WRITE_T
 var init_tool_registry_actions = __esm(() => {
   init_mcp_runtime();
   init_errors();
+  init_invocations();
   init_dist5();
   harborLocalRegistryActionSchema = variant2("kind", [
     object2({
@@ -28588,9 +28952,9 @@ var init_tool_registry_actions = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/exec.ts
-import { createRequire as createRequire6 } from "node:module";
-function loadDatabase4() {
-  const req = createRequire6(import.meta.url);
+import { createRequire as createRequire7 } from "node:module";
+function loadDatabase5() {
+  const req = createRequire7(import.meta.url);
   try {
     return req("bun:sqlite").Database;
   } catch {
@@ -28652,7 +29016,7 @@ function referencedIdentifiers(code) {
   return refs;
 }
 async function listExecBindings(input) {
-  const Database = loadDatabase4();
+  const Database = loadDatabase5();
   const db = new Database(harborLocalPaths(input.projectRoot).sqlite);
   try {
     const rows = db.prepare(`
@@ -29094,6 +29458,7 @@ __export(exports_src, {
   refreshHarborLocalOAuthGrant: () => refreshHarborLocalOAuthGrant,
   refreshHarborLocalMcpSource: () => refreshHarborLocalMcpSource,
   redactHarborSecret: () => redactHarborSecret,
+  recordHarborLocalToolInvocation: () => recordHarborLocalToolInvocation,
   readHarborRegistryDevRefs: () => readHarborRegistryDevRefs,
   readHarborLocalRuntimeManifest: () => readHarborLocalRuntimeManifest,
   readHarborLocalOAuthStatus: () => readHarborLocalOAuthStatus,
@@ -29105,6 +29470,7 @@ __export(exports_src, {
   putHarborLocalMcpToolBindings: () => putHarborLocalMcpToolBindings,
   probeHarborLocalMcpSource: () => probeHarborLocalMcpSource,
   matchHarborLocalAppRoute: () => matchHarborLocalAppRoute,
+  listHarborLocalToolInvocations: () => listHarborLocalToolInvocations,
   listHarborLocalSources: () => listHarborLocalSources,
   listHarborLocalMcpToolBindings: () => listHarborLocalMcpToolBindings,
   isHarborLocalError: () => isHarborLocalError,
@@ -29249,6 +29615,7 @@ var init_src4 = __esm(() => {
   init_quickjs();
   init_exec();
   init_tool_registry_actions();
+  init_invocations();
   init_plugin_store();
   init_credentials();
   init_registry();
@@ -41053,10 +41420,27 @@ var REGISTRY_CATALOG_ENTRIES = REGISTRY_CATALOG_SLUGS.map((slug) => {
   return entry;
 });
 // packages/sdk/runtime-local/src/promise.ts
+init_invocations();
 init_credentials();
 init_src4();
 init_tool_registry_actions();
+var HARBOR_LOCAL_OAUTH_PORT_ENV = "HARBOR_LOCAL_OAUTH_PORT";
+function parseOauthPort(env) {
+  const value3 = env?.[HARBOR_LOCAL_OAUTH_PORT_ENV];
+  if (value3 === undefined || value3.trim().length === 0)
+    return;
+  const port = Number(value3);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new HarborLocalError({
+      code: "local_runtime_error",
+      message: `${HARBOR_LOCAL_OAUTH_PORT_ENV} must be an integer port between 1 and 65535.`,
+      details: { envName: HARBOR_LOCAL_OAUTH_PORT_ENV }
+    });
+  }
+  return port;
+}
 function createHarborLocalRuntime(input) {
+  const oauthPort = input.oauthPort ?? parseOauthPort(input.env);
   const base2 = {
     projectRoot: input.projectRoot,
     env: input.env,
@@ -41141,7 +41525,8 @@ function createHarborLocalRuntime(input) {
           ...base2,
           sourceId: source.id,
           discovery,
-          clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`
+          clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`,
+          port: oauthPort
         });
         try {
           const pendingMessage = `Waiting for OAuth callback for MCP source "${source.id}".`;
@@ -41255,11 +41640,12 @@ function createHarborLocalRuntime(input) {
         projectRoot: input.projectRoot,
         source
       }),
-      connectMcpOAuth: ({ sourceId, discovery, clientName }) => connectHarborLocalMcpOAuthSource({
+      connectMcpOAuth: ({ sourceId, discovery, clientName, port }) => connectHarborLocalMcpOAuthSource({
         ...base2,
         sourceId,
         discovery,
-        clientName
+        clientName,
+        port: port ?? oauthPort
       }),
       probeMcp: (sourceId) => probeHarborLocalMcpSource({ ...base2, sourceId }),
       refreshMcp,
@@ -41272,7 +41658,8 @@ function createHarborLocalRuntime(input) {
           ...base2,
           sourceId: source.id,
           discovery: setup.discovery,
-          clientName: setup.clientName
+          clientName: setup.clientName,
+          port: oauthPort
         }) : undefined;
         const refresh = setup.refresh === true ? await refreshMcp(source.id) : undefined;
         return {
@@ -41310,6 +41697,9 @@ function createHarborLocalRuntime(input) {
       run: async (code, options) => createHarborLocalExecRuntime(base2).run(code, options),
       bindings: async () => createHarborLocalExecRuntime(base2).bindings(),
       toolGuide: async () => createHarborLocalExecRuntime(base2).toolGuide()
+    },
+    invocations: {
+      list: (listInput = {}) => listHarborLocalToolInvocations(input.projectRoot, listInput)
     }
   };
 }
@@ -41343,5 +41733,6 @@ export {
   harborLocalConsoleLogger,
   createHarborLocalRuntime,
   HarborLocalError,
+  HARBOR_LOCAL_OAUTH_PORT_ENV,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV
 };

@@ -134,6 +134,14 @@ export {
 } from "./tool-registry-actions"
 
 export {
+  listHarborLocalToolInvocations,
+  recordHarborLocalToolInvocation,
+  type HarborLocalToolInvocationInput,
+  type HarborLocalToolInvocationListInput,
+  type HarborLocalToolInvocationRecord,
+} from "./invocations"
+
+export {
   buildHarborLocalToolIndexFromSqlite,
   createHarborLocalCredentialResolver,
   createHarborLocalCredentialResolverFromEnv,

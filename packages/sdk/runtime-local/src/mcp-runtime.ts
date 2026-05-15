@@ -87,6 +87,7 @@ export interface HarborLocalMcpOAuthConnectInput extends HarborLocalCredentialRe
   readonly sourceId: string
   readonly discovery: HarborLocalMcpOAuthDiscovery
   readonly clientName?: string | undefined
+  readonly port?: number | undefined
   readonly fetch?: OAuthFetch | undefined
   readonly now?: (() => Date) | undefined
 }
@@ -264,6 +265,7 @@ export async function connectHarborLocalMcpOAuthSource(
   }
   const daemon = await startHarborLocalDaemon({
     projectRoot: input.projectRoot,
+    port: input.port,
     now: input.now,
     oauth: {
       env: input.env,

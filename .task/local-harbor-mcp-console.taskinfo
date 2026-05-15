@@ -8,7 +8,7 @@ Progress Tracker:
 - [x] 1. Branch setup and baseline inspection
 - [x] 2. Survey Harbor SDK and Harbor main MCP surfaces
 - [x] 3. Lock the local Harbor app boundary
-- [ ] 4. Close SDK gaps for local MCP plugin lifecycle
+- [x] 4. Close SDK gaps for local MCP plugin lifecycle
 - [ ] 5. Add MCP catalog seed from Harbor main
 - [ ] 6. Build local Harbor API server
 - [ ] 7. Build local Harbor MCP console UI
@@ -39,7 +39,7 @@ Tasks:
 4. Close SDK gaps for local MCP plugin lifecycle
    Scope: ensure the public SDK owns local project initialization, SQLite migrations, encrypted credential/token storage, MCP source install, OAuth connect/reconnect/refresh, no-auth MCP support, discovery, indexing, lexical/BM25 search, schema lookup, invocation, and structured status/errors. Explore implementation details as needed, but keep app-specific behavior out of SDK internals.
    Output: local Harbor can call stable SDK APIs instead of duplicating MCP lifecycle logic in the app.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit SDK code, tests, and generated outputs if required by the repo.
 
 5. Add MCP catalog seed from Harbor main
@@ -114,3 +114,9 @@ Progress Log:
 - 2026-05-15T15:08:28+05:30: Completed task 3 by adding `docs/architecture/local-harbor-mcp-console.md` to lock the v1 app boundary before implementation.
 - 2026-05-15T15:08:28+05:30: Documented Local Harbor MCP Console as a repo-local product app over `@hrbr/sdk/local`, not a new SDK promise or hosted Harbor clone.
 - 2026-05-15T15:08:28+05:30: Documented the split between SDK responsibilities, local API/server responsibilities, UI responsibilities, staging-D1 catalog generation, runtime offline guarantees, local state files, and explicit v1 non-goals.
+- 2026-05-15T15:36:56+05:30: Completed task 4 by moving the remaining local MCP lifecycle gaps into SDK surfaces instead of leaving them for the future local app.
+- 2026-05-15T15:36:56+05:30: Added MCP protocol-version fallback and prompt/resource/resource-template discovery to `@hrbr/source-mcp`, so MCP servers can expose more than `tools/list` while still being indexed as callable local registry entries.
+- 2026-05-15T15:36:56+05:30: Added fixed local OAuth callback port support through `HARBOR_LOCAL_OAUTH_PORT`, `oauthPort`, and per-call `port`, allowing the local app to run deterministic OAuth callbacks when needed.
+- 2026-05-15T15:36:56+05:30: Added SDK-owned invocation history persistence in SQLite with `tool_invocations`, automatic registry invocation recording, and `createHarborLocalRuntime(...).invocations.list(...)` for the future diagnostics/history UI.
+- 2026-05-15T15:36:56+05:30: Regenerated `packages/sdk/runtime-local/dist/promise.js` so the publish-facing `@hrbr/runtime-local/promise` bundle includes the new SDK API.
+- 2026-05-15T15:36:56+05:30: Validation passed with `bun test packages/sdk/source-mcp/test/index.test.ts packages/sdk/runtime-local/test/index.test.ts`, `bun test packages/sdk/sdk/test/release.test.ts`, and `bun run typecheck:packages`.

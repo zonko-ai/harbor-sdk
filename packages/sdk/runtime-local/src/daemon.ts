@@ -24,6 +24,7 @@ import {
 
 export interface StartHarborLocalDaemonInput {
   readonly projectRoot: string
+  readonly port?: number | undefined
   readonly runtimeVersion?: string | undefined
   readonly token?: string | undefined
   readonly now?: (() => Date) | undefined
@@ -101,10 +102,18 @@ export function createHarborLocalToken(): string {
   return randomBytes(32).toString("base64url")
 }
 
-async function listen(server: Server): Promise<number> {
+function validatePort(port: number | undefined): number {
+  if (port === undefined) return 0
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error("Harbor local daemon port must be an integer between 1 and 65535.")
+  }
+  return port
+}
+
+async function listen(server: Server, port: number | undefined): Promise<number> {
   return await new Promise((resolve, reject) => {
     server.once("error", reject)
-    server.listen(0, "127.0.0.1", () => {
+    server.listen(validatePort(port), "127.0.0.1", () => {
       server.off("error", reject)
       const address = server.address() as AddressInfo
       resolve(address.port)
@@ -255,7 +264,7 @@ export async function startHarborLocalDaemon(
     })
   })
 
-  const port = await listen(server)
+  const port = await listen(server, input.port)
   info = {
     projectRoot: input.projectRoot,
     workspaceId: LOCAL_WORKSPACE_ID,

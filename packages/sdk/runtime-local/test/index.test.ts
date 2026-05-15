@@ -1,4 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
+import { createServer } from "node:net"
 import { join } from "node:path"
 import { tmpdir } from "node:os"
 import { describe, expect, it } from "bun:test"
@@ -34,6 +35,7 @@ import {
   installHarborLocalPluginManifest,
   installHarborLocalMcpPlugin,
   hashHarborLocalToken,
+  listHarborLocalToolInvocations,
   listHarborLocalMcpToolBindings,
   listHarborLocalSources,
   completeHarborLocalOAuthFlow,
@@ -68,7 +70,7 @@ import {
   type HarborLocalLogEvent,
   type HarborRegistryDevRefsFile,
 } from "../src/index"
-import { createHarborLocalRuntime } from "../src/promise"
+import { createHarborLocalRuntime, HARBOR_LOCAL_OAUTH_PORT_ENV } from "../src/promise"
 
 async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   const dir = await mkdtemp(join(tmpdir(), "hrbr-runtime-local-"))
@@ -77,6 +79,21 @@ async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   } finally {
     await rm(dir, { recursive: true, force: true })
   }
+}
+
+async function freePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = createServer()
+    server.once("error", reject)
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address()
+      const port = typeof address === "object" && address !== null ? address.port : 0
+      server.close((error) => {
+        if (error) reject(error)
+        else resolve(port)
+      })
+    })
+  })
 }
 
 describe("@hrbr/runtime-local project layout", () => {
@@ -639,6 +656,30 @@ describe("@hrbr/runtime-local MCP source store", () => {
         kind: "invoke",
         blocked: true,
       })
+      const invocations = await promiseRuntime.invocations.list({ toolId: "linear-mcp.create_issue" })
+      expect(invocations).toHaveLength(3)
+      expect(invocations[0]).toMatchObject({
+        namespace: "linear-mcp",
+        toolId: "linear-mcp.create_issue",
+        ok: false,
+        input: { title: "Promise bug" },
+        error: { code: "local_write_confirmation_required" },
+      })
+      expect(invocations[1]).toMatchObject({
+        namespace: "linear-mcp",
+        toolId: "linear-mcp.create_issue",
+        ok: true,
+        output: { structuredContent: { called: "create_issue", input: { title: "Bug" } } },
+      })
+      expect(invocations[2]).toMatchObject({
+        namespace: "linear-mcp",
+        toolId: "linear-mcp.create_issue",
+        ok: false,
+        input: { title: "Bug" },
+        error: { code: "local_write_confirmation_required" },
+      })
+      await expect(listHarborLocalToolInvocations(projectRoot, { namespace: "linear-mcp" }))
+        .resolves.toHaveLength(3)
       expect(seen.some((entry) => entry.method === "tools/call" && entry.tool === "list_issues")).toBe(true)
     })
   })
@@ -1045,6 +1086,58 @@ describe("@hrbr/runtime-local MCP source store", () => {
         const credentials = await resolver.resolve({ workspaceId: "local", sourceId: "linear-mcp" })
         expect(credentials.require("access_token")).toBe("access-1")
         expect(credentials.require("refresh_token")).toBe("refresh-1")
+      } finally {
+        await connect.close()
+      }
+    })
+  })
+
+  it("lets the public runtime use a fixed local OAuth callback port", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      await upsertHarborLocalMcpSource({
+        projectRoot,
+        source: {
+          transport: "remote",
+          name: "Linear MCP",
+          namespace: "linear-mcp",
+          endpoint: "https://mcp.linear.app/mcp",
+          auth: { kind: "oauth2" },
+        },
+      })
+      const port = await freePort()
+      const harbor = createHarborLocalRuntime({
+        projectRoot,
+        env: {
+          [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key",
+          [HARBOR_LOCAL_OAUTH_PORT_ENV]: String(port),
+        },
+        fetch: async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+          const href = String(url)
+          if (href === "https://mcp.linear.app/register") {
+            const body = JSON.parse(String(init?.body ?? "{}")) as { redirect_uris?: string[] }
+            expect(body.redirect_uris?.[0]).toBe(`http://127.0.0.1:${port}/oauth/callback`)
+            return new Response(JSON.stringify({ client_id: "client-1" }), {
+              headers: { "content-type": "application/json" },
+            })
+          }
+          throw new Error(`Unexpected OAuth request ${href}`)
+        },
+      })
+
+      const connect = await harbor.sources.connectMcpOAuth({
+        sourceId: "linear-mcp",
+        discovery: {
+          authorizationEndpoint: "https://mcp.linear.app/authorize",
+          tokenEndpoint: "https://mcp.linear.app/token",
+          registrationEndpoint: "https://mcp.linear.app/register",
+          resource: "https://mcp.linear.app",
+          scopes: ["read"],
+        },
+      })
+      try {
+        expect(connect.redirectUri).toBe(`http://127.0.0.1:${port}/oauth/callback`)
+        expect(connect.daemon.origin).toBe(`http://127.0.0.1:${port}`)
       } finally {
         await connect.close()
       }
