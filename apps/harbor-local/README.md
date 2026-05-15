@@ -15,4 +15,10 @@ Run:
 HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run --cwd apps/harbor-local dev
 ```
 
-The API binds to `127.0.0.1` and defaults to port `7332`.
+The app binds to `127.0.0.1` and defaults to port `7332`.
+
+Open `http://127.0.0.1:7332` for:
+
+- Overview: local runtime health, state path, catalog count, source count, and recent traces
+- Plugins: catalog install, custom MCP URL install, OAuth connect, source refresh, tool search, schema inspection, and invocation
+- Traces: persisted local tool invocation history and raw trace details

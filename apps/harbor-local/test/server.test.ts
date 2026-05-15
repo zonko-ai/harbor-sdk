@@ -92,6 +92,24 @@ function fixtureFetch(calls: Array<{ readonly method: string; readonly tool?: st
 }
 
 describe("@hrbr/harbor-local API server", () => {
+  it("serves the local console frontend from the same server", async () => {
+    await withTempProject(async (projectRoot) => {
+      const server = createHarborLocalServer({ env: testEnv(projectRoot) })
+
+      const html = await server.fetch(new Request("http://local.harbor/"))
+      expect(html.headers.get("content-type")).toContain("text/html")
+      await expect(html.text()).resolves.toContain("Harbor Local")
+
+      const app = await server.fetch(new Request("http://local.harbor/app.js"))
+      expect(app.headers.get("content-type")).toContain("text/javascript")
+      await expect(app.text()).resolves.toContain("renderOverview")
+
+      const css = await server.fetch(new Request("http://local.harbor/styles.css"))
+      expect(css.headers.get("content-type")).toContain("text/css")
+      await expect(css.text()).resolves.toContain(".sidebar")
+    })
+  })
+
   it("serves health and the offline local MCP catalog seed", async () => {
     await withTempProject(async (projectRoot) => {
       const server = createHarborLocalServer({ env: testEnv(projectRoot) })

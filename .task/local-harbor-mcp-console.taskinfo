@@ -11,7 +11,7 @@ Progress Tracker:
 - [x] 4. Close SDK gaps for local MCP plugin lifecycle
 - [x] 5. Add MCP catalog seed from Harbor main
 - [x] 6. Build local Harbor API server
-- [ ] 7. Build local Harbor MCP console UI
+- [x] 7. Build local Harbor MCP console UI
 - [ ] 8. Manual UI validation gate
 - [ ] 9. Add local Harbor MCP server surface for agents
 - [ ] 10. Add local diagnostics and invocation history
@@ -57,9 +57,9 @@ Tasks:
    Commit: after this step is complete, commit the server app slice and focused tests.
 
 7. Build local Harbor MCP console UI
-   Scope: build a practical local web UI for MCP plugin management. Reuse Harbor main visual ideas/components where they fit, but avoid importing hosted-only assumptions.
-   Output: UI supports catalog browsing, custom MCP install, source status, OAuth connect/reconnect, tool search/browser, schema inspection, invocation form, and result viewing. The UI is the setup, management, and debugging surface for local Harbor before exposing the agent-facing MCP surface.
-   Progress: pending
+   Scope: build a practical local web UI with first-class Overview, Plugins, and Traces pages. Reuse Harbor main visual ideas/components where they fit, but avoid importing hosted-only assumptions.
+   Output: Overview shows local runtime health and key counts, Plugins supports catalog browsing, custom MCP install, source status, OAuth connect/reconnect, refresh, tool search/browser, schema inspection, invocation form, and result viewing, and Traces shows invocation history. The UI is the setup, management, and debugging surface for local Harbor before exposing the agent-facing MCP surface.
+   Progress: completed
    Commit: after this step is complete, commit UI changes and any app-level tests.
 
 8. Manual UI validation gate
@@ -148,3 +148,7 @@ Progress Log:
 - 2026-05-15T16:35:00+05:30: Added SDK support for `sources.listMcp()` so the local app does not read SQLite tables directly, and regenerated `packages/sdk/runtime-local/dist/promise.js` for the publish-facing local runtime bundle.
 - 2026-05-15T16:35:00+05:30: Added in-process API tests covering catalog seed visibility, custom MCP install and refresh, source listing, lexical tool search, schema lookup, invocation, persisted invocation history, and structured not-found errors.
 - 2026-05-15T16:35:00+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts`, `bun run --filter @hrbr/runtime-local typecheck`, `bun run typecheck:apps`, and `bun test packages/sdk/runtime-local/test/index.test.ts packages/sdk/sdk/test/release.test.ts`.
+- 2026-05-15T17:10:00+05:30: Updated task 7 scope to make Overview, Plugins, and Traces first-class v1 pages.
+- 2026-05-15T17:10:00+05:30: Completed task 7 by adding a same-origin static UI served from `apps/harbor-local`: Overview for runtime health/counts/recent traces, Plugins for catalog/custom install, OAuth connect, source refresh, tool search, schema inspection, and tool invocation, and Traces for invocation history/detail.
+- 2026-05-15T17:10:00+05:30: Kept the UI intentionally local-only and dependency-light: no hosted Harbor auth/workspace imports, no framework-specific runtime, and all data access flows through the local API from task 6.
+- 2026-05-15T17:10:00+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck` and `bun test apps/harbor-local/test/server.test.ts`.

@@ -41,6 +41,20 @@ function json(payload: unknown, init: ResponseInit = {}): Response {
   })
 }
 
+function staticResponse(pathname: string): Response | null {
+  const staticFiles: Record<string, { readonly path: string; readonly contentType: string }> = {
+    "/": { path: "../public/index.html", contentType: "text/html; charset=utf-8" },
+    "/index.html": { path: "../public/index.html", contentType: "text/html; charset=utf-8" },
+    "/app.js": { path: "../public/app.js", contentType: "text/javascript; charset=utf-8" },
+    "/styles.css": { path: "../public/styles.css", contentType: "text/css; charset=utf-8" },
+  }
+  const file = staticFiles[pathname]
+  if (!file) return null
+  return new Response(Bun.file(new URL(file.path, import.meta.url)), {
+    headers: { "content-type": file.contentType },
+  })
+}
+
 function ok(data: unknown, init?: ResponseInit): Response {
   return json({ ok: true, data }, init)
 }
@@ -244,6 +258,11 @@ async function connectSource(input: HarborLocalServerInput, body: JsonBody): Pro
 async function route(input: HarborLocalServerInput, request: Request): Promise<Response> {
   const url = new URL(request.url)
   if (request.method === "OPTIONS") return new Response(null, { status: 204 })
+  if (request.method === "GET") {
+    const staticFile = staticResponse(url.pathname)
+    if (staticFile) return staticFile
+    if (url.pathname === "/favicon.ico") return new Response(null, { status: 204 })
+  }
   if (request.method === "GET" && url.pathname === "/health") {
     return ok({
       status: "ok",
