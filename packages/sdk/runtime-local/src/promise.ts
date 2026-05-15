@@ -30,11 +30,15 @@ import {
   type HarborLocalToolCallResult,
   type HarborLocalToolSchema,
   type HarborLocalToolSearchHit,
+  type HarborLocalLogger,
+  type HarborLocalLogEvent,
 } from "./index"
 import { REGISTRY_CATALOG_ENTRIES } from "@hrbr/registry-catalog"
 import type { McpSourceFetch } from "@hrbr/source-mcp"
 
 export { HARBOR_LOCAL_CREDENTIAL_KEY_ENV } from "./credentials"
+export { HarborLocalError, isHarborLocalError, harborLocalConsoleLogger } from "./index"
+export type { HarborLocalErrorCode, HarborLocalLogEvent, HarborLocalLogger } from "./index"
 export {
   harborLocalRegistryActionFromAgentStep,
   harborLocalRegistryActionSchema,
@@ -60,6 +64,7 @@ export interface HarborLocalRuntimeInput {
   readonly env?: Readonly<Record<string, string | undefined>> | undefined
   readonly fetch?: McpSourceFetch | undefined
   readonly allowLocalNetwork?: boolean | undefined
+  readonly logger?: HarborLocalLogger | undefined
 }
 
 export interface HarborLocalRuntimeActionOptions {
@@ -212,6 +217,15 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
   const refreshMcp = (sourceId: string) =>
     refreshHarborLocalMcpSource({ ...base, sourceId })
 
+  const emit = async (
+    event: HarborLocalLogEvent,
+    onStatus?: HarborLocalMcpEnsureSourcesInput["onStatus"],
+    legacyStatus?: HarborLocalMcpEnsureStatusEvent
+  ) => {
+    await input.logger?.(event)
+    if (legacyStatus) await onStatus?.(legacyStatus)
+  }
+
   const ensureOne = async (
     ensureInput: HarborLocalMcpEnsureSourcesInput,
     sourceInput: HarborLocalMcpUrlSourceInput
@@ -224,11 +238,19 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
         ? "oauth2"
         : "none"
     const sourceId = sourceInput.namespace ?? catalog?.default_namespace ?? nameFromEndpoint(sourceInput.endpoint)
-    await ensureInput.onStatus?.({
+    const installMessage = `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`
+    await emit({
+      level: "info",
+      area: "mcp",
+      code: "mcp_source_install",
+      sourceId,
+      endpoint: sourceInput.endpoint,
+      message: installMessage,
+    }, ensureInput.onStatus, {
       stage: "install",
       sourceId,
       endpoint: sourceInput.endpoint,
-      message: `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`,
+      message: installMessage,
     })
     const source = await upsertHarborLocalMcpSource({
       projectRoot: input.projectRoot,
@@ -244,11 +266,19 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
 
     if (authKind === "oauth2") {
       const oauth = await readHarborLocalOAuthStatus(input.projectRoot, source.id)
-      await ensureInput.onStatus?.({
+      const oauthMessage = `OAuth status for MCP source "${source.id}" is ${oauth.status}.`
+      await emit({
+        level: oauth.status === "reconnect_required" ? "warn" : "info",
+        area: "oauth",
+        code: "mcp_oauth_status",
+        sourceId: source.id,
+        status: oauth.status,
+        message: oauthMessage,
+      }, ensureInput.onStatus, {
         stage: "oauth",
         sourceId: source.id,
         status: oauth.status,
-        message: `OAuth status for MCP source "${source.id}" is ${oauth.status}.`,
+        message: oauthMessage,
       })
       if (oauth.status === "reconnect_required") {
         return {
@@ -279,16 +309,29 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
           clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`,
         })
         try {
-          await ensureInput.onStatus?.({
+          const pendingMessage = `Waiting for OAuth callback for MCP source "${source.id}".`
+          await emit({
+            level: "info",
+            area: "oauth",
+            code: "mcp_oauth_waiting_for_callback",
+            sourceId: source.id,
+            status: "pending",
+            message: pendingMessage,
+          }, ensureInput.onStatus, {
             stage: "oauth",
             sourceId: source.id,
             status: "pending",
-            message: `Waiting for OAuth callback for MCP source "${source.id}".`,
+            message: pendingMessage,
           })
-          await ensureInput.onAuthorizationUrl?.({
+          await input.logger?.({
+            level: "info",
+            area: "oauth",
+            code: "mcp_oauth_authorization_url",
             sourceId: source.id,
             authorizationUrl: connect.authorizationUrl,
+            message: `OAuth authorization URL is ready for MCP source "${source.id}".`,
           })
+          await ensureInput.onAuthorizationUrl?.({ sourceId: source.id, authorizationUrl: connect.authorizationUrl })
           await connect.waitForReady()
         } finally {
           await connect.close()
@@ -305,17 +348,33 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
     }
 
     try {
-      await ensureInput.onStatus?.({
+      const refreshMessage = `Refreshing MCP tools for source "${source.id}".`
+      await emit({
+        level: "info",
+        area: "mcp",
+        code: "mcp_source_refresh",
+        sourceId: source.id,
+        message: refreshMessage,
+      }, ensureInput.onStatus, {
         stage: "refresh",
         sourceId: source.id,
-        message: `Refreshing MCP tools for source "${source.id}".`,
+        message: refreshMessage,
       })
       const refresh = await refreshMcp(source.id)
-      await ensureInput.onStatus?.({
+      const readyMessage = `MCP source "${source.id}" is ready with ${refresh.toolCount} tools.`
+      await emit({
+        level: "info",
+        area: "mcp",
+        code: "mcp_source_ready",
+        sourceId: source.id,
+        status: "ready",
+        toolCount: refresh.toolCount,
+        message: readyMessage,
+      }, ensureInput.onStatus, {
         stage: "ready",
         sourceId: source.id,
         toolCount: refresh.toolCount,
-        message: `MCP source "${source.id}" is ready with ${refresh.toolCount} tools.`,
+        message: readyMessage,
       })
       return {
         source: await readHarborLocalMcpSource(input.projectRoot, source.id) ?? source,
@@ -325,10 +384,19 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
-      await ensureInput.onStatus?.({
+      const errorMessage = `Failed refreshing MCP source "${source.id}": ${message}`
+      await emit({
+        level: "error",
+        area: "mcp",
+        code: "mcp_source_refresh_failed",
+        sourceId: source.id,
+        status: "refresh_failed",
+        error,
+        message: errorMessage,
+      }, ensureInput.onStatus, {
         stage: "error",
         sourceId: source.id,
-        message: `Failed refreshing MCP source "${source.id}": ${message}`,
+        message: errorMessage,
       })
       return {
         source,

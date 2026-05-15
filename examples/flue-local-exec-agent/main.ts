@@ -1,5 +1,5 @@
 import type { FlueContext } from "@flue/runtime"
-import { createHarbor } from "@hrbr/sdk/local"
+import { createHarbor, harborLocalConsoleLogger } from "@hrbr/sdk/local"
 import * as v from "valibot"
 
 export const triggers = { webhook: true }
@@ -51,13 +51,16 @@ export default async function ({ init, payload, env }: FlueContext) {
   const prompt = promptFrom(payload)
   const runtimeEnv = envFrom(env)
   const allowLocalNetwork = Boolean(runtimeEnv.HARBOR_LINEAR_MCP_ENDPOINT || runtimeEnv.HARBOR_NOTION_MCP_ENDPOINT)
-  const harbor = createHarbor({ projectRoot: process.cwd(), env: runtimeEnv, allowLocalNetwork })
+  const harbor = createHarbor({
+    projectRoot: process.cwd(),
+    env: runtimeEnv,
+    allowLocalNetwork,
+    logger: harborLocalConsoleLogger(),
+  })
   const setup = await harbor.sources.ensureMcpSources({
     sources: mcpSourcesFrom(runtimeEnv),
     connect: true,
     refresh: true,
-    onStatus: (event) => console.log(`[harbor] ${event.message}`),
-    onAuthorizationUrl: ({ sourceId, authorizationUrl }) => console.log(`Open this URL to connect ${sourceId}:\n${authorizationUrl}\n`),
   })
   if (!setup.ready) return { answer: `Sources are not ready: ${JSON.stringify(setup.sources)}` }
 

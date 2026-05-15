@@ -12,7 +12,7 @@ Progress Tracker:
 - [x] 7. Create Promise-first local SDK facade
 - [x] 8. Finish MCP lifecycle completeness
 - [x] 9. Rewrite framework examples against the public facade
-- [ ] 10. Add SDK error and logging surface
+- [x] 10. Add SDK error and logging surface
 - [ ] 11. Add release-quality tests
 - [ ] 12. Update README and coming-soon docs markers
 - [ ] 5. Decide Harbor Cloud platform SDK relationship
@@ -66,7 +66,7 @@ Tasks:
 10. Add SDK error and logging surface
     Scope: replace or wrap generic public-flow errors with stable typed errors and add logger/status hooks where examples need progress output.
     Output: public flows expose actionable error codes and examples do not hardcode SDK-internal logging behavior.
-    Progress: pending
+    Progress: completed
     Commit: after this step is complete, commit error/logging changes.
 
 11. Add release-quality tests
@@ -125,3 +125,6 @@ Progress Log:
 - 2026-05-15T13:17:26+05:30: Completed task 9 by adding `exec.toolGuide()` to the public local runtime facade so framework examples no longer duplicate exec namespace/global/method-name resolution.
 - 2026-05-15T13:17:26+05:30: Updated AI SDK and Flue tool-registry examples to include `sources.probeMcp(...)` diagnostics as SDK-owned source health observations after setup.
 - 2026-05-15T13:17:26+05:30: Updated AI SDK and Flue local-exec examples to consume `harbor.exec.toolGuide()` and keep the framework-owned code generation loop focused on prompt/model/output handling.
+- 2026-05-15T13:32:38+05:30: Completed task 10 by adding `HarborLocalError`, stable local error codes, `HarborLocalLogger`, and `harborLocalConsoleLogger` to the public local SDK surface.
+- 2026-05-15T13:32:38+05:30: Updated MCP ensure/setup logging to emit structured SDK log events while preserving existing `onStatus` and `onAuthorizationUrl` callbacks for compatibility.
+- 2026-05-15T13:32:38+05:30: Updated AI SDK and Flue examples to use `harborLocalConsoleLogger()` instead of hardcoded SDK lifecycle log callbacks, and added tests for structured logs plus typed credential/exec errors.

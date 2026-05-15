@@ -417,6 +417,47 @@ function runHarborLocalStaticSecurityChecks(manifest) {
   return checks;
 }
 
+// packages/sdk/runtime-local/src/errors.ts
+function isHarborLocalError(error) {
+  return error instanceof HarborLocalError;
+}
+function toHarborLocalError(error, fallback) {
+  if (error instanceof HarborLocalError)
+    return error;
+  return new HarborLocalError({
+    code: fallback.code,
+    message: error instanceof Error && error.message ? error.message : fallback.message,
+    details: fallback.details,
+    cause: error
+  });
+}
+var HarborLocalError;
+var init_errors = __esm(() => {
+  HarborLocalError = class HarborLocalError extends Error {
+    code;
+    details;
+    constructor(input) {
+      super(input.message, input.cause === undefined ? undefined : { cause: input.cause });
+      this.name = "HarborLocalError";
+      this.code = input.code;
+      this.details = input.details;
+    }
+  };
+});
+
+// packages/sdk/runtime-local/src/logger.ts
+function harborLocalConsoleLogger(input = {}) {
+  const prefix = input.prefix ?? "[harbor]";
+  return (event) => {
+    const write = event.level === "error" ? console.error : event.level === "warn" ? console.warn : console.log;
+    write(`${prefix} ${event.message}`);
+    if (event.authorizationUrl)
+      write(`Open this URL to connect ${event.sourceId ?? "MCP source"}:
+${event.authorizationUrl}
+`);
+  };
+}
+
 // packages/sdk/runtime-local/src/package-format.ts
 function validateHarborLocalPackageManifest(manifest) {
   const errors = [];
@@ -10054,7 +10095,7 @@ function errorWithPath(message, path) {
   }
   return new Error(message);
 }
-var init_errors = __esm(() => {
+var init_errors2 = __esm(() => {
   init_Formatter();
 });
 
@@ -10274,7 +10315,7 @@ var init_arbitrary = __esm(() => {
   init_SchemaAST();
   init_Struct();
   init_UndefinedOr();
-  init_errors();
+  init_errors2();
   init_annotations();
   arbitraryMemoMap = /* @__PURE__ */ new WeakMap;
   max3 = /* @__PURE__ */ makeReducer(ReducerMax);
@@ -10691,7 +10732,7 @@ var init_equivalence = __esm(() => {
   init_Predicate();
   init_SchemaAST();
   init_SchemaParser();
-  init_errors();
+  init_errors2();
   init_annotations();
   toEquivalence = /* @__PURE__ */ memoize((ast) => {
     return recur3(ast, []);
@@ -26435,7 +26476,11 @@ function readHarborLocalCredentialKeyFromEnv(input = {}) {
   const env = input.env ?? process.env;
   const key = env[envName]?.trim();
   if (!key) {
-    throw new Error(`${envName} is required to read or write local Harbor credentials.`);
+    throw new HarborLocalError({
+      code: "local_credentials_key_required",
+      message: `${envName} is required to read or write local Harbor credentials.`,
+      details: { envName }
+    });
   }
   return key;
 }
@@ -26499,6 +26544,7 @@ async function importHarborLocalCredentialsFromEnvKey(projectRoot, input) {
 var HARBOR_LOCAL_CREDENTIAL_KEY_ENV = "HARBOR_LOCAL_CREDENTIAL_KEY";
 var init_credentials = __esm(() => {
   init_src4();
+  init_errors();
 });
 
 // packages/sdk/runtime-local/src/tool-search.ts
@@ -27745,7 +27791,11 @@ async function optionalCredentials(input) {
         fetch: input.fetch
       });
       if (refresh.status === "reconnect_required") {
-        throw new Error(refresh.error ?? `OAuth reconnect is required for MCP source "${input.source.id}".`);
+        throw new HarborLocalError({
+          code: "local_mcp_oauth_reconnect_required",
+          message: refresh.error ?? `OAuth reconnect is required for MCP source "${input.source.id}".`,
+          details: { sourceId: input.source.id }
+        });
       }
     }
   }
@@ -27759,7 +27809,11 @@ async function optionalCredentials(input) {
 function adapterForSource(input) {
   const source = input.source;
   if (source.transport !== "remote" || !source.endpoint) {
-    throw new Error(`MCP source "${source.id}" is not a remote HTTP source.`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unsupported_transport",
+      message: `MCP source "${source.id}" is not a remote HTTP source.`,
+      details: { sourceId: source.id, transport: source.transport }
+    });
   }
   return createMcpHttpSourceAdapter({
     id: source.id,
@@ -27779,14 +27833,26 @@ async function waitForOAuthReady(projectRoot, sourceId, timeoutMs = 300000) {
       return status;
     await new Promise((resolve2) => setTimeout(resolve2, 1000));
   }
-  throw new Error(`Timed out waiting for OAuth callback for MCP source "${sourceId}".`);
+  throw new HarborLocalError({
+    code: "local_mcp_oauth_timeout",
+    message: `Timed out waiting for OAuth callback for MCP source "${sourceId}".`,
+    details: { sourceId, timeoutMs }
+  });
 }
 async function connectHarborLocalMcpOAuthSource(input) {
   const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId);
   if (!source)
-    throw new Error(`Unknown local MCP source "${input.sourceId}".`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unknown",
+      message: `Unknown local MCP source "${input.sourceId}".`,
+      details: { sourceId: input.sourceId }
+    });
   if (source.auth.kind !== "oauth2") {
-    throw new Error(`MCP source "${input.sourceId}" is not configured for oauth2 auth.`);
+    throw new HarborLocalError({
+      code: "local_mcp_oauth_not_configured",
+      message: `MCP source "${input.sourceId}" is not configured for oauth2 auth.`,
+      details: { sourceId: input.sourceId, auth: source.auth.kind }
+    });
   }
   let oauthClient = {
     clientId: "local-public-client"
@@ -27854,7 +27920,11 @@ async function searchableRecordsForSource(projectRoot, source) {
 async function refreshHarborLocalMcpSource(input) {
   const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId);
   if (!source)
-    throw new Error(`Unknown local MCP source "${input.sourceId}".`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unknown",
+      message: `Unknown local MCP source "${input.sourceId}".`,
+      details: { sourceId: input.sourceId }
+    });
   const adapter2 = adapterForSource({ source, fetch: input.fetch, allowLocalNetwork: input.allowLocalNetwork });
   const credentials = await optionalCredentials({
     projectRoot: input.projectRoot,
@@ -27894,7 +27964,11 @@ async function refreshHarborLocalMcpSource(input) {
 async function probeHarborLocalMcpSource(input) {
   const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId);
   if (!source)
-    throw new Error(`Unknown local MCP source "${input.sourceId}".`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unknown",
+      message: `Unknown local MCP source "${input.sourceId}".`,
+      details: { sourceId: input.sourceId }
+    });
   if (source.transport !== "remote" || !source.endpoint) {
     return {
       ok: false,
@@ -27961,10 +28035,18 @@ async function createHarborLocalMcpToolRuntime(input) {
     callTool: async (call, tool) => {
       const source = await readHarborLocalMcpSource(input.projectRoot, tool.namespace);
       if (!source)
-        throw new Error(`Unknown local MCP source for namespace "${tool.namespace}".`);
+        throw new HarborLocalError({
+          code: "local_mcp_source_unknown",
+          message: `Unknown local MCP source for namespace "${tool.namespace}".`,
+          details: { namespace: tool.namespace }
+        });
       const binding = (await listHarborLocalMcpToolBindings(input.projectRoot, source.id)).find((candidate) => `${candidate.namespace}.${candidate.toolId}` === call.toolId);
       if (!binding)
-        throw new Error(`No MCP binding found for local tool "${call.toolId}".`);
+        throw new HarborLocalError({
+          code: "local_tool_unknown",
+          message: `No MCP binding found for local tool "${call.toolId}".`,
+          details: { toolId: call.toolId, sourceId: source.id }
+        });
       const adapter2 = adapterForSource({ source, fetch: input.fetch, allowLocalNetwork: input.allowLocalNetwork });
       const credentials = await optionalCredentials({
         projectRoot: input.projectRoot,
@@ -27983,7 +28065,11 @@ async function createHarborLocalMcpToolRuntime(input) {
 async function createHarborLocalMcpToolIndexFromBindings(projectRoot, sourceId) {
   const source = await readHarborLocalMcpSource(projectRoot, sourceId);
   if (!source)
-    throw new Error(`Unknown local MCP source "${sourceId}".`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unknown",
+      message: `Unknown local MCP source "${sourceId}".`,
+      details: { sourceId }
+    });
   return createHarborLocalToolIndex(await searchableRecordsForSource(projectRoot, source));
 }
 var init_mcp_runtime = __esm(() => {
@@ -27993,6 +28079,7 @@ var init_mcp_runtime = __esm(() => {
   init_mcp_store();
   init_oauth();
   init_daemon();
+  init_errors();
 });
 
 // node_modules/.bun/valibot@1.4.0+1fb4c65d43e298b9/node_modules/valibot/dist/index.mjs
@@ -28400,7 +28487,11 @@ function harborLocalRegistryActionFromAgentStep(step) {
     return { kind: "schema", toolId: step.toolId ?? "" };
   if (step.action === "invoke")
     return { kind: "invoke", toolId: step.toolId ?? "", input: step.input ?? {} };
-  throw new Error("Final agent steps are not executable Harbor registry actions.");
+  throw new HarborLocalError({
+    code: "local_registry_action_invalid",
+    message: "Final agent steps are not executable Harbor registry actions.",
+    details: { action: step.action }
+  });
 }
 function normalizeInvokeInput(input) {
   if (typeof input !== "string")
@@ -28463,6 +28554,7 @@ var harborLocalRegistryActionSchema, harborLocalRegistryAgentStepSchema, WRITE_T
 }) => WRITE_TOOL_PATTERN.test(toolId2) || WRITE_TOOL_PATTERN.test(tool?.name ?? "");
 var init_tool_registry_actions = __esm(() => {
   init_mcp_runtime();
+  init_errors();
   init_dist5();
   harborLocalRegistryActionSchema = variant2("kind", [
     object2({
@@ -28648,6 +28740,10 @@ function errorMessage(error) {
     return error;
   return "Local exec failed";
 }
+function execErrorCode(error) {
+  const message = errorMessage(error);
+  return error instanceof HarborLocalError && error.code === "local_write_confirmation_required" || /^Blocked write tool /.test(message) ? "local_write_confirmation_required" : "local_exec_error";
+}
 function createHarborLocalExecRuntime(input) {
   return {
     bindings: () => listExecBindings(input),
@@ -28663,8 +28759,9 @@ function createHarborLocalExecRuntime(input) {
         return {
           ok: false,
           error: {
-            code: "EXEC_ERROR",
-            message: `Namespace "${missingNamespace}" is not available. Available namespace aliases: ${bindings.flatMap((binding) => [...binding.aliases]).join(", ") || "none"}.`
+            code: "local_exec_error",
+            message: `Namespace "${missingNamespace}" is not available. Available namespace aliases: ${bindings.flatMap((binding) => [...binding.aliases]).join(", ") || "none"}.`,
+            details: { namespace: missingNamespace }
           },
           namespaces: namespaces.map((binding) => binding.namespace),
           logs,
@@ -28701,7 +28798,11 @@ ${code}
               throw new Error(`Unknown local exec tool: ${toolId2}`);
             const isWrite = options.isWriteTool?.(tool) ?? harborLocalDefaultWriteToolMatcher({ toolId: toolId2, tool });
             if (isWrite && options.confirmWrites !== true) {
-              throw new Error(`Blocked write tool "${toolId2}". Re-run with write confirmation enabled to allow it.`);
+              throw new HarborLocalError({
+                code: "local_write_confirmation_required",
+                message: `Blocked write tool "${toolId2}". Re-run with write confirmation enabled to allow it.`,
+                details: { toolId: toolId2 }
+              });
             }
             const result2 = await toolRuntime.call({ toolId: toolId2, input: request.input ?? {} });
             return result2.output;
@@ -28718,8 +28819,9 @@ ${code}
         return {
           ok: false,
           error: {
-            code: "EXEC_ERROR",
-            message: errorMessage(error)
+            code: execErrorCode(error),
+            message: errorMessage(error),
+            ...error instanceof HarborLocalError && error.details !== undefined ? { details: error.details } : {}
           },
           namespaces: namespaces.map((binding) => binding.namespace),
           logs,
@@ -28733,6 +28835,7 @@ var init_exec = __esm(() => {
   init_tool_registry_actions();
   init_mcp_runtime();
   init_src4();
+  init_errors();
 });
 
 // packages/sdk/runtime-local/src/registry.ts
@@ -28976,6 +29079,7 @@ __export(exports_src, {
   upsertHarborRegistryDevRef: () => upsertHarborRegistryDevRef,
   upsertHarborLocalMcpSource: () => upsertHarborLocalMcpSource,
   updateHarborLocalMcpSourceStatus: () => updateHarborLocalMcpSourceStatus,
+  toHarborLocalError: () => toHarborLocalError,
   startHarborLocalOAuthFlow: () => startHarborLocalOAuthFlow,
   startHarborLocalDaemon: () => startHarborLocalDaemon,
   runHarborLocalWorkflow: () => runHarborLocalWorkflow,
@@ -29003,6 +29107,7 @@ __export(exports_src, {
   matchHarborLocalAppRoute: () => matchHarborLocalAppRoute,
   listHarborLocalSources: () => listHarborLocalSources,
   listHarborLocalMcpToolBindings: () => listHarborLocalMcpToolBindings,
+  isHarborLocalError: () => isHarborLocalError,
   installHarborLocalPluginManifest: () => installHarborLocalPluginManifest,
   installHarborLocalMcpPlugin: () => installHarborLocalMcpPlugin,
   initializeHarborLocalSqlite: () => initializeHarborLocalSqlite,
@@ -29018,6 +29123,7 @@ __export(exports_src, {
   harborLocalNamespaceToJsVar: () => harborLocalNamespaceToJsVar,
   harborLocalDefaultWriteToolMatcher: () => harborLocalDefaultWriteToolMatcher,
   harborLocalDaemonConnection: () => harborLocalDaemonConnection,
+  harborLocalConsoleLogger: () => harborLocalConsoleLogger,
   generateHarborLocalWorkflowPackageManifest: () => generateHarborLocalWorkflowPackageManifest,
   generateHarborLocalWorkflowManifest: () => generateHarborLocalWorkflowManifest,
   generateHarborLocalPluginPackageManifest: () => generateHarborLocalPluginPackageManifest,
@@ -29041,6 +29147,7 @@ __export(exports_src, {
   completeHarborLocalOAuthCallback: () => completeHarborLocalOAuthCallback,
   buildHarborLocalToolIndexFromSqlite: () => buildHarborLocalToolIndexFromSqlite,
   LOCAL_WORKSPACE_ID: () => LOCAL_WORKSPACE_ID,
+  HarborLocalError: () => HarborLocalError,
   HARBOR_SQLITE_FILE: () => HARBOR_SQLITE_FILE,
   HARBOR_RUNTIME_FILE: () => HARBOR_RUNTIME_FILE,
   HARBOR_REGISTRY_REFS_FILE: () => HARBOR_REGISTRY_REFS_FILE,
@@ -29134,6 +29241,7 @@ function harborLocalDaemonConnection(manifest) {
 var LOCAL_WORKSPACE_ID = "local", HARBOR_LOCAL_DIR = ".harbor", HARBOR_RUNTIME_FILE = "runtime.json", HARBOR_SQLITE_FILE = "harbor.sqlite", HARBOR_CREDENTIALS_FILE = "credentials.enc", HARBOR_REGISTRY_REFS_FILE = "registry-dev-refs.json", HARBOR_LOCAL_LAYOUT, DEFAULT_REGISTRY_REFS;
 var init_src4 = __esm(() => {
   init_sqlite();
+  init_errors();
   init_submission();
   init_package_format();
   init_workflows();
@@ -40946,6 +41054,7 @@ var REGISTRY_CATALOG_ENTRIES = REGISTRY_CATALOG_SLUGS.map((slug) => {
 });
 // packages/sdk/runtime-local/src/promise.ts
 init_credentials();
+init_src4();
 init_tool_registry_actions();
 function createHarborLocalRuntime(input) {
   const base2 = {
@@ -40955,16 +41064,29 @@ function createHarborLocalRuntime(input) {
     ...input.fetch ? { fetch: input.fetch } : {}
   };
   const refreshMcp = (sourceId) => refreshHarborLocalMcpSource({ ...base2, sourceId });
+  const emit = async (event, onStatus, legacyStatus) => {
+    await input.logger?.(event);
+    if (legacyStatus)
+      await onStatus?.(legacyStatus);
+  };
   const ensureOne = async (ensureInput, sourceInput) => {
     const catalog = catalogEntryForEndpoint(sourceInput.endpoint);
     const discovery = sourceInput.discovery ?? catalogDiscovery(catalog);
     const authKind = sourceInput.auth === "none" ? "none" : sourceInput.auth === "oauth2" || discovery ? "oauth2" : "none";
     const sourceId = sourceInput.namespace ?? catalog?.default_namespace ?? nameFromEndpoint(sourceInput.endpoint);
-    await ensureInput.onStatus?.({
+    const installMessage = `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`;
+    await emit({
+      level: "info",
+      area: "mcp",
+      code: "mcp_source_install",
+      sourceId,
+      endpoint: sourceInput.endpoint,
+      message: installMessage
+    }, ensureInput.onStatus, {
       stage: "install",
       sourceId,
       endpoint: sourceInput.endpoint,
-      message: `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`
+      message: installMessage
     });
     const source = await upsertHarborLocalMcpSource({
       projectRoot: input.projectRoot,
@@ -40979,11 +41101,19 @@ function createHarborLocalRuntime(input) {
     });
     if (authKind === "oauth2") {
       const oauth = await readHarborLocalOAuthStatus(input.projectRoot, source.id);
-      await ensureInput.onStatus?.({
+      const oauthMessage = `OAuth status for MCP source "${source.id}" is ${oauth.status}.`;
+      await emit({
+        level: oauth.status === "reconnect_required" ? "warn" : "info",
+        area: "oauth",
+        code: "mcp_oauth_status",
+        sourceId: source.id,
+        status: oauth.status,
+        message: oauthMessage
+      }, ensureInput.onStatus, {
         stage: "oauth",
         sourceId: source.id,
         status: oauth.status,
-        message: `OAuth status for MCP source "${source.id}" is ${oauth.status}.`
+        message: oauthMessage
       });
       if (oauth.status === "reconnect_required") {
         return {
@@ -41014,16 +41144,29 @@ function createHarborLocalRuntime(input) {
           clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`
         });
         try {
-          await ensureInput.onStatus?.({
+          const pendingMessage = `Waiting for OAuth callback for MCP source "${source.id}".`;
+          await emit({
+            level: "info",
+            area: "oauth",
+            code: "mcp_oauth_waiting_for_callback",
+            sourceId: source.id,
+            status: "pending",
+            message: pendingMessage
+          }, ensureInput.onStatus, {
             stage: "oauth",
             sourceId: source.id,
             status: "pending",
-            message: `Waiting for OAuth callback for MCP source "${source.id}".`
+            message: pendingMessage
           });
-          await ensureInput.onAuthorizationUrl?.({
+          await input.logger?.({
+            level: "info",
+            area: "oauth",
+            code: "mcp_oauth_authorization_url",
             sourceId: source.id,
-            authorizationUrl: connect.authorizationUrl
+            authorizationUrl: connect.authorizationUrl,
+            message: `OAuth authorization URL is ready for MCP source "${source.id}".`
           });
+          await ensureInput.onAuthorizationUrl?.({ sourceId: source.id, authorizationUrl: connect.authorizationUrl });
           await connect.waitForReady();
         } finally {
           await connect.close();
@@ -41038,17 +41181,33 @@ function createHarborLocalRuntime(input) {
       };
     }
     try {
-      await ensureInput.onStatus?.({
+      const refreshMessage = `Refreshing MCP tools for source "${source.id}".`;
+      await emit({
+        level: "info",
+        area: "mcp",
+        code: "mcp_source_refresh",
+        sourceId: source.id,
+        message: refreshMessage
+      }, ensureInput.onStatus, {
         stage: "refresh",
         sourceId: source.id,
-        message: `Refreshing MCP tools for source "${source.id}".`
+        message: refreshMessage
       });
       const refresh = await refreshMcp(source.id);
-      await ensureInput.onStatus?.({
+      const readyMessage = `MCP source "${source.id}" is ready with ${refresh.toolCount} tools.`;
+      await emit({
+        level: "info",
+        area: "mcp",
+        code: "mcp_source_ready",
+        sourceId: source.id,
+        status: "ready",
+        toolCount: refresh.toolCount,
+        message: readyMessage
+      }, ensureInput.onStatus, {
         stage: "ready",
         sourceId: source.id,
         toolCount: refresh.toolCount,
-        message: `MCP source "${source.id}" is ready with ${refresh.toolCount} tools.`
+        message: readyMessage
       });
       return {
         source: await readHarborLocalMcpSource(input.projectRoot, source.id) ?? source,
@@ -41058,10 +41217,19 @@ function createHarborLocalRuntime(input) {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await ensureInput.onStatus?.({
+      const errorMessage2 = `Failed refreshing MCP source "${source.id}": ${message}`;
+      await emit({
+        level: "error",
+        area: "mcp",
+        code: "mcp_source_refresh_failed",
+        sourceId: source.id,
+        status: "refresh_failed",
+        error,
+        message: errorMessage2
+      }, ensureInput.onStatus, {
         stage: "error",
         sourceId: source.id,
-        message: `Failed refreshing MCP source "${source.id}": ${message}`
+        message: errorMessage2
       });
       return {
         source,
@@ -41168,9 +41336,12 @@ function nameFromEndpoint(endpoint) {
   }
 }
 export {
+  isHarborLocalError,
   harborLocalRegistryAgentStepSchema,
   harborLocalRegistryActionSchema,
   harborLocalRegistryActionFromAgentStep,
+  harborLocalConsoleLogger,
   createHarborLocalRuntime,
+  HarborLocalError,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV
 };

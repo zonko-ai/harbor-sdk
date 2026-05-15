@@ -13,6 +13,21 @@ export {
 } from "./security"
 
 export {
+  HarborLocalError,
+  isHarborLocalError,
+  toHarborLocalError,
+  type HarborLocalErrorCode,
+  type HarborLocalErrorInput,
+} from "./errors"
+
+export {
+  harborLocalConsoleLogger,
+  type HarborLocalLogEvent,
+  type HarborLocalLogLevel,
+  type HarborLocalLogger,
+} from "./logger"
+
+export {
   createHarborLocalSubmissionSecurityChecklist,
   createHarborLocalSubmissionSnapshot,
   harborLocalSubmissionLayout,

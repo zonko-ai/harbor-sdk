@@ -28,6 +28,7 @@ import {
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
   HARBOR_LOCAL_SCHEMA_VERSION,
+  HarborLocalError,
   importHarborLocalCredentialsFromEnv,
   importHarborLocalCredentialsFromEnvKey,
   installHarborLocalPluginManifest,
@@ -64,6 +65,7 @@ import {
   watchHarborRegistryDevRefs,
   writeHarborLocalCredentials,
   LOCAL_WORKSPACE_ID,
+  type HarborLocalLogEvent,
   type HarborRegistryDevRefsFile,
 } from "../src/index"
 import { createHarborLocalRuntime } from "../src/promise"
@@ -437,6 +439,60 @@ describe("@hrbr/runtime-local MCP source store", () => {
     })
   })
 
+  it("emits structured SDK log events while ensuring MCP sources", async () => {
+    await withTempProject(async (projectRoot) => {
+      const events: HarborLocalLogEvent[] = []
+      const fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { id?: number; method: string }
+        if (body.method === "initialize") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "linear" } },
+          }), { headers: { "content-type": "application/json", "mcp-session-id": "session-1" } })
+        }
+        if (body.method === "notifications/initialized") return new Response(null, { status: 202 })
+        if (body.method === "tools/list") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { tools: [{ name: "list_issues", description: "List Linear tickets" }] },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      }
+
+      const harbor = createHarborLocalRuntime({
+        projectRoot,
+        fetch,
+        logger: (event) => events.push(event),
+      })
+      const legacyStages: string[] = []
+      await expect(harbor.sources.ensureMcpSources({
+        sources: [{
+          endpoint: "https://linear.example.com/mcp",
+          name: "Linear MCP",
+          namespace: "linear-mcp",
+          auth: "none",
+        }],
+        onStatus: (event) => legacyStages.push(event.stage),
+      })).resolves.toMatchObject({ ready: true })
+
+      expect(events.map((event) => event.code)).toEqual([
+        "mcp_source_install",
+        "mcp_source_refresh",
+        "mcp_source_ready",
+      ])
+      expect(events[2]).toMatchObject({
+        level: "info",
+        area: "mcp",
+        sourceId: "linear-mcp",
+        toolCount: 1,
+      })
+      expect(legacyStages).toEqual(["install", "refresh", "ready"])
+    })
+  })
+
   it("discovers MCP tools into searchable SQLite rows and invokes by stored binding", async () => {
     await withTempProject(async (projectRoot) => {
       const seen: Array<{ method: string; tool?: string | undefined }> = []
@@ -725,21 +781,21 @@ describe("@hrbr/runtime-local MCP source store", () => {
         return await linearMcp.createIssue({ title: "blocked" });
       `)).resolves.toMatchObject({
         ok: false,
-        error: { code: "EXEC_ERROR", message: expect.stringContaining("Blocked write tool") },
+        error: { code: "local_write_confirmation_required", message: expect.stringContaining("Blocked write tool") },
         namespaces: ["linear-mcp"],
       })
       await expect(exec.run(`
         return await linarMcp.listIssues({});
       `)).resolves.toMatchObject({
         ok: false,
-        error: { code: "EXEC_ERROR", message: expect.stringContaining("Available namespace aliases") },
+        error: { code: "local_exec_error", message: expect.stringContaining("Available namespace aliases") },
         namespaces: [],
       })
       await expect(exec.run(`
         return await linearMcp.missingTool({});
       `)).resolves.toMatchObject({
         ok: false,
-        error: { code: "EXEC_ERROR", message: expect.stringContaining("Tool \"missingTool\" not found") },
+        error: { code: "local_exec_error", message: expect.stringContaining("Tool \"missingTool\" not found") },
         namespaces: ["linear-mcp"],
       })
       expect(calls.some((call) => call.method === "tools/call" && call.tool === "list_issues")).toBe(true)
@@ -1078,6 +1134,15 @@ describe("@hrbr/runtime-local credentials", () => {
     expect(() => readHarborLocalCredentialKeyFromEnv({
       env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "" },
     })).toThrow("HARBOR_LOCAL_CREDENTIAL_KEY is required")
+    try {
+      readHarborLocalCredentialKeyFromEnv({ env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "" } })
+    } catch (error) {
+      expect(error).toBeInstanceOf(HarborLocalError)
+      expect(error).toMatchObject({
+        code: "local_credentials_key_required",
+        details: { envName: HARBOR_LOCAL_CREDENTIAL_KEY_ENV },
+      })
+    }
   })
 })
 

@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { generateObject } from "ai"
-import { createHarbor } from "@hrbr/sdk/local"
+import { createHarbor, harborLocalConsoleLogger } from "@hrbr/sdk/local"
 import { z } from "zod"
 
 const codeResultSchema = z.object({ code: z.string() })
@@ -105,13 +105,16 @@ export async function runAiSdkLocalExecAgent(input: {
   const runtimeEnv = input.env ?? envFromProcess()
   requireLocalCredentialKey(runtimeEnv)
   const allowLocalNetwork = Boolean(runtimeEnv.HARBOR_LINEAR_MCP_ENDPOINT || runtimeEnv.HARBOR_NOTION_MCP_ENDPOINT)
-  const harbor = createHarbor({ projectRoot: input.projectRoot ?? projectRootFrom(runtimeEnv, process.cwd()), env: runtimeEnv, allowLocalNetwork })
+  const harbor = createHarbor({
+    projectRoot: input.projectRoot ?? projectRootFrom(runtimeEnv, process.cwd()),
+    env: runtimeEnv,
+    allowLocalNetwork,
+    logger: harborLocalConsoleLogger(),
+  })
   const setup = await harbor.sources.ensureMcpSources({
     sources: mcpSourcesFrom(runtimeEnv),
     connect: true,
     refresh: true,
-    onStatus: (event) => console.log(`[harbor] ${event.message}`),
-    onAuthorizationUrl: ({ sourceId, authorizationUrl }) => console.log(`Open this URL to connect ${sourceId}:\n${authorizationUrl}\n`),
   })
   if (!setup.ready) return { answer: `Sources are not ready: ${JSON.stringify(setup.sources)}` }
 
