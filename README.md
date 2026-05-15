@@ -4,7 +4,7 @@
 
 # Harbor SDK
 
-**A TypeScript toolkit for building local and hosted tool runtimes around MCP plugins.**
+**A TypeScript toolkit for building local tool runtimes around MCP plugins.**
 
 OAuth, encrypted credentials, tool discovery, schema inspection, sandboxed
 execution, and traces — without depending on a hosted Harbor, WorkOS,
@@ -35,7 +35,6 @@ Cloudflare, or any particular agent framework.
 - [Local Harbor (browser console)](#local-harbor-browser-console)
 - [Connect Agents over MCP](#connect-agents-over-mcp)
 - [Use the SDK Directly](#use-the-sdk-directly)
-- [Packages](#packages)
 - [Examples](#examples)
 - [Local State Layout](#local-state-layout)
 - [Environment Reference](#environment-reference)
@@ -63,9 +62,9 @@ TypeScript library that runs **entirely on your machine** by default.
 You can:
 
 - run it standalone with the bundled **Local Harbor** browser console,
-- embed it into a Flue or Vercel AI SDK agent,
+- embed it directly from TypeScript,
 - expose it back to agents as a small MCP server (`inspect` + `exec`),
-- or wire it into a hosted runtime when you're ready.
+- or use the included agent examples as integration references.
 
 ---
 
@@ -92,7 +91,7 @@ You can:
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │                            Your agent / IDE                            │
-│  (Claude Code, Cursor, Codex, Vercel AI SDK, Flue, custom orchestrator)│
+│              (Claude Code, Cursor, Codex, custom orchestrator)         │
 └────────────────┬─────────────────────────────────┬─────────────────────┘
                  │ MCP HTTP                        │ direct TS import
                  ▼                                 ▼
@@ -114,12 +113,6 @@ You can:
                  ▼
     .harbor/  (per-project, gitignored runtime state)
 ```
-
-The same SDK surface targets a **Cloudflare runtime** for hosted deployments
-(`@hrbr/runtime-cloudflare`) — your application code doesn't change when you
-graduate from local to hosted.
-
----
 
 ## Quickstart
 
@@ -288,28 +281,6 @@ console.log({ schema, direct, exec, traces })
 > produce identical trace entries — you can swap between them without losing
 > the audit trail.
 
----
-
-## Packages
-
-| Package | Description |
-| --- | --- |
-| **`@hrbr/sdk`** | Top-level facade. Re-exports `createHarbor` from `@hrbr/sdk/local` (local runtime), `@hrbr/sdk/core` (shared types), and `@hrbr/sdk/testing` (fakes). |
-| **`@hrbr/runtime-local`** | The local runtime: SQLite catalog, AES-GCM credential vault, OAuth, tool index, QuickJS sandbox, invocation history. |
-| **`@hrbr/runtime-cloudflare`** | Same SDK surface backed by Cloudflare Durable Objects, KV, and Workers AI. |
-| **`@hrbr/source-mcp`** | HTTP and stdio MCP source adapter built on `@modelcontextprotocol/sdk`. |
-| **`@hrbr/source-credentials`** | Pluggable secret slot bindings (header, query, body) shared by source adapters. |
-| **`@hrbr/source-policy`** | Read/write policy hints used to gate destructive tool invocations. |
-| **`@hrbr/registry-catalog`** | Checked-in metadata for the local MCP catalog (Linear, Notion, etc.). |
-| **`@hrbr/orbit`** | Storage / fetch / AI primitives that back `exec` runtimes. |
-| **`@hrbr/plugins`**, **`@hrbr/sources`**, **`@hrbr/tools`** | Shared domain types. |
-| **`@hrbr/runs`** | Run + trace records persisted by the runtime. |
-| **`apps/harbor-local`** | Bun HTTP API + Vite/React/Tailwind v4 dashboard. |
-
-Run `bun pm ls --filter '@hrbr/*'` to inspect the full workspace graph.
-
----
-
 ## Examples
 
 | Example | What it shows |
@@ -325,7 +296,9 @@ Run `bun pm ls --filter '@hrbr/*'` to inspect the full workspace graph.
 | `examples/sdk-orbit-runtime` | Explore Orbit (storage/fetch/AI) primitives. |
 | `examples/tool-registry-linear-notion` | Compose Linear and Notion in one registry. |
 
-Every example is runnable with `bun run example:<name>` (see `package.json`).
+See `package.json` for the exact `example:*` commands. Some examples run an
+end-to-end script; agent harness examples are checked with their local
+typecheck command until you provide provider credentials.
 
 ---
 
@@ -374,13 +347,11 @@ harbor-sdk/
 │   ├── sdk/
 │   │   ├── sdk/             # @hrbr/sdk facade
 │   │   ├── runtime-local/   # @hrbr/runtime-local
-│   │   ├── runtime-cloudflare/
 │   │   ├── source-mcp/      # MCP adapter
 │   │   ├── source-credentials/
 │   │   ├── source-policy/
 │   │   ├── registry-catalog/
-│   │   ├── orbit/           # storage / fetch / AI primitives
-│   │   ├── tools/, sources/, plugins/, runs/, …
+│   │   └── tools/, sources/, plugins/, runs/, …
 │   └── workflows/
 ├── examples/                # runnable end-to-end recipes
 ├── docs/
