@@ -9,8 +9,7 @@
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.77",
-    "@hrbr/runtime-local": "workspace:*",
-    "@hrbr/source-mcp": "workspace:*",
+    "@hrbr/sdk": "workspace:*",
     "ai": "^6.0.182",
     "zod": "^4.4.3"
   },

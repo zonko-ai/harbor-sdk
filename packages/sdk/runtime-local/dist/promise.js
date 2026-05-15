@@ -1,4 +1,4 @@
-import { createRequire } from "node:module";
+// @bun
 var __defProp = Object.defineProperty;
 var __returnValue = (v) => v;
 function __exportSetter(name, newValue) {
@@ -14,10 +14,10 @@ var __export = (target, all) => {
     });
 };
 var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
-var __require = /* @__PURE__ */ createRequire(import.meta.url);
+var __require = import.meta.require;
 
 // packages/sdk/runtime-local/src/sqlite.ts
-import { createRequire as createRequire2 } from "node:module";
+import { createRequire } from "module";
 function expectedHarborLocalTables() {
   return HARBOR_LOCAL_TABLES;
 }
@@ -42,7 +42,7 @@ function loadSqliteDatabase() {
       return original(warning, ...rest);
     };
   }
-  const req = createRequire2(import.meta.url);
+  const req = createRequire(import.meta.url);
   try {
     DatabaseSync = req("node:sqlite").DatabaseSync;
     return DatabaseSync;
@@ -691,7 +691,7 @@ async function QuickJSRaw(moduleArg = {}) {
   var moduleRtn;
   var d = moduleArg, aa = !!globalThis.window, n = !!globalThis.WorkerGlobalScope, q = globalThis.process?.versions?.node && globalThis.process?.type != "renderer";
   if (q) {
-    const { createRequire: a } = await import("node:module");
+    const { createRequire: a } = await import("module");
     var require2 = a(import.meta.url);
   }
   function r(a) {
@@ -13796,7 +13796,7 @@ function formatExecutionSummary(executionTrees, stringifyOne) {
     const currentTreeAndDepth = remainingTreesAndDepth.pop();
     const currentTree = currentTreeAndDepth.tree;
     const currentDepth = currentTreeAndDepth.depth;
-    const statusIcon = currentTree.status === ExecutionStatus.Success ? "\x1B[32m√\x1B[0m" : currentTree.status === ExecutionStatus.Failure ? "\x1B[31m×\x1B[0m" : "\x1B[33m!\x1B[0m";
+    const statusIcon = currentTree.status === ExecutionStatus.Success ? "\x1B[32m\u221A\x1B[0m" : currentTree.status === ExecutionStatus.Failure ? "\x1B[31m\xD7\x1B[0m" : "\x1B[33m!\x1B[0m";
     const leftPadding = currentDepth !== 0 ? ". ".repeat(currentDepth - 1) : "";
     summaryLines.push(`${leftPadding}${statusIcon} ${stringifyOne(currentTree.value)}`);
     for (let i = currentTree.children.length - 1;i >= 0; --i)
@@ -13904,7 +13904,7 @@ async function asyncDefaultReportMessage(out) {
     if (typeof stringified === "string")
       return stringified;
     pendingStringifieds.push(Promise.all([value3, stringified]));
-    return "…";
+    return "\u2026";
   }
   const firstTryMessage = defaultReportMessageInternal(out, stringifyOne);
   if (pendingStringifieds.length === 0)
@@ -16367,7 +16367,7 @@ function json(constraints = {}) {
   return jsonValue(constraints).map(safeJsonStringify, jsonStringUnmapper);
 }
 function prettyPrint(numSeen, seenValuesStrings) {
-  return `Stream(${seenValuesStrings !== undefined ? `${safeJoin(seenValuesStrings, ",")}…` : `${numSeen} emitted`})`;
+  return `Stream(${seenValuesStrings !== undefined ? `${safeJoin(seenValuesStrings, ",")}\u2026` : `${numSeen} emitted`})`;
 }
 function infiniteStream(arb, constraints) {
   return new StreamArbitrary(arb, constraints !== undefined && typeof constraints === "object" && "noHistory" in constraints ? !constraints.noHistory : true);
@@ -26150,7 +26150,7 @@ var init_src2 = __esm(() => {
 });
 
 // packages/sdk/source-auth/src/index.ts
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "crypto";
 function base64Url(buffer) {
   return buffer.toString("base64url");
 }
@@ -26270,6 +26270,24 @@ async function exchangeOAuthAuthorizationCode(input) {
     body: params.toString()
   }), "OAuth authorization code exchange"));
 }
+async function refreshOAuthTokenSet(input) {
+  const fetchImpl = input.fetch ?? globalThis.fetch;
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: input.refreshToken,
+    client_id: input.clientId
+  });
+  if (input.clientSecret)
+    params.set("client_secret", input.clientSecret);
+  return tokenSetFromResponse(await readJsonResponse(await fetchImpl(input.tokenEndpoint, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: params.toString()
+  }), "OAuth refresh token exchange"));
+}
 var AuthKind, InstallFlow;
 var init_src3 = __esm(() => {
   init_dist4();
@@ -26292,8 +26310,8 @@ var init_src3 = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/credentials.ts
-import { createCipheriv, createDecipheriv, randomBytes as randomBytes2, scryptSync } from "node:crypto";
-import { readFile, writeFile } from "node:fs/promises";
+import { createCipheriv, createDecipheriv, randomBytes as randomBytes2, scryptSync } from "crypto";
+import { readFile, writeFile } from "fs/promises";
 function deriveKey(key, salt) {
   return scryptSync(key, salt, 32);
 }
@@ -26498,9 +26516,9 @@ function createHarborLocalToolIndex(records, options = {}) {
 }
 
 // packages/sdk/runtime-local/src/plugin-store.ts
-import { createRequire as createRequire3 } from "node:module";
+import { createRequire as createRequire2 } from "module";
 function loadDatabase() {
-  const req = createRequire3(import.meta.url);
+  const req = createRequire2(import.meta.url);
   try {
     return req("bun:sqlite").Database;
   } catch {
@@ -26687,9 +26705,9 @@ var init_plugin_store = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/mcp-store.ts
-import { createRequire as createRequire4 } from "node:module";
+import { createRequire as createRequire3 } from "module";
 function loadDatabase2() {
-  const req = createRequire4(import.meta.url);
+  const req = createRequire3(import.meta.url);
   try {
     return req("bun:sqlite").Database;
   } catch {
@@ -26967,9 +26985,9 @@ var init_mcp_store = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/oauth.ts
-import { createRequire as createRequire5 } from "node:module";
+import { createRequire as createRequire4 } from "module";
 function loadDatabase3() {
-  const req = createRequire5(import.meta.url);
+  const req = createRequire4(import.meta.url);
   try {
     return req("bun:sqlite").Database;
   } catch {
@@ -27018,6 +27036,59 @@ function grantFromRow(row) {
     ...row["expires_at"] !== null && row["expires_at"] !== undefined ? { expiresAt: String(row["expires_at"]) } : {},
     createdAt: String(row["created_at"]),
     updatedAt: String(row["updated_at"])
+  };
+}
+function oauthClientFromRow(row) {
+  return {
+    id: String(row["id"]),
+    sourceRefId: String(row["source_ref_id"]),
+    clientId: String(row["client_id"]),
+    ...row["client_secret_ref"] !== null && row["client_secret_ref"] !== undefined ? { clientSecretRef: String(row["client_secret_ref"]) } : {},
+    tokenEndpoint: String(row["token_endpoint"])
+  };
+}
+function shouldRefreshGrant(grant, input) {
+  if (input.force === true)
+    return true;
+  if (!grant.expiresAt)
+    return false;
+  const expiresAt = Date.parse(grant.expiresAt);
+  if (!Number.isFinite(expiresAt))
+    return true;
+  const now2 = (input.now ?? (() => new Date))().getTime();
+  return expiresAt <= now2 + (input.refreshSkewMs ?? 300000);
+}
+function credentialValue(credentials, sourceRefId2, slot) {
+  return credentials.find((record3) => record3.sourceRefId === sourceRefId2 && record3.slot === slot && record3.status === "active")?.value;
+}
+function upsertCredential(byId, input) {
+  const id2 = `${input.sourceRefId}:${input.slot}`;
+  const existing = byId.get(id2);
+  byId.set(id2, {
+    id: id2,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    sourceRefId: input.sourceRefId,
+    slot: input.slot,
+    value: input.value,
+    scope: "local",
+    status: "active",
+    createdAt: existing?.createdAt ?? input.now,
+    updatedAt: input.now
+  });
+}
+async function markGrantReconnectRequired(projectRoot, sourceRefId2, error) {
+  const now2 = new Date().toISOString();
+  const db = openDatabase3(projectRoot);
+  try {
+    db.prepare("UPDATE oauth_grants SET status = ?, updated_at = ? WHERE source_ref_id = ? AND status = ?").run("reconnect_required", now2, sourceRefId2, "active");
+  } finally {
+    db.close();
+  }
+  const status = await readHarborLocalOAuthStatus(projectRoot, sourceRefId2);
+  return {
+    status: "reconnect_required",
+    ...status.grant ? { grant: status.grant } : {},
+    ...error ? { error } : {}
   };
 }
 async function startHarborLocalOAuthFlow(input) {
@@ -27180,6 +27251,101 @@ async function completeHarborLocalOAuthCallback(projectRoot, input) {
     now: input.now
   });
 }
+async function refreshHarborLocalOAuthGrant(projectRoot, input) {
+  await ensureHarborLocalProject({ projectRoot });
+  const db = openDatabase3(projectRoot);
+  let grant = null;
+  let client = null;
+  try {
+    const grantRow = db.prepare(`
+      SELECT * FROM oauth_grants
+      WHERE source_ref_id = ?
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `).all(input.sourceRefId)[0];
+    grant = grantRow ? grantFromRow(grantRow) : null;
+    if (!grant)
+      return { status: "requires_oauth" };
+    if (grant.status === "reconnect_required")
+      return { status: "reconnect_required", grant };
+    if (!shouldRefreshGrant(grant, input))
+      return { status: "not_needed", grant };
+    const clientRow = db.prepare("SELECT * FROM oauth_clients WHERE id = ? LIMIT 1").all(grant.oauthClientId)[0];
+    client = clientRow ? oauthClientFromRow(clientRow) : null;
+  } finally {
+    db.close();
+  }
+  if (!client) {
+    return markGrantReconnectRequired(projectRoot, input.sourceRefId, "OAuth client metadata is missing.");
+  }
+  const key = readHarborLocalCredentialKeyFromEnv(input);
+  const current = await readHarborLocalCredentials(projectRoot, key);
+  const refreshToken = credentialValue(current.credentials, input.sourceRefId, "refresh_token");
+  if (!refreshToken) {
+    return markGrantReconnectRequired(projectRoot, input.sourceRefId, "OAuth refresh token is missing.");
+  }
+  const clientSecret = client.clientSecretRef ? credentialValue(current.credentials, input.sourceRefId, client.clientSecretRef) : undefined;
+  let tokens;
+  try {
+    tokens = await refreshOAuthTokenSet({
+      tokenEndpoint: client.tokenEndpoint,
+      refreshToken,
+      clientId: client.clientId,
+      ...clientSecret ? { clientSecret } : {},
+      fetch: input.fetch
+    });
+  } catch (error) {
+    return markGrantReconnectRequired(projectRoot, input.sourceRefId, error instanceof Error ? error.message : String(error));
+  }
+  const now2 = timestamp3(input.now);
+  const scopes = tokens.scopes ?? grant.scopes;
+  const dbAfterRefresh = openDatabase3(projectRoot);
+  try {
+    dbAfterRefresh.prepare(`
+      UPDATE oauth_grants
+      SET status = ?, scopes_json = ?, expires_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run("active", JSON.stringify(scopes), tokens.expiresAt ?? grant.expiresAt ?? null, now2, grant.id);
+    for (const slot of ["access_token", "refresh_token"]) {
+      dbAfterRefresh.prepare(`
+        INSERT INTO credential_metadata (
+          id, workspace_id, source_ref_id, slot, scope, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
+      `).run(`${input.sourceRefId}:${slot}`, LOCAL_WORKSPACE_ID, input.sourceRefId, slot, "local", "active", now2, now2);
+    }
+  } finally {
+    dbAfterRefresh.close();
+  }
+  const byId = new Map(current.credentials.map((credential) => [credential.id, credential]));
+  upsertCredential(byId, {
+    sourceRefId: input.sourceRefId,
+    slot: "access_token",
+    value: tokens.accessToken,
+    now: now2
+  });
+  upsertCredential(byId, {
+    sourceRefId: input.sourceRefId,
+    slot: "refresh_token",
+    value: tokens.refreshToken ?? refreshToken,
+    now: now2
+  });
+  await writeHarborLocalCredentials(projectRoot, {
+    version: 1,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    credentials: [...byId.values()].sort((a, b) => a.id.localeCompare(b.id))
+  }, key);
+  return {
+    status: "refreshed",
+    grant: {
+      ...grant,
+      status: "active",
+      scopes,
+      ...tokens.expiresAt ?? grant.expiresAt ? { expiresAt: tokens.expiresAt ?? grant.expiresAt } : {},
+      updatedAt: now2
+    }
+  };
+}
 async function readHarborLocalOAuthStatus(projectRoot, sourceRefId2) {
   await ensureHarborLocalProject({ projectRoot });
   const db = openDatabase3(projectRoot);
@@ -27217,9 +27383,9 @@ var init_oauth = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/daemon.ts
-import { createHash as createHash2, randomBytes as randomBytes3 } from "node:crypto";
-import { readFile as readFile2, writeFile as writeFile2 } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createHash as createHash2, randomBytes as randomBytes3 } from "crypto";
+import { readFile as readFile2, writeFile as writeFile2 } from "fs/promises";
+import { createServer } from "http";
 function json3(res, status, body) {
   res.writeHead(status, { "content-type": "application/json; charset=utf-8" });
   res.end(JSON.stringify(body));
@@ -27484,7 +27650,24 @@ function bearerSlot(source) {
   return;
 }
 async function optionalCredentials(input) {
-  return bearerSlot(input.source) === undefined ? undefined : resolvedCredentials2({
+  const slot = bearerSlot(input.source);
+  if (slot === undefined)
+    return;
+  if (input.source.auth.kind === "oauth2") {
+    const oauth = await readHarborLocalOAuthStatus(input.projectRoot, input.source.id);
+    if (oauth.status === "ready" || oauth.status === "reconnect_required") {
+      const refresh = await refreshHarborLocalOAuthGrant(input.projectRoot, {
+        sourceRefId: input.source.id,
+        env: input.env,
+        envName: input.envName,
+        fetch: input.fetch
+      });
+      if (refresh.status === "reconnect_required") {
+        throw new Error(refresh.error ?? `OAuth reconnect is required for MCP source "${input.source.id}".`);
+      }
+    }
+  }
+  return slot === undefined ? undefined : resolvedCredentials2({
     projectRoot: input.projectRoot,
     sourceId: input.source.id,
     env: input.env,
@@ -27595,7 +27778,8 @@ async function refreshHarborLocalMcpSource(input) {
     projectRoot: input.projectRoot,
     source,
     env: input.env,
-    envName: input.envName
+    envName: input.envName,
+    fetch: input.fetch
   });
   const tools = await adapter2.listTools(credentials ? { credentials } : undefined);
   const bindings = await putHarborLocalMcpToolBindings({
@@ -27626,9 +27810,9 @@ async function refreshHarborLocalMcpSource(input) {
   };
 }
 async function writeMcpToolIndex(projectRoot, sourceId, records) {
-  const { createRequire: createRequire6 } = await import("node:module");
+  const { createRequire: createRequire5 } = await import("module");
   const { harborLocalPaths: harborLocalPaths2 } = await Promise.resolve().then(() => (init_src4(), exports_src));
-  const req = createRequire6(import.meta.url);
+  const req = createRequire5(import.meta.url);
   const Database = (() => {
     try {
       return req("bun:sqlite").Database;
@@ -27667,7 +27851,8 @@ async function createHarborLocalMcpToolRuntime(input) {
         projectRoot: input.projectRoot,
         source,
         env: input.env,
-        envName: input.envName
+        envName: input.envName,
+        fetch: input.fetch
       });
       return {
         toolId: call.toolId,
@@ -28192,9 +28377,9 @@ var init_tool_registry_actions = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/exec.ts
-import { createRequire as createRequire6 } from "node:module";
+import { createRequire as createRequire5 } from "module";
 function loadDatabase4() {
-  const req = createRequire6(import.meta.url);
+  const req = createRequire5(import.meta.url);
   try {
     return req("bun:sqlite").Database;
   } catch {
@@ -28412,9 +28597,9 @@ var init_exec = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/registry.ts
-import { watch, watchFile, unwatchFile } from "node:fs";
-import { mkdir, readFile as readFile3, rmdir, writeFile as writeFile3 } from "node:fs/promises";
-import { isAbsolute, join as join2 } from "node:path";
+import { watch, watchFile, unwatchFile } from "fs";
+import { mkdir, readFile as readFile3, rmdir, writeFile as writeFile3 } from "fs/promises";
+import { isAbsolute, join as join2 } from "path";
 function emptyRefs() {
   return { version: 1, workspaceId: LOCAL_WORKSPACE_ID, refs: [] };
 }
@@ -28663,6 +28848,7 @@ __export(exports_src, {
   runHarborLocalAppRoute: () => runHarborLocalAppRoute,
   requireHarborLocalConfirmation: () => requireHarborLocalConfirmation,
   removeHarborRegistryDevRef: () => removeHarborRegistryDevRef,
+  refreshHarborLocalOAuthGrant: () => refreshHarborLocalOAuthGrant,
   refreshHarborLocalMcpSource: () => refreshHarborLocalMcpSource,
   redactHarborSecret: () => redactHarborSecret,
   readHarborRegistryDevRefs: () => readHarborRegistryDevRefs,
@@ -28726,8 +28912,8 @@ __export(exports_src, {
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV: () => HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
   HARBOR_CREDENTIALS_FILE: () => HARBOR_CREDENTIALS_FILE
 });
-import { mkdir as mkdir2, readFile as readFile4, writeFile as writeFile4 } from "node:fs/promises";
-import { join as join3 } from "node:path";
+import { mkdir as mkdir2, readFile as readFile4, writeFile as writeFile4 } from "fs/promises";
+import { join as join3 } from "path";
 function harborLocalPaths(projectRoot) {
   const root = projectRoot.replace(/\/$/, "");
   const resolve2 = (path) => join3(root, path);
@@ -29945,7 +30131,7 @@ var git_cli_default = {
           properties: {
             verbose: {
               type: "boolean",
-              description: " Be a little more verbose and show remote url after name. For promisor remotes, also show which filters (b\bbl\blo\bob\bb:\b:n\bno\bon\bne\be etc.) are configured. NOTE: This must be placed between r\bre\bem\bmo\bot\bte\be and subcommand. With no arguments, shows a list of existing remotes. Several subcommands are available to perform operations on the remotes. _\ba_\bd_\bd Add a remote named <name> for the repository at <URL>. The command g\bgi\bit\bt f\bfe\bet\btc\bch\bh _\b<_\bn_\ba_\bm_\be_\b> can then be used to create and update remote-tracking branches <name>/<branch>. With -\b-f\bf option, g\bgi\bit\bt f\bfe\bet\btc\bch\bh _\b<_\bn_\ba_\bm_\be_\b> is run immediately after the remote information is set up. With -\b--\b-t\bta\bag\bgs\bs option, g\bgi\bit\bt f\bfe\bet\btc\bch\bh _\b<_\bn_\ba_\bm_\be_\b> imports every tag from the remote repository. With -\b--\b-n\bno\bo-\b-t\bta\bag\bgs\bs option, g\bgi\bit\bt f\bfe\bet\btc\bch\bh _\b<_\bn_\ba_\bm_\be_\b> does not import tags from the remote repository. By default, only tags on fetched branches are imported (see g\bgi\bit\bt-\b- f\bfe\bet\btc\bch\bh(1)). With -\b-t\bt _\b<_\bb_\br_\ba_\bn_\bc_\bh_\b> option, instead of the default glob refspec for the remote to track all branches under the r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/ namespace, a refspec to track only _\b<_\bb_\br_\ba_\bn_\bc_\bh_\b> is created. You can give more than one -\b-t\bt _\b<_\bb_\br_\ba_\bn_\bc_\bh_\b> to track multiple branches without grabbing all branches. With -\b-m\bm _\b<_\bm_\ba_\bs_\bt_\be_\br_\b> option, a symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD is set up to point at remote’s _\b<_\bm_\ba_\bs_\bt_\be_\br_\b> branch. See also the set-head command. When a fetch mirror is created with -\b--\b-m\bmi\bir\brr\bro\bor\br=\b=f\bfe\bet\btc\bch\bh, the refs will not be stored in the _\br_\be_\bf_\bs_\b/_\br_\be_\bm_\bo_\bt_\be_\bs_\b/ namespace, but rather everything in _\br_\be_\bf_\bs_\b/ on the remote will be directly mirrored into _\br_\be_\bf_\bs_\b/ in the local repository. This option only makes sense in bare repositories, because a fetch would overwrite any local commits. When a push mirror is created with -\b--\b-m\bmi\bir\brr\bro\bor\br=\b=p\bpu\bus\bsh\bh, then g\bgi\bit\bt p\bpu\bus\bsh\bh will always behave as if -\b--\b-m\bmi\bir\brr\bro\bor\br was passed. _\br_\be_\bn_\ba_\bm_\be Rename the remote named <old> to <new>. All remote-tracking branches and configuration settings for the remote are updated. In case <old> and <new> are the same, and <old> is a file under $\b$G\bGI\bIT\bT_\b_D\bDI\bIR\bR/\b/r\bre\bem\bmo\bot\bte\bes\bs or $\b$G\bGI\bIT\bT_\b_D\bDI\bIR\bR/\b/b\bbr\bra\ban\bnc\bch\bhe\bes\bs, the remote is converted to the configuration file format. _\br_\be_\bm_\bo_\bv_\be, _\br_\bm Remove the remote named <name>. All remote-tracking branches and configuration settings for the remote are removed. _\bs_\be_\bt_\b-_\bh_\be_\ba_\bd Sets or deletes the default branch (i.e. the target of the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD) for the named remote. Having a default branch for a remote is not required, but allows the name of the remote to be specified in lieu of a specific branch. For example, if the default branch for o\bor\bri\big\bgi\bin\bn is set to m\bma\bas\bst\bte\ber\br, then o\bor\bri\big\bgi\bin\bn may be specified wherever you would normally specify o\bor\bri\big\bgi\bin\bn/\b/m\bma\bas\bst\bte\ber\br. With -\b-d\bd or -\b--\b-d\bde\bel\ble\bet\bte\be, the symbolic ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD is deleted. With -\b-a\ba or -\b--\b-a\bau\but\bto\bo, the remote is queried to determine its H\bHE\bEA\bAD\bD, then the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD is set to the same branch. e.g., if the remote H\bHE\bEA\bAD\bD is pointed at n\bne\bex\bxt\bt, g\bgi\bit\bt r\bre\bem\bmo\bot\bte\be s\bse\bet\bt-\b-h\bhe\bea\bad\bd o\bor\bri\big\bgi\bin\bn -\b-a\ba will set the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/H\bHE\bEA\bAD\bD to r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/n\bne\bex\bxt\bt. This will only work if r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/n\bne\bex\bxt\bt already exists; if not it must be fetched first. Use _\b<_\bb_\br_\ba_\bn_\bc_\bh_\b> to set the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD explicitly. e.g., g\bgi\bit\bt r\bre\bem\bmo\bot\bte\be s\bse\bet\bt-\b-h\bhe\bea\bad\bd o\bor\bri\big\bgi\bin\bn m\bma\bas\bst\bte\ber\br will set the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/H\bHE\bEA\bAD\bD to r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/m\bma\bas\bst\bte\ber\br. This will only work if r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/m\bma\bas\bst\bte\ber\br already exists; if not it must be fetched first. _\bs_\be_\bt_\b-_\bb_\br_\ba_\bn_\bc_\bh_\be_\bs Changes the list of branches tracked by the named remote. This can be used to track a subset of the available remote branches after the initial setup for a remote. The named branches will be interpreted as if specified with the -\b-t\bt option on the g\bgi\bit\bt r\bre\bem\bmo\bot\bte\be a\bad\bdd\bd command line. With -\b--\b-a\bad\bdd\bd, instead of replacing the list of currently tracked branches, adds to that list. _\bg_\be_\bt_\b-_\bu_\br_\bl Retrieves the URLs for a remote. Configurations for i\bin\bns\bst\bte\bea\bad\bdO\bOf\bf and p\bpu\bus\bsh\bhI\bIn\bns\bst\bte\bea\bad\bdO\bOf\bf are expanded here. By default, only the first URL is listed. With -\b--\b-p\bpu\bus\bsh\bh, push URLs are queried rather than fetch URLs. With -\b--\b-a\bal\bll\bl, all URLs for the remote will be listed. _\bs_\be_\bt_\b-_\bu_\br_\bl Changes URLs for the remote. Sets first URL for remote <name> that matches regex <oldurl> (first URL if no <oldurl> is given) to <newurl>. If <oldurl> doesn’t match any URL, an error occurs and nothing is changed. With -\b--\b-p\bpu\bus\bsh\bh, push URLs are manipulated instead of fetch URLs. With -\b--\b-a\bad\bdd\bd, instead of changing existing URLs, new URL is added. With -\b--\b-d\bde\bel\ble\bet\bte\be, instead of changing existing URLs, all URLs matching regex <URL> are deleted for remote <name>. Trying to delete all non-push URLs is an error. Note that the push URL and the fetch URL, even though they can be set differently, must still refer to the same place. What you pushed to the push URL should be what you would see if you immediately fetched from the fetch URL. If you are trying to fetch from one place (e.g. your upstream) and push to another (e.g. your publishing repository), use two separate remotes. _\bs_\bh_\bo_\bw Gives some information about the remote <name>. With -\b-n\bn option, the remote heads are not queried first with g\bgi\bit\bt l\bls\bs-\b-r\bre\bem\bmo\bot\bte\be _\b<_\bn_\ba_\bm_\be_\b>; cached information is used instead. _\bp_\br_\bu_\bn_\be Deletes stale references associated with <name>. By default, stale remote-tracking branches under <name> are deleted, but depending on global configuration and the configuration of the remote we might even prune local tags that haven’t been pushed there. Equivalent to g\bgi\bit\bt f\bfe\bet\btc\bch\bh -\b--\b-p\bpr\bru\bun\bne\be _\b<_\bn_\ba_\bm_\be_\b>, except that no new references will be fetched. See the PRUNING section of g\bgi\bit\bt-\b-f\bfe\bet\btc\bch\bh(1) for what it’ll prune depending on various configuration. With -\b--\b-d\bdr\bry\by-\b-r\bru\bun\bn option, report what branches would be pruned, but do not actually prune them. _\bu_\bp_\bd_\ba_\bt_\be Fetch updates for remotes or remote groups in the repository as defined by r\bre\bem\bmo\bot\bte\bes\bs.\b._\b<_\bg_\br_\bo_\bu_\bp_\b>. If neither group nor remote is specified on the command line, the configuration parameter remotes.default will be used; if remotes.default is not defined, all remotes which do not have the configuration parameter r\bre\bem\bmo\bot\bte\be.\b._\b<_\bn_\ba_\bm_\be_\b>.\b.s\bsk\bki\bip\bpD\bDe\bef\bfa\bau\bul\blt\btU\bUp\bpd\bda\bat\bte\be set to true will be updated. (See g\bgi\bit\bt-\b-c\bco\bon\bnf\bfi\big\bg(1)). With -\b--\b-p\bpr\bru\bun\bne\be option, run pruning against all the remotes that are updated. The remote configuration is achieved using the r\bre\bem\bmo\bot\bte\be.\b.o\bor\bri\big\bgi\bin\bn.\b.u\bur\brl\bl and r\bre\bem\bmo\bot\bte\be.\b.o\bor\bri\big\bgi\bin\bn.\b.f\bfe\bet\btc\bch\bh configuration variables. (See g\bgi\bit\bt-\b-c\bco\bon\bnf\bfi\big\bg(1)). On success, the exit status is 0\b0. When subcommands such as _\ba_\bd_\bd, _\br_\be_\bn_\ba_\bm_\be, and _\br_\be_\bm_\bo_\bv_\be can’t find the remote in question, the exit status is 2\b2. When the remote already exists, the exit status is 3\b3. On any other error, the exit status may be any other non-zero value. •   Add a new remote, fetch, and check out a branch from it $ git remote origin $ git branch -r origin/HEAD -> origin/master origin/master $ git remote add staging git://git.kernel.org/.../gregkh/staging.git $ git remote origin staging $ git fetch staging ... From git://git.kernel.org/pub/scm/linux/kernel/git/gregkh/staging * [new branch]      master     -> staging/master * [new branch]      staging-linus -> staging/staging-linus * [new branch]      staging-next -> staging/staging-next $ git branch -r origin/HEAD -> origin/master origin/master staging/master staging/staging-linus staging/staging-next $ git switch -c staging staging/master ... •   Imitate _\bg_\bi_\bt _\bc_\bl_\bo_\bn_\be but track only selected branches $ mkdir project.git $ cd project.git $ git init $ git remote add -f -t master -m master origin git://example.com/git.git/ $ git merge origin g\bgi\bit\bt-\b-f\bfe\bet\btc\bch\bh(1) g\bgi\bit\bt-\b-b\bbr\bra\ban\bnc\bch\bh(1) g\bgi\bit\bt-\b-c\bco\bon\bnf\bfi\big\bg(1) Part of the g\bgi\bit\bt(1) suite"
+              description: " Be a little more verbose and show remote url after name. For promisor remotes, also show which filters (b\bbl\blo\bob\bb:\b:n\bno\bon\bne\be etc.) are configured. NOTE: This must be placed between r\bre\bem\bmo\bot\bte\be and subcommand. With no arguments, shows a list of existing remotes. Several subcommands are available to perform operations on the remotes. _\ba_\bd_\bd Add a remote named <name> for the repository at <URL>. The command g\bgi\bit\bt f\bfe\bet\btc\bch\bh _\b<_\bn_\ba_\bm_\be_\b> can then be used to create and update remote-tracking branches <name>/<branch>. With -\b-f\bf option, g\bgi\bit\bt f\bfe\bet\btc\bch\bh _\b<_\bn_\ba_\bm_\be_\b> is run immediately after the remote information is set up. With -\b--\b-t\bta\bag\bgs\bs option, g\bgi\bit\bt f\bfe\bet\btc\bch\bh _\b<_\bn_\ba_\bm_\be_\b> imports every tag from the remote repository. With -\b--\b-n\bno\bo-\b-t\bta\bag\bgs\bs option, g\bgi\bit\bt f\bfe\bet\btc\bch\bh _\b<_\bn_\ba_\bm_\be_\b> does not import tags from the remote repository. By default, only tags on fetched branches are imported (see g\bgi\bit\bt-\b- f\bfe\bet\btc\bch\bh(1)). With -\b-t\bt _\b<_\bb_\br_\ba_\bn_\bc_\bh_\b> option, instead of the default glob refspec for the remote to track all branches under the r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/ namespace, a refspec to track only _\b<_\bb_\br_\ba_\bn_\bc_\bh_\b> is created. You can give more than one -\b-t\bt _\b<_\bb_\br_\ba_\bn_\bc_\bh_\b> to track multiple branches without grabbing all branches. With -\b-m\bm _\b<_\bm_\ba_\bs_\bt_\be_\br_\b> option, a symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD is set up to point at remote\u2019s _\b<_\bm_\ba_\bs_\bt_\be_\br_\b> branch. See also the set-head command. When a fetch mirror is created with -\b--\b-m\bmi\bir\brr\bro\bor\br=\b=f\bfe\bet\btc\bch\bh, the refs will not be stored in the _\br_\be_\bf_\bs_\b/_\br_\be_\bm_\bo_\bt_\be_\bs_\b/ namespace, but rather everything in _\br_\be_\bf_\bs_\b/ on the remote will be directly mirrored into _\br_\be_\bf_\bs_\b/ in the local repository. This option only makes sense in bare repositories, because a fetch would overwrite any local commits. When a push mirror is created with -\b--\b-m\bmi\bir\brr\bro\bor\br=\b=p\bpu\bus\bsh\bh, then g\bgi\bit\bt p\bpu\bus\bsh\bh will always behave as if -\b--\b-m\bmi\bir\brr\bro\bor\br was passed. _\br_\be_\bn_\ba_\bm_\be Rename the remote named <old> to <new>. All remote-tracking branches and configuration settings for the remote are updated. In case <old> and <new> are the same, and <old> is a file under $\b$G\bGI\bIT\bT_\b_D\bDI\bIR\bR/\b/r\bre\bem\bmo\bot\bte\bes\bs or $\b$G\bGI\bIT\bT_\b_D\bDI\bIR\bR/\b/b\bbr\bra\ban\bnc\bch\bhe\bes\bs, the remote is converted to the configuration file format. _\br_\be_\bm_\bo_\bv_\be, _\br_\bm Remove the remote named <name>. All remote-tracking branches and configuration settings for the remote are removed. _\bs_\be_\bt_\b-_\bh_\be_\ba_\bd Sets or deletes the default branch (i.e. the target of the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD) for the named remote. Having a default branch for a remote is not required, but allows the name of the remote to be specified in lieu of a specific branch. For example, if the default branch for o\bor\bri\big\bgi\bin\bn is set to m\bma\bas\bst\bte\ber\br, then o\bor\bri\big\bgi\bin\bn may be specified wherever you would normally specify o\bor\bri\big\bgi\bin\bn/\b/m\bma\bas\bst\bte\ber\br. With -\b-d\bd or -\b--\b-d\bde\bel\ble\bet\bte\be, the symbolic ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD is deleted. With -\b-a\ba or -\b--\b-a\bau\but\bto\bo, the remote is queried to determine its H\bHE\bEA\bAD\bD, then the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD is set to the same branch. e.g., if the remote H\bHE\bEA\bAD\bD is pointed at n\bne\bex\bxt\bt, g\bgi\bit\bt r\bre\bem\bmo\bot\bte\be s\bse\bet\bt-\b-h\bhe\bea\bad\bd o\bor\bri\big\bgi\bin\bn -\b-a\ba will set the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/H\bHE\bEA\bAD\bD to r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/n\bne\bex\bxt\bt. This will only work if r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/n\bne\bex\bxt\bt already exists; if not it must be fetched first. Use _\b<_\bb_\br_\ba_\bn_\bc_\bh_\b> to set the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/_\b<_\bn_\ba_\bm_\be_\b>/\b/H\bHE\bEA\bAD\bD explicitly. e.g., g\bgi\bit\bt r\bre\bem\bmo\bot\bte\be s\bse\bet\bt-\b-h\bhe\bea\bad\bd o\bor\bri\big\bgi\bin\bn m\bma\bas\bst\bte\ber\br will set the symbolic-ref r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/H\bHE\bEA\bAD\bD to r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/m\bma\bas\bst\bte\ber\br. This will only work if r\bre\bef\bfs\bs/\b/r\bre\bem\bmo\bot\bte\bes\bs/\b/o\bor\bri\big\bgi\bin\bn/\b/m\bma\bas\bst\bte\ber\br already exists; if not it must be fetched first. _\bs_\be_\bt_\b-_\bb_\br_\ba_\bn_\bc_\bh_\be_\bs Changes the list of branches tracked by the named remote. This can be used to track a subset of the available remote branches after the initial setup for a remote. The named branches will be interpreted as if specified with the -\b-t\bt option on the g\bgi\bit\bt r\bre\bem\bmo\bot\bte\be a\bad\bdd\bd command line. With -\b--\b-a\bad\bdd\bd, instead of replacing the list of currently tracked branches, adds to that list. _\bg_\be_\bt_\b-_\bu_\br_\bl Retrieves the URLs for a remote. Configurations for i\bin\bns\bst\bte\bea\bad\bdO\bOf\bf and p\bpu\bus\bsh\bhI\bIn\bns\bst\bte\bea\bad\bdO\bOf\bf are expanded here. By default, only the first URL is listed. With -\b--\b-p\bpu\bus\bsh\bh, push URLs are queried rather than fetch URLs. With -\b--\b-a\bal\bll\bl, all URLs for the remote will be listed. _\bs_\be_\bt_\b-_\bu_\br_\bl Changes URLs for the remote. Sets first URL for remote <name> that matches regex <oldurl> (first URL if no <oldurl> is given) to <newurl>. If <oldurl> doesn\u2019t match any URL, an error occurs and nothing is changed. With -\b--\b-p\bpu\bus\bsh\bh, push URLs are manipulated instead of fetch URLs. With -\b--\b-a\bad\bdd\bd, instead of changing existing URLs, new URL is added. With -\b--\b-d\bde\bel\ble\bet\bte\be, instead of changing existing URLs, all URLs matching regex <URL> are deleted for remote <name>. Trying to delete all non-push URLs is an error. Note that the push URL and the fetch URL, even though they can be set differently, must still refer to the same place. What you pushed to the push URL should be what you would see if you immediately fetched from the fetch URL. If you are trying to fetch from one place (e.g. your upstream) and push to another (e.g. your publishing repository), use two separate remotes. _\bs_\bh_\bo_\bw Gives some information about the remote <name>. With -\b-n\bn option, the remote heads are not queried first with g\bgi\bit\bt l\bls\bs-\b-r\bre\bem\bmo\bot\bte\be _\b<_\bn_\ba_\bm_\be_\b>; cached information is used instead. _\bp_\br_\bu_\bn_\be Deletes stale references associated with <name>. By default, stale remote-tracking branches under <name> are deleted, but depending on global configuration and the configuration of the remote we might even prune local tags that haven\u2019t been pushed there. Equivalent to g\bgi\bit\bt f\bfe\bet\btc\bch\bh -\b--\b-p\bpr\bru\bun\bne\be _\b<_\bn_\ba_\bm_\be_\b>, except that no new references will be fetched. See the PRUNING section of g\bgi\bit\bt-\b-f\bfe\bet\btc\bch\bh(1) for what it\u2019ll prune depending on various configuration. With -\b--\b-d\bdr\bry\by-\b-r\bru\bun\bn option, report what branches would be pruned, but do not actually prune them. _\bu_\bp_\bd_\ba_\bt_\be Fetch updates for remotes or remote groups in the repository as defined by r\bre\bem\bmo\bot\bte\bes\bs.\b._\b<_\bg_\br_\bo_\bu_\bp_\b>. If neither group nor remote is specified on the command line, the configuration parameter remotes.default will be used; if remotes.default is not defined, all remotes which do not have the configuration parameter r\bre\bem\bmo\bot\bte\be.\b._\b<_\bn_\ba_\bm_\be_\b>.\b.s\bsk\bki\bip\bpD\bDe\bef\bfa\bau\bul\blt\btU\bUp\bpd\bda\bat\bte\be set to true will be updated. (See g\bgi\bit\bt-\b-c\bco\bon\bnf\bfi\big\bg(1)). With -\b--\b-p\bpr\bru\bun\bne\be option, run pruning against all the remotes that are updated. The remote configuration is achieved using the r\bre\bem\bmo\bot\bte\be.\b.o\bor\bri\big\bgi\bin\bn.\b.u\bur\brl\bl and r\bre\bem\bmo\bot\bte\be.\b.o\bor\bri\big\bgi\bin\bn.\b.f\bfe\bet\btc\bch\bh configuration variables. (See g\bgi\bit\bt-\b-c\bco\bon\bnf\bfi\big\bg(1)). On success, the exit status is 0\b0. When subcommands such as _\ba_\bd_\bd, _\br_\be_\bn_\ba_\bm_\be, and _\br_\be_\bm_\bo_\bv_\be can\u2019t find the remote in question, the exit status is 2\b2. When the remote already exists, the exit status is 3\b3. On any other error, the exit status may be any other non-zero value. \u2022   Add a new remote, fetch, and check out a branch from it $ git remote origin $ git branch -r origin/HEAD -> origin/master origin/master $ git remote add staging git://git.kernel.org/.../gregkh/staging.git $ git remote origin staging $ git fetch staging ... From git://git.kernel.org/pub/scm/linux/kernel/git/gregkh/staging * [new branch]      master     -> staging/master * [new branch]      staging-linus -> staging/staging-linus * [new branch]      staging-next -> staging/staging-next $ git branch -r origin/HEAD -> origin/master origin/master staging/master staging/staging-linus staging/staging-next $ git switch -c staging staging/master ... \u2022   Imitate _\bg_\bi_\bt _\bc_\bl_\bo_\bn_\be but track only selected branches $ mkdir project.git $ cd project.git $ git init $ git remote add -f -t master -m master origin git://example.com/git.git/ $ git merge origin g\bgi\bit\bt-\b-f\bfe\bet\btc\bch\bh(1) g\bgi\bit\bt-\b-b\bbr\bra\ban\bnc\bch\bh(1) g\bgi\bit\bt-\b-c\bco\bon\bnf\bfi\big\bg(1) Part of the g\bgi\bit\bt(1) suite"
             }
           },
           additionalProperties: false
@@ -40057,7 +40243,7 @@ var devrev_mcp_default = {
 var globalping_mcp_default = {
   slug: "globalping-mcp",
   display_name: "Globalping MCP",
-  description: "Network diagnostics — ping, traceroute, DNS, and HTTP from global probes",
+  description: "Network diagnostics \u2014 ping, traceroute, DNS, and HTTP from global probes",
   category: "dev",
   kind: "mcp",
   config: {

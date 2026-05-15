@@ -1,9 +1,9 @@
 import type { FlueContext } from "@flue/runtime"
 import {
-  createHarborLocalRuntime,
+  createHarbor,
   harborLocalRegistryActionFromAgentStep,
   harborLocalRegistryAgentStepSchema,
-} from "@hrbr/runtime-local/promise"
+} from "@hrbr/sdk/local"
 import * as v from "valibot"
 
 export const triggers = { webhook: true }
@@ -46,7 +46,7 @@ export default async function ({ init, payload, env }: FlueContext) {
   const registryEnv = envFrom(env)
   const confirmWrites = registryEnv.HARBOR_CONFIRM_NOTION_WRITE === "1"
   const observations: unknown[] = []
-  const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env: registryEnv })
+  const harbor = createHarbor({ projectRoot: process.cwd(), env: registryEnv })
   const sourceSetup = await harbor.sources.ensureMcpSources({
     sources: mcpSources,
     connect: true,

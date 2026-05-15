@@ -6,4 +6,8 @@
  * registry actions, and local exec.
  */
 
+export {
+  createHarborLocalRuntime,
+  createHarborLocalRuntime as createHarbor,
+} from "@hrbr/runtime-local/promise"
 export * from "@hrbr/runtime-local/promise"

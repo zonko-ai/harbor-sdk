@@ -163,6 +163,7 @@ export {
 export {
   completeHarborLocalOAuthCallback,
   completeHarborLocalOAuthFlow,
+  refreshHarborLocalOAuthGrant,
   readHarborLocalOAuthPendingFlow,
   readHarborLocalOAuthStatus,
   startHarborLocalOAuthFlow,
@@ -172,6 +173,8 @@ export {
   type HarborLocalOAuthCompleteInput,
   type HarborLocalOAuthGrant,
   type HarborLocalOAuthPendingFlow,
+  type HarborLocalOAuthRefreshInput,
+  type HarborLocalOAuthRefreshResult,
   type HarborLocalOAuthStartResult,
   type HarborLocalOAuthStatus,
 } from "./oauth"

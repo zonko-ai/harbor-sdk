@@ -4,7 +4,9 @@ import {
   createOAuthAuthorizationUrl,
   createOAuthPkcePair,
   createOAuthState,
+  refreshOAuthTokenSet,
   type OAuthTokenSet,
+  type OAuthFetch,
 } from "@hrbr/source-auth"
 import {
   harborLocalPaths,
@@ -100,11 +102,45 @@ export interface HarborLocalOAuthCallbackInput extends HarborLocalCredentialKeyE
   readonly now?: (() => Date) | undefined
 }
 
+export interface HarborLocalOAuthRefreshInput extends HarborLocalCredentialKeyEnvInput {
+  readonly sourceRefId: string
+  readonly fetch?: OAuthFetch | undefined
+  readonly force?: boolean | undefined
+  readonly refreshSkewMs?: number | undefined
+  readonly now?: (() => Date) | undefined
+}
+
+export type HarborLocalOAuthRefreshResult =
+  | {
+      readonly status: "not_needed"
+      readonly grant: HarborLocalOAuthGrant
+    }
+  | {
+      readonly status: "refreshed"
+      readonly grant: HarborLocalOAuthGrant
+    }
+  | {
+      readonly status: "requires_oauth"
+    }
+  | {
+      readonly status: "reconnect_required"
+      readonly grant?: HarborLocalOAuthGrant | undefined
+      readonly error?: string | undefined
+    }
+
 export interface HarborLocalOAuthStatus {
   readonly sourceRefId: string
   readonly status: "requires_oauth" | "pending" | "ready" | "reconnect_required"
   readonly pendingFlow?: HarborLocalOAuthPendingFlow | undefined
   readonly grant?: HarborLocalOAuthGrant | undefined
+}
+
+interface OAuthClientRow {
+  readonly id: string
+  readonly sourceRefId: string
+  readonly clientId: string
+  readonly clientSecretRef?: string | undefined
+  readonly tokenEndpoint: string
 }
 
 function loadDatabase(): SqlDatabaseCtor {
@@ -161,6 +197,85 @@ function grantFromRow(row: Record<string, unknown>): HarborLocalOAuthGrant {
     ...(row["expires_at"] !== null && row["expires_at"] !== undefined ? { expiresAt: String(row["expires_at"]) } : {}),
     createdAt: String(row["created_at"]),
     updatedAt: String(row["updated_at"]),
+  }
+}
+
+function oauthClientFromRow(row: Record<string, unknown>): OAuthClientRow {
+  return {
+    id: String(row["id"]),
+    sourceRefId: String(row["source_ref_id"]),
+    clientId: String(row["client_id"]),
+    ...(row["client_secret_ref"] !== null && row["client_secret_ref"] !== undefined ? { clientSecretRef: String(row["client_secret_ref"]) } : {}),
+    tokenEndpoint: String(row["token_endpoint"]),
+  }
+}
+
+function shouldRefreshGrant(
+  grant: HarborLocalOAuthGrant,
+  input: Pick<HarborLocalOAuthRefreshInput, "force" | "refreshSkewMs" | "now">
+): boolean {
+  if (input.force === true) return true
+  if (!grant.expiresAt) return false
+  const expiresAt = Date.parse(grant.expiresAt)
+  if (!Number.isFinite(expiresAt)) return true
+  const now = (input.now ?? (() => new Date()))().getTime()
+  return expiresAt <= now + (input.refreshSkewMs ?? 300_000)
+}
+
+function credentialValue(
+  credentials: readonly HarborLocalCredentialRecord[],
+  sourceRefId: string,
+  slot: string
+): string | undefined {
+  return credentials.find((record) =>
+    record.sourceRefId === sourceRefId &&
+    record.slot === slot &&
+    record.status === "active"
+  )?.value
+}
+
+function upsertCredential(
+  byId: Map<string, HarborLocalCredentialRecord>,
+  input: {
+    readonly sourceRefId: string
+    readonly slot: string
+    readonly value: string
+    readonly now: string
+  }
+): void {
+  const id = `${input.sourceRefId}:${input.slot}`
+  const existing = byId.get(id)
+  byId.set(id, {
+    id,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    sourceRefId: input.sourceRefId,
+    slot: input.slot,
+    value: input.value,
+    scope: "local",
+    status: "active",
+    createdAt: existing?.createdAt ?? input.now,
+    updatedAt: input.now,
+  })
+}
+
+async function markGrantReconnectRequired(
+  projectRoot: string,
+  sourceRefId: string,
+  error?: string | undefined
+): Promise<HarborLocalOAuthRefreshResult> {
+  const now = new Date().toISOString()
+  const db = openDatabase(projectRoot)
+  try {
+    db.prepare("UPDATE oauth_grants SET status = ?, updated_at = ? WHERE source_ref_id = ? AND status = ?")
+      .run("reconnect_required", now, sourceRefId, "active")
+  } finally {
+    db.close()
+  }
+  const status = await readHarborLocalOAuthStatus(projectRoot, sourceRefId)
+  return {
+    status: "reconnect_required",
+    ...(status.grant ? { grant: status.grant } : {}),
+    ...(error ? { error } : {}),
   }
 }
 
@@ -374,6 +489,123 @@ export async function completeHarborLocalOAuthCallback(
     key: readHarborLocalCredentialKeyFromEnv(input),
     now: input.now,
   })
+}
+
+export async function refreshHarborLocalOAuthGrant(
+  projectRoot: string,
+  input: HarborLocalOAuthRefreshInput
+): Promise<HarborLocalOAuthRefreshResult> {
+  await ensureHarborLocalProject({ projectRoot })
+  const db = openDatabase(projectRoot)
+  let grant: HarborLocalOAuthGrant | null = null
+  let client: OAuthClientRow | null = null
+  try {
+    const grantRow = db.prepare(`
+      SELECT * FROM oauth_grants
+      WHERE source_ref_id = ?
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `).all(input.sourceRefId)[0] as Record<string, unknown> | undefined
+    grant = grantRow ? grantFromRow(grantRow) : null
+    if (!grant) return { status: "requires_oauth" }
+    if (grant.status === "reconnect_required") return { status: "reconnect_required", grant }
+    if (!shouldRefreshGrant(grant, input)) return { status: "not_needed", grant }
+
+    const clientRow = db.prepare("SELECT * FROM oauth_clients WHERE id = ? LIMIT 1")
+      .all(grant.oauthClientId)[0] as Record<string, unknown> | undefined
+    client = clientRow ? oauthClientFromRow(clientRow) : null
+  } finally {
+    db.close()
+  }
+
+  if (!client) {
+    return markGrantReconnectRequired(projectRoot, input.sourceRefId, "OAuth client metadata is missing.")
+  }
+
+  const key = readHarborLocalCredentialKeyFromEnv(input)
+  const current = await readHarborLocalCredentials(projectRoot, key)
+  const refreshToken = credentialValue(current.credentials, input.sourceRefId, "refresh_token")
+  if (!refreshToken) {
+    return markGrantReconnectRequired(projectRoot, input.sourceRefId, "OAuth refresh token is missing.")
+  }
+
+  const clientSecret = client.clientSecretRef
+    ? credentialValue(current.credentials, input.sourceRefId, client.clientSecretRef)
+    : undefined
+
+  let tokens: OAuthTokenSet
+  try {
+    tokens = await refreshOAuthTokenSet({
+      tokenEndpoint: client.tokenEndpoint,
+      refreshToken,
+      clientId: client.clientId,
+      ...(clientSecret ? { clientSecret } : {}),
+      fetch: input.fetch,
+    })
+  } catch (error) {
+    return markGrantReconnectRequired(
+      projectRoot,
+      input.sourceRefId,
+      error instanceof Error ? error.message : String(error)
+    )
+  }
+
+  const now = timestamp(input.now)
+  const scopes = tokens.scopes ?? grant.scopes
+  const dbAfterRefresh = openDatabase(projectRoot)
+  try {
+    dbAfterRefresh.prepare(`
+      UPDATE oauth_grants
+      SET status = ?, scopes_json = ?, expires_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run(
+      "active",
+      JSON.stringify(scopes),
+      tokens.expiresAt ?? grant.expiresAt ?? null,
+      now,
+      grant.id
+    )
+    for (const slot of ["access_token", "refresh_token"]) {
+      dbAfterRefresh.prepare(`
+        INSERT INTO credential_metadata (
+          id, workspace_id, source_ref_id, slot, scope, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
+      `).run(`${input.sourceRefId}:${slot}`, LOCAL_WORKSPACE_ID, input.sourceRefId, slot, "local", "active", now, now)
+    }
+  } finally {
+    dbAfterRefresh.close()
+  }
+
+  const byId = new Map(current.credentials.map((credential) => [credential.id, credential]))
+  upsertCredential(byId, {
+    sourceRefId: input.sourceRefId,
+    slot: "access_token",
+    value: tokens.accessToken,
+    now,
+  })
+  upsertCredential(byId, {
+    sourceRefId: input.sourceRefId,
+    slot: "refresh_token",
+    value: tokens.refreshToken ?? refreshToken,
+    now,
+  })
+  await writeHarborLocalCredentials(projectRoot, {
+    version: 1,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    credentials: [...byId.values()].sort((a, b) => a.id.localeCompare(b.id)),
+  }, key)
+
+  return {
+    status: "refreshed",
+    grant: {
+      ...grant,
+      status: "active",
+      scopes,
+      ...(tokens.expiresAt ?? grant.expiresAt ? { expiresAt: tokens.expiresAt ?? grant.expiresAt } : {}),
+      updatedAt: now,
+    },
+  }
 }
 
 export async function readHarborLocalOAuthStatus(

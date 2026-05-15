@@ -793,6 +793,99 @@ describe("@hrbr/runtime-local MCP source store", () => {
     })
   })
 
+  it("refreshes expired OAuth grants before MCP discovery", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      await upsertHarborLocalMcpSource({
+        projectRoot,
+        source: {
+          transport: "remote",
+          name: "Notion MCP",
+          namespace: "notion-mcp",
+          endpoint: "https://mcp.notion.com/mcp",
+          auth: { kind: "oauth2" },
+        },
+      })
+      const flow = await startHarborLocalOAuthFlow({
+        projectRoot,
+        client: {
+          sourceRefId: "notion-mcp",
+          clientId: "client-1",
+          authorizationEndpoint: "https://mcp.notion.com/authorize",
+          tokenEndpoint: "https://mcp.notion.com/token",
+          redirectUri: "http://127.0.0.1:7331/oauth/callback",
+        },
+      })
+      await completeHarborLocalOAuthFlow(projectRoot, {
+        state: flow.state,
+        code: "provider-code",
+        key: "vault-key",
+        tokens: {
+          accessToken: "expired-access",
+          refreshToken: "refresh-1",
+          expiresAt: "2026-05-12T00:00:00.000Z",
+        },
+      })
+
+      const authorizations: string[] = []
+      const refreshBodies: string[] = []
+      const fetch = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const href = String(url)
+        if (href === "https://mcp.notion.com/token") {
+          refreshBodies.push(String(init?.body ?? ""))
+          return new Response(JSON.stringify({
+            access_token: "fresh-access",
+            token_type: "Bearer",
+            expires_in: 3600,
+          }), { headers: { "content-type": "application/json" } })
+        }
+        const headers = new Headers(init?.headers)
+        authorizations.push(headers.get("authorization") ?? "")
+        const body = JSON.parse(String(init?.body ?? "{}")) as { id?: number; method: string }
+        if (body.method === "initialize") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "notion" } },
+          }), { headers: { "content-type": "application/json", "mcp-session-id": "session-1" } })
+        }
+        if (body.method === "notifications/initialized") return new Response(null, { status: 202 })
+        if (body.method === "tools/list") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              tools: [{
+                name: "notion-search",
+                description: "Search Notion",
+                inputSchema: { type: "object", properties: { query: { type: "string" } } },
+                annotations: { readOnlyHint: true },
+              }],
+            },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      }
+
+      await expect(refreshHarborLocalMcpSource({
+        projectRoot,
+        sourceId: "notion-mcp",
+        env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key" },
+        fetch,
+      })).resolves.toMatchObject({ toolCount: 1 })
+      expect(refreshBodies).toHaveLength(1)
+      expect(refreshBodies[0]).toContain("grant_type=refresh_token")
+      expect(refreshBodies[0]).toContain("refresh_token=refresh-1")
+      expect(authorizations.every((value) => value === "Bearer fresh-access")).toBe(true)
+      await expect(readHarborLocalCredentials(projectRoot, "vault-key")).resolves.toMatchObject({
+        credentials: expect.arrayContaining([
+          expect.objectContaining({ sourceRefId: "notion-mcp", slot: "access_token", value: "fresh-access" }),
+          expect.objectContaining({ sourceRefId: "notion-mcp", slot: "refresh_token", value: "refresh-1" }),
+        ]),
+      })
+    })
+  })
+
   it("connects OAuth MCP sources through the local callback and stores encrypted grant tokens", async () => {
     await withTempProject(async (projectRoot) => {
       await ensureHarborLocalProject({ projectRoot })

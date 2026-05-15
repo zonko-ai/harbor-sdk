@@ -19,6 +19,7 @@ import {
 } from "./mcp-store"
 import {
   readHarborLocalOAuthStatus,
+  refreshHarborLocalOAuthGrant,
   startHarborLocalOAuthFlow,
   type HarborLocalOAuthStatus,
 } from "./oauth"
@@ -146,9 +147,29 @@ function bearerSlot(source: HarborLocalMcpStoredSource): string | undefined {
 }
 
 async function optionalCredentials(
-  input: HarborLocalCredentialResolverFromEnvInput & { readonly projectRoot: string; readonly source: HarborLocalMcpStoredSource },
+  input: HarborLocalCredentialResolverFromEnvInput & {
+    readonly projectRoot: string
+    readonly source: HarborLocalMcpStoredSource
+    readonly fetch?: McpSourceFetch | undefined
+  },
 ): Promise<SourceCredentials | undefined> {
-  return bearerSlot(input.source) === undefined
+  const slot = bearerSlot(input.source)
+  if (slot === undefined) return undefined
+  if (input.source.auth.kind === "oauth2") {
+    const oauth = await readHarborLocalOAuthStatus(input.projectRoot, input.source.id)
+    if (oauth.status === "ready" || oauth.status === "reconnect_required") {
+      const refresh = await refreshHarborLocalOAuthGrant(input.projectRoot, {
+        sourceRefId: input.source.id,
+        env: input.env,
+        envName: input.envName,
+        fetch: input.fetch,
+      })
+      if (refresh.status === "reconnect_required") {
+        throw new Error(refresh.error ?? `OAuth reconnect is required for MCP source "${input.source.id}".`)
+      }
+    }
+  }
+  return slot === undefined
     ? undefined
     : resolvedCredentials({
         projectRoot: input.projectRoot,
@@ -279,6 +300,7 @@ export async function refreshHarborLocalMcpSource(
     source,
     env: input.env,
     envName: input.envName,
+    fetch: input.fetch,
   })
   const tools = await adapter.listTools(credentials ? { credentials } : undefined)
   const bindings = await putHarborLocalMcpToolBindings({
@@ -371,6 +393,7 @@ export async function createHarborLocalMcpToolRuntime(
         source,
         env: input.env,
         envName: input.envName,
+        fetch: input.fetch,
       })
       return {
         toolId: call.toolId,

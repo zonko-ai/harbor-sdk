@@ -2,7 +2,7 @@
 
 This Flue agent consumes Harbor SDK local MCP sources. It does not define fake Linear or Notion tools. The agent declares the Linear MCP and Notion MCP URLs in `main.ts`; the Harbor SDK installs missing sources, connects OAuth when needed, refreshes existing OAuth grants, and discovers tools into `.harbor/harbor.sqlite`.
 
-At runtime the model owns orchestration and `@hrbr/runtime-local/promise` owns the registry mechanics:
+At runtime the model owns orchestration and `@hrbr/sdk/local` owns the registry mechanics:
 
 1. The model asks the SDK bridge to `search` tools.
 2. The model asks for `schema` before building non-trivial inputs.
@@ -16,12 +16,12 @@ The SDK usage in the agent is ordinary promise-style application code:
 
 ```ts
 import {
-  createHarborLocalRuntime,
+  createHarbor,
   harborLocalRegistryActionFromAgentStep,
   harborLocalRegistryAgentStepSchema,
-} from "@hrbr/runtime-local/promise"
+} from "@hrbr/sdk/local"
 
-const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env })
+const harbor = createHarbor({ projectRoot: process.cwd(), env })
 const setup = await harbor.sources.ensureMcpSources({
   sources: [
     { endpoint: "https://mcp.linear.app/mcp" },
@@ -41,7 +41,7 @@ the final answer schema because that shape is specific to this Flue agent.
 
 ## Fixture E2E
 
-Fixture mode is test-only. The test starts real local MCP servers through `@hrbr/source-mcp/testing`, creates encrypted fixture OAuth credentials, and indexes fixture MCP tools without opening a browser.
+Fixture mode is test-only. The test starts real local MCP servers through `@hrbr/sdk/testing`, creates encrypted fixture OAuth credentials, and indexes fixture MCP tools without opening a browser.
 
 ```sh
 bun test examples/flue-tool-registry-agent/test/e2e.test.ts

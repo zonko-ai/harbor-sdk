@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { generateObject } from "ai"
-import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
+import { createHarbor } from "@hrbr/sdk/local"
 import { z } from "zod"
 
 const codeResultSchema = z.object({ code: z.string() })
@@ -28,11 +28,22 @@ function parseEnvFile(path: string): Record<string, string> {
   return entries
 }
 
+function defaultSharedProjectRoot(): string | undefined {
+  const candidate = resolve(process.cwd(), "../flue-local-exec-agent")
+  return existsSync(candidate) ? candidate : undefined
+}
+
 function envFromProcess(): Record<string, string | undefined> {
-  return {
+  const sharedProjectRoot = defaultSharedProjectRoot()
+  const env = {
+    ...(sharedProjectRoot ? parseEnvFile(resolve(sharedProjectRoot, ".env")) : {}),
     ...parseEnvFile(resolve(process.cwd(), ".env")),
     ...(process.env as Record<string, string | undefined>),
   }
+  if (!env.HARBOR_LOCAL_PROJECT_ROOT && !env.HARBOR_PROJECT_ROOT && sharedProjectRoot && existsSync(resolve(sharedProjectRoot, ".harbor"))) {
+    env.HARBOR_LOCAL_PROJECT_ROOT = sharedProjectRoot
+  }
+  return env
 }
 
 function projectRootFrom(env: Record<string, string | undefined>, fallback: string): string {
@@ -45,6 +56,15 @@ function anthropicModelFrom(env: Record<string, string | undefined>) {
     ? createAnthropic({ apiKey: env.ANTHROPIC_API_KEY })
     : createAnthropic()
   return provider(env.AI_SDK_ANTHROPIC_MODEL ?? env.ANTHROPIC_MODEL ?? "claude-sonnet-4-6")
+}
+
+function requireLocalCredentialKey(env: Record<string, string | undefined>): void {
+  if (env.HARBOR_LOCAL_CREDENTIAL_KEY?.trim()) return
+  throw new Error([
+    "HARBOR_LOCAL_CREDENTIAL_KEY is required before installing or connecting MCP sources.",
+    "Create examples/ai-sdk-local-exec-agent/.env, export it in your shell, or reuse the authenticated Flue example with:",
+    "HARBOR_LOCAL_PROJECT_ROOT=../flue-local-exec-agent",
+  ].join("\n"))
 }
 
 function mcpSourcesFrom(env: Record<string, string | undefined>) {
@@ -82,7 +102,7 @@ function toolMethodName(toolName: string): string {
     .join("")
 }
 
-function toolCallGuideFrom(setup: Awaited<ReturnType<ReturnType<typeof createHarborLocalRuntime>["sources"]["ensureMcpSources"]>>) {
+function toolCallGuideFrom(setup: Awaited<ReturnType<ReturnType<typeof createHarbor>["sources"]["ensureMcpSources"]>>) {
   return setup.sources.flatMap((source) =>
     source.refresh?.tools.map((tool) => ({
       namespace: source.source.namespace,
@@ -117,8 +137,9 @@ export async function runAiSdkLocalExecAgent(input: {
 } = {}) {
   const prompt = input.prompt ?? promptFromArgv(process.argv.slice(2))
   const runtimeEnv = input.env ?? envFromProcess()
+  requireLocalCredentialKey(runtimeEnv)
   const allowLocalNetwork = Boolean(runtimeEnv.HARBOR_LINEAR_MCP_ENDPOINT || runtimeEnv.HARBOR_NOTION_MCP_ENDPOINT)
-  const harbor = createHarborLocalRuntime({ projectRoot: input.projectRoot ?? projectRootFrom(runtimeEnv, process.cwd()), env: runtimeEnv, allowLocalNetwork })
+  const harbor = createHarbor({ projectRoot: input.projectRoot ?? projectRootFrom(runtimeEnv, process.cwd()), env: runtimeEnv, allowLocalNetwork })
   const setup = await harbor.sources.ensureMcpSources({
     sources: mcpSourcesFrom(runtimeEnv),
     connect: true,

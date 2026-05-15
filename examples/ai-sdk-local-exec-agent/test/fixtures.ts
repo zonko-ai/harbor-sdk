@@ -1,4 +1,4 @@
-import { serveHarborMcpTestServer, type HarborMcpTestServerHandle } from "@hrbr/source-mcp/testing"
+import { serveHarborMcpTestServer, type HarborMcpTestServerHandle } from "@hrbr/sdk/testing"
 import { z } from "zod"
 
 export interface LinearNotionReadonlyFixtureServers {

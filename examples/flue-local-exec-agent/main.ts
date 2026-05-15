@@ -1,5 +1,5 @@
 import type { FlueContext } from "@flue/runtime"
-import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
+import { createHarbor } from "@hrbr/sdk/local"
 import * as v from "valibot"
 
 export const triggers = { webhook: true }
@@ -53,7 +53,7 @@ function toolMethodName(toolName: string): string {
     .join("")
 }
 
-function toolCallGuideFrom(setup: Awaited<ReturnType<ReturnType<typeof createHarborLocalRuntime>["sources"]["ensureMcpSources"]>>) {
+function toolCallGuideFrom(setup: Awaited<ReturnType<ReturnType<typeof createHarbor>["sources"]["ensureMcpSources"]>>) {
   return setup.sources.flatMap((source) =>
     source.refresh?.tools.map((tool) => ({
       namespace: source.source.namespace,
@@ -85,7 +85,7 @@ export default async function ({ init, payload, env }: FlueContext) {
   const prompt = promptFrom(payload)
   const runtimeEnv = envFrom(env)
   const allowLocalNetwork = Boolean(runtimeEnv.HARBOR_LINEAR_MCP_ENDPOINT || runtimeEnv.HARBOR_NOTION_MCP_ENDPOINT)
-  const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env: runtimeEnv, allowLocalNetwork })
+  const harbor = createHarbor({ projectRoot: process.cwd(), env: runtimeEnv, allowLocalNetwork })
   const setup = await harbor.sources.ensureMcpSources({
     sources: mcpSourcesFrom(runtimeEnv),
     connect: true,

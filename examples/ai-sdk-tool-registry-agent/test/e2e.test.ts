@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "bun:test"
-import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
+import { createHarbor } from "@hrbr/sdk/local"
 import { serveLinearNotionFixtureServers } from "./fixtures"
 
 async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
@@ -20,7 +20,7 @@ describe("AI SDK Linear to Notion local E2E", () => {
       const servers = await serveLinearNotionFixtureServers()
       const env = { HARBOR_LOCAL_CREDENTIAL_KEY: "vault-key" }
       try {
-        const harbor = createHarborLocalRuntime({ projectRoot, env, allowLocalNetwork: true })
+        const harbor = createHarbor({ projectRoot, env, allowLocalNetwork: true })
         const setupEvents: string[] = []
         const setup = await harbor.sources.ensureMcpSources({
           sources: [
