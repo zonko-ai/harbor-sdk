@@ -7,7 +7,7 @@ Status: in progress
 Progress Tracker:
 - [x] 1. Branch setup and baseline inspection
 - [x] 2. Survey Harbor SDK and Harbor main MCP surfaces
-- [ ] 3. Lock the local Harbor app boundary
+- [x] 3. Lock the local Harbor app boundary
 - [ ] 4. Close SDK gaps for local MCP plugin lifecycle
 - [ ] 5. Add MCP catalog seed from Harbor main
 - [ ] 6. Build local Harbor API server
@@ -33,7 +33,7 @@ Tasks:
 3. Lock the local Harbor app boundary
    Scope: define `apps/harbor-local` as a fully offline local MCP plugin console built on Harbor SDK. Exclude WorkOS, hosted Harbor auth, hosted workspaces, Cloudflare runtime, Orbit, workflows, apps, jobs, chat/agents, STDIO MCP, vector search, and write confirmations from v1.
    Output: app boundary is documented in the task tracker and any local app README/architecture note created during implementation.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit boundary documentation changes.
 
 4. Close SDK gaps for local MCP plugin lifecycle
@@ -111,3 +111,6 @@ Progress Log:
 - 2026-05-15T14:57:35+05:30: Finding: Harbor main web plugin UI has portable concepts in plugin catalog cards, setup modal namespace handling, OAuth connect panels, connected account status cards, plugin detail tools accordion, and tool search. The hooks are tightly coupled to hosted workspace/auth/API routes, so local Harbor should reuse visual ideas selectively and build local-specific API hooks.
 - 2026-05-15T15:06:39+05:30: Updated the catalog plan to use Harbor main's staging Cloudflare D1, configured from `../harbor/.env.staging`, as the source to inspect/export real MCP plugin metadata. Runtime local Harbor must still consume a checked-in static seed and remain fully offline.
 - 2026-05-15T15:06:39+05:30: Clarified that the client SDK already exists as `@hrbr/sdk/local` and `createHarbor(...)`; the missing piece is a browser-facing local Harbor product API/server plus invocation history surface for the console UI.
+- 2026-05-15T15:08:28+05:30: Completed task 3 by adding `docs/architecture/local-harbor-mcp-console.md` to lock the v1 app boundary before implementation.
+- 2026-05-15T15:08:28+05:30: Documented Local Harbor MCP Console as a repo-local product app over `@hrbr/sdk/local`, not a new SDK promise or hosted Harbor clone.
+- 2026-05-15T15:08:28+05:30: Documented the split between SDK responsibilities, local API/server responsibilities, UI responsibilities, staging-D1 catalog generation, runtime offline guarantees, local state files, and explicit v1 non-goals.
