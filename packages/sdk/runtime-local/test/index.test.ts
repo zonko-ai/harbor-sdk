@@ -28,6 +28,7 @@ import {
   HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
   HARBOR_LOCAL_SCHEMA_VERSION,
+  HarborLocalError,
   importHarborLocalCredentialsFromEnv,
   importHarborLocalCredentialsFromEnvKey,
   installHarborLocalPluginManifest,
@@ -64,6 +65,7 @@ import {
   watchHarborRegistryDevRefs,
   writeHarborLocalCredentials,
   LOCAL_WORKSPACE_ID,
+  type HarborLocalLogEvent,
   type HarborRegistryDevRefsFile,
 } from "../src/index"
 import { createHarborLocalRuntime } from "../src/promise"
@@ -137,7 +139,6 @@ describe("@hrbr/runtime-local sqlite schema", () => {
     expect(tables).toContain("mcp_source_headers")
     expect(tables).toContain("mcp_source_query_params")
     expect(tables).toContain("mcp_tool_bindings")
-    expect(tables).toContain("cloudflare_resources")
   })
 
   it("runs local migrations in version order", async () => {
@@ -153,7 +154,6 @@ describe("@hrbr/runtime-local sqlite schema", () => {
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS local_workspace")
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS mcp_sources")
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS mcp_tool_bindings")
-    expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS cloudflare_resources")
   })
 })
 
@@ -221,62 +221,20 @@ describe("@hrbr/runtime-local daemon", () => {
     })
   })
 
-  it("plans, applies, persists, and reports Cloudflare provisioning through control routes", async () => {
+  it("does not expose Cloudflare provisioning routes from the local daemon", async () => {
     await withTempProject(async (projectRoot) => {
-      const daemon = await startHarborLocalDaemon({
-        projectRoot,
-        token: "test-token",
-        now: () => new Date("2026-05-12T00:00:00.000Z"),
-      })
+      const daemon = await startHarborLocalDaemon({ projectRoot, token: "test-token" })
       try {
-        const headers = {
-          authorization: `Bearer ${daemon.token}`,
-          "content-type": "application/json",
-        }
-        const body = JSON.stringify({
-          account: { accountId: "acct-1" },
-          desiredResources: [{ kind: "r2_bucket", name: "artifacts" }],
-        })
-        const plan = await fetch(`${daemon.origin}/control/cloudflare/plan`, {
+        const response = await fetch(`${daemon.origin}/control/cloudflare/plan`, {
           method: "POST",
-          headers,
-          body,
+          headers: {
+            authorization: `Bearer ${daemon.token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ account: { accountId: "acct-1" }, desiredResources: [] }),
         })
-        await expect(plan.json()).resolves.toMatchObject({
-          account: { accountId: "acct-1" },
-          items: [{ action: "create", resource: { kind: "r2_bucket", name: "artifacts" } }],
-          requiresConfirmation: true,
-        })
-
-        const rejected = await fetch(`${daemon.origin}/control/cloudflare/apply`, {
-          method: "POST",
-          headers,
-          body,
-        })
-        expect(rejected.status).toBe(500)
-
-        const applied = await fetch(`${daemon.origin}/control/cloudflare/apply`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            account: { accountId: "acct-1" },
-            desiredResources: [{ kind: "r2_bucket", name: "artifacts" }],
-            confirmed: true,
-          }),
-        })
-        await expect(applied.json()).resolves.toMatchObject({
-          resources: [{ kind: "r2_bucket", name: "artifacts" }],
-          updatedAt: "2026-05-12T00:00:00.000Z",
-        })
-        await expect(readFile(harborLocalPaths(projectRoot).cloudflareLock, "utf8"))
-          .resolves.toContain("\"r2_bucket\"")
-
-        const status = await fetch(`${daemon.origin}/control/cloudflare/status`, {
-          headers: { authorization: `Bearer ${daemon.token}` },
-        })
-        await expect(status.json()).resolves.toMatchObject({
-          resources: [{ kind: "r2_bucket", name: "artifacts" }],
-        })
+        expect(response.status).toBe(404)
+        await expect(response.json()).resolves.toEqual({ ok: false, code: "not_found" })
       } finally {
         await daemon.close()
       }
@@ -481,6 +439,60 @@ describe("@hrbr/runtime-local MCP source store", () => {
     })
   })
 
+  it("emits structured SDK log events while ensuring MCP sources", async () => {
+    await withTempProject(async (projectRoot) => {
+      const events: HarborLocalLogEvent[] = []
+      const fetch = async (_url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const body = JSON.parse(String(init?.body ?? "{}")) as { id?: number; method: string }
+        if (body.method === "initialize") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "linear" } },
+          }), { headers: { "content-type": "application/json", "mcp-session-id": "session-1" } })
+        }
+        if (body.method === "notifications/initialized") return new Response(null, { status: 202 })
+        if (body.method === "tools/list") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { tools: [{ name: "list_issues", description: "List Linear tickets" }] },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      }
+
+      const harbor = createHarborLocalRuntime({
+        projectRoot,
+        fetch,
+        logger: (event) => events.push(event),
+      })
+      const legacyStages: string[] = []
+      await expect(harbor.sources.ensureMcpSources({
+        sources: [{
+          endpoint: "https://linear.example.com/mcp",
+          name: "Linear MCP",
+          namespace: "linear-mcp",
+          auth: "none",
+        }],
+        onStatus: (event) => legacyStages.push(event.stage),
+      })).resolves.toMatchObject({ ready: true })
+
+      expect(events.map((event) => event.code)).toEqual([
+        "mcp_source_install",
+        "mcp_source_refresh",
+        "mcp_source_ready",
+      ])
+      expect(events[2]).toMatchObject({
+        level: "info",
+        area: "mcp",
+        sourceId: "linear-mcp",
+        toolCount: 1,
+      })
+      expect(legacyStages).toEqual(["install", "refresh", "ready"])
+    })
+  })
+
   it("discovers MCP tools into searchable SQLite rows and invokes by stored binding", async () => {
     await withTempProject(async (projectRoot) => {
       const seen: Array<{ method: string; tool?: string | undefined }> = []
@@ -537,6 +549,20 @@ describe("@hrbr/runtime-local MCP source store", () => {
           auth: { kind: "none" },
         },
       })
+
+      const promiseRuntime = createHarborLocalRuntime({ projectRoot, fetch })
+      await expect(promiseRuntime.sources.probeMcp("linear-mcp")).resolves.toMatchObject({
+        ok: true,
+        status: "ready",
+        sourceId: "linear-mcp",
+        namespace: "linear-mcp",
+        protocolVersion: "2025-03-26",
+        serverInfo: { name: "linear" },
+      })
+      expect(seen.map((entry) => entry.method).slice(0, 2)).toEqual([
+        "initialize",
+        "notifications/initialized",
+      ])
 
       await expect(refreshHarborLocalMcpSource({
         projectRoot,
@@ -597,7 +623,6 @@ describe("@hrbr/runtime-local MCP source store", () => {
           output: { structuredContent: { called: "create_issue", input: { title: "Bug" } } },
         },
       })
-      const promiseRuntime = createHarborLocalRuntime({ projectRoot, fetch })
       const promiseHits = await promiseRuntime.tools.search({
         namespace: "linear-mcp",
         query: "linear tickets",
@@ -710,6 +735,29 @@ describe("@hrbr/runtime-local MCP source store", () => {
         { namespace: "linear-mcp", aliases: ["linear_mcp", "linearMcp"], toolCount: 2 },
         { namespace: "notion-mcp", aliases: ["notion_mcp", "notionMcp"], toolCount: 1 },
       ])
+      await expect(exec.toolGuide()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          namespace: "linear-mcp",
+          global: "linearMcp",
+          toolName: "list_issues",
+          method: "listIssues",
+          call: "linearMcp.listIssues(input)",
+        }),
+        expect.objectContaining({
+          namespace: "linear-mcp",
+          global: "linearMcp",
+          toolName: "create_issue",
+          method: "createIssue",
+          call: "linearMcp.createIssue(input)",
+        }),
+        expect.objectContaining({
+          namespace: "notion-mcp",
+          global: "notionMcp",
+          toolName: "notion-search",
+          method: "notionSearch",
+          call: "notionMcp.notionSearch(input)",
+        }),
+      ]))
       await expect(exec.run(`
         const [linear, notion] = await Promise.all([
           linearMcp.listIssues({ query: "Harbor Alpha" }),
@@ -733,21 +781,21 @@ describe("@hrbr/runtime-local MCP source store", () => {
         return await linearMcp.createIssue({ title: "blocked" });
       `)).resolves.toMatchObject({
         ok: false,
-        error: { code: "EXEC_ERROR", message: expect.stringContaining("Blocked write tool") },
+        error: { code: "local_write_confirmation_required", message: expect.stringContaining("Blocked write tool") },
         namespaces: ["linear-mcp"],
       })
       await expect(exec.run(`
         return await linarMcp.listIssues({});
       `)).resolves.toMatchObject({
         ok: false,
-        error: { code: "EXEC_ERROR", message: expect.stringContaining("Available namespace aliases") },
+        error: { code: "local_exec_error", message: expect.stringContaining("Available namespace aliases") },
         namespaces: [],
       })
       await expect(exec.run(`
         return await linearMcp.missingTool({});
       `)).resolves.toMatchObject({
         ok: false,
-        error: { code: "EXEC_ERROR", message: expect.stringContaining("Tool \"missingTool\" not found") },
+        error: { code: "local_exec_error", message: expect.stringContaining("Tool \"missingTool\" not found") },
         namespaces: ["linear-mcp"],
       })
       expect(calls.some((call) => call.method === "tools/call" && call.tool === "list_issues")).toBe(true)
@@ -834,6 +882,99 @@ describe("@hrbr/runtime-local MCP source store", () => {
         output: { structuredContent: { called: "list_issues" } },
       })
       expect(authorizations.every((value) => value === "Bearer oauth-access-token")).toBe(true)
+    })
+  })
+
+  it("refreshes expired OAuth grants before MCP discovery", async () => {
+    await withTempProject(async (projectRoot) => {
+      await ensureHarborLocalProject({ projectRoot })
+      await upsertHarborLocalMcpSource({
+        projectRoot,
+        source: {
+          transport: "remote",
+          name: "Notion MCP",
+          namespace: "notion-mcp",
+          endpoint: "https://mcp.notion.com/mcp",
+          auth: { kind: "oauth2" },
+        },
+      })
+      const flow = await startHarborLocalOAuthFlow({
+        projectRoot,
+        client: {
+          sourceRefId: "notion-mcp",
+          clientId: "client-1",
+          authorizationEndpoint: "https://mcp.notion.com/authorize",
+          tokenEndpoint: "https://mcp.notion.com/token",
+          redirectUri: "http://127.0.0.1:7331/oauth/callback",
+        },
+      })
+      await completeHarborLocalOAuthFlow(projectRoot, {
+        state: flow.state,
+        code: "provider-code",
+        key: "vault-key",
+        tokens: {
+          accessToken: "expired-access",
+          refreshToken: "refresh-1",
+          expiresAt: "2026-05-12T00:00:00.000Z",
+        },
+      })
+
+      const authorizations: string[] = []
+      const refreshBodies: string[] = []
+      const fetch = async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+        const href = String(url)
+        if (href === "https://mcp.notion.com/token") {
+          refreshBodies.push(String(init?.body ?? ""))
+          return new Response(JSON.stringify({
+            access_token: "fresh-access",
+            token_type: "Bearer",
+            expires_in: 3600,
+          }), { headers: { "content-type": "application/json" } })
+        }
+        const headers = new Headers(init?.headers)
+        authorizations.push(headers.get("authorization") ?? "")
+        const body = JSON.parse(String(init?.body ?? "{}")) as { id?: number; method: string }
+        if (body.method === "initialize") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: { protocolVersion: "2025-03-26", capabilities: {}, serverInfo: { name: "notion" } },
+          }), { headers: { "content-type": "application/json", "mcp-session-id": "session-1" } })
+        }
+        if (body.method === "notifications/initialized") return new Response(null, { status: 202 })
+        if (body.method === "tools/list") {
+          return new Response(JSON.stringify({
+            jsonrpc: "2.0",
+            id: body.id,
+            result: {
+              tools: [{
+                name: "notion-search",
+                description: "Search Notion",
+                inputSchema: { type: "object", properties: { query: { type: "string" } } },
+                annotations: { readOnlyHint: true },
+              }],
+            },
+          }), { headers: { "content-type": "application/json" } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      }
+
+      await expect(refreshHarborLocalMcpSource({
+        projectRoot,
+        sourceId: "notion-mcp",
+        env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key" },
+        fetch,
+      })).resolves.toMatchObject({ toolCount: 1 })
+      expect(refreshBodies).toHaveLength(1)
+      expect(refreshBodies[0]).toContain("grant_type=refresh_token")
+      expect(refreshBodies[0]).toContain("refresh_token=refresh-1")
+      expect(authorizations.every((value) => value === "Bearer fresh-access")).toBe(true)
+      await expect(readHarborLocalCredentials(projectRoot, "vault-key")).resolves.toMatchObject({
+        credentials: expect.arrayContaining([
+          expect.objectContaining({ sourceRefId: "notion-mcp", slot: "access_token", value: "fresh-access" }),
+          expect.objectContaining({ sourceRefId: "notion-mcp", slot: "refresh_token", value: "refresh-1" }),
+        ]),
+      })
     })
   })
 
@@ -993,6 +1134,15 @@ describe("@hrbr/runtime-local credentials", () => {
     expect(() => readHarborLocalCredentialKeyFromEnv({
       env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "" },
     })).toThrow("HARBOR_LOCAL_CREDENTIAL_KEY is required")
+    try {
+      readHarborLocalCredentialKeyFromEnv({ env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "" } })
+    } catch (error) {
+      expect(error).toBeInstanceOf(HarborLocalError)
+      expect(error).toMatchObject({
+        code: "local_credentials_key_required",
+        details: { envName: HARBOR_LOCAL_CREDENTIAL_KEY_ENV },
+      })
+    }
   })
 })
 

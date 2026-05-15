@@ -1,4 +1,9 @@
-import { createMcpHttpSourceAdapter, type McpSourceFetch } from "@hrbr/source-mcp"
+import {
+  createMcpHttpSourceAdapter,
+  probeMcpHttpSource,
+  type McpHttpProbeResult,
+  type McpSourceFetch,
+} from "@hrbr/source-mcp"
 import {
   exchangeOAuthAuthorizationCode,
   registerOAuthDynamicClient,
@@ -19,6 +24,7 @@ import {
 } from "./mcp-store"
 import {
   readHarborLocalOAuthStatus,
+  refreshHarborLocalOAuthGrant,
   startHarborLocalOAuthFlow,
   type HarborLocalOAuthStatus,
 } from "./oauth"
@@ -28,6 +34,7 @@ import {
 } from "./daemon"
 import { createHarborLocalToolIndex, type HarborLocalToolIndexRecord } from "./tool-search"
 import type { HarborLocalToolIndex } from "./tool-search"
+import { HarborLocalError } from "./errors"
 
 interface SourceCredentials {
   readonly get: (slot: string) => string | undefined
@@ -48,6 +55,17 @@ export interface HarborLocalMcpRefreshSourceResult {
   readonly namespace: string
   readonly toolCount: number
   readonly tools: readonly HarborLocalMcpToolBinding[]
+}
+
+export interface HarborLocalMcpProbeSourceInput extends HarborLocalCredentialResolverFromEnvInput {
+  readonly projectRoot: string
+  readonly sourceId: string
+  readonly fetch?: McpSourceFetch | undefined
+  readonly allowLocalNetwork?: boolean | undefined
+}
+
+export interface HarborLocalMcpProbeSourceResult extends McpHttpProbeResult {
+  readonly sourceId: string
 }
 
 export interface HarborLocalMcpToolRuntimeInput extends HarborLocalCredentialResolverFromEnvInput {
@@ -146,9 +164,33 @@ function bearerSlot(source: HarborLocalMcpStoredSource): string | undefined {
 }
 
 async function optionalCredentials(
-  input: HarborLocalCredentialResolverFromEnvInput & { readonly projectRoot: string; readonly source: HarborLocalMcpStoredSource },
+  input: HarborLocalCredentialResolverFromEnvInput & {
+    readonly projectRoot: string
+    readonly source: HarborLocalMcpStoredSource
+    readonly fetch?: McpSourceFetch | undefined
+  },
 ): Promise<SourceCredentials | undefined> {
-  return bearerSlot(input.source) === undefined
+  const slot = bearerSlot(input.source)
+  if (slot === undefined) return undefined
+  if (input.source.auth.kind === "oauth2") {
+    const oauth = await readHarborLocalOAuthStatus(input.projectRoot, input.source.id)
+    if (oauth.status === "ready" || oauth.status === "reconnect_required") {
+      const refresh = await refreshHarborLocalOAuthGrant(input.projectRoot, {
+        sourceRefId: input.source.id,
+        env: input.env,
+        envName: input.envName,
+        fetch: input.fetch,
+      })
+      if (refresh.status === "reconnect_required") {
+        throw new HarborLocalError({
+          code: "local_mcp_oauth_reconnect_required",
+          message: refresh.error ?? `OAuth reconnect is required for MCP source "${input.source.id}".`,
+          details: { sourceId: input.source.id },
+        })
+      }
+    }
+  }
+  return slot === undefined
     ? undefined
     : resolvedCredentials({
         projectRoot: input.projectRoot,
@@ -165,7 +207,11 @@ function adapterForSource(input: {
 }) {
   const source = input.source
   if (source.transport !== "remote" || !source.endpoint) {
-    throw new Error(`MCP source "${source.id}" is not a remote HTTP source.`)
+    throw new HarborLocalError({
+      code: "local_mcp_source_unsupported_transport",
+      message: `MCP source "${source.id}" is not a remote HTTP source.`,
+      details: { sourceId: source.id, transport: source.transport },
+    })
   }
   return createMcpHttpSourceAdapter({
     id: source.id,
@@ -189,16 +235,28 @@ async function waitForOAuthReady(
     if (status.status === "ready") return status
     await new Promise((resolve) => setTimeout(resolve, 1_000))
   }
-  throw new Error(`Timed out waiting for OAuth callback for MCP source "${sourceId}".`)
+  throw new HarborLocalError({
+    code: "local_mcp_oauth_timeout",
+    message: `Timed out waiting for OAuth callback for MCP source "${sourceId}".`,
+    details: { sourceId, timeoutMs },
+  })
 }
 
 export async function connectHarborLocalMcpOAuthSource(
   input: HarborLocalMcpOAuthConnectInput
 ): Promise<HarborLocalMcpOAuthConnectHandle> {
   const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId)
-  if (!source) throw new Error(`Unknown local MCP source "${input.sourceId}".`)
+  if (!source) throw new HarborLocalError({
+    code: "local_mcp_source_unknown",
+    message: `Unknown local MCP source "${input.sourceId}".`,
+    details: { sourceId: input.sourceId },
+  })
   if (source.auth.kind !== "oauth2") {
-    throw new Error(`MCP source "${input.sourceId}" is not configured for oauth2 auth.`)
+    throw new HarborLocalError({
+      code: "local_mcp_oauth_not_configured",
+      message: `MCP source "${input.sourceId}" is not configured for oauth2 auth.`,
+      details: { sourceId: input.sourceId, auth: source.auth.kind },
+    })
   }
 
   let oauthClient: { clientId: string; clientSecret?: string | undefined } = {
@@ -272,13 +330,18 @@ export async function refreshHarborLocalMcpSource(
   input: HarborLocalMcpRefreshSourceInput
 ): Promise<HarborLocalMcpRefreshSourceResult> {
   const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId)
-  if (!source) throw new Error(`Unknown local MCP source "${input.sourceId}".`)
+  if (!source) throw new HarborLocalError({
+    code: "local_mcp_source_unknown",
+    message: `Unknown local MCP source "${input.sourceId}".`,
+    details: { sourceId: input.sourceId },
+  })
   const adapter = adapterForSource({ source, fetch: input.fetch, allowLocalNetwork: input.allowLocalNetwork })
   const credentials = await optionalCredentials({
     projectRoot: input.projectRoot,
     source,
     env: input.env,
     envName: input.envName,
+    fetch: input.fetch,
   })
   const tools = await adapter.listTools(credentials ? { credentials } : undefined)
   const bindings = await putHarborLocalMcpToolBindings({
@@ -306,6 +369,49 @@ export async function refreshHarborLocalMcpSource(
     namespace: source.namespace,
     toolCount: bindings.length,
     tools: bindings,
+  }
+}
+
+export async function probeHarborLocalMcpSource(
+  input: HarborLocalMcpProbeSourceInput
+): Promise<HarborLocalMcpProbeSourceResult> {
+  const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId)
+  if (!source) throw new HarborLocalError({
+    code: "local_mcp_source_unknown",
+    message: `Unknown local MCP source "${input.sourceId}".`,
+    details: { sourceId: input.sourceId },
+  })
+  if (source.transport !== "remote" || !source.endpoint) {
+    return {
+      ok: false,
+      status: "blocked",
+      endpoint: source.endpoint ?? "",
+      namespace: source.namespace,
+      sourceId: source.id,
+      message: `MCP source "${source.id}" is not a remote HTTP source.`,
+      method: "configure",
+    }
+  }
+  const credentials = await optionalCredentials({
+    projectRoot: input.projectRoot,
+    source,
+    env: input.env,
+    envName: input.envName,
+    fetch: input.fetch,
+  })
+  const probe = await probeMcpHttpSource({
+    id: source.id,
+    namespace: source.namespace,
+    displayName: source.name,
+    endpoint: source.endpoint,
+    allowLocalNetwork: input.allowLocalNetwork,
+    ...(input.fetch !== undefined ? { fetch: input.fetch } : {}),
+    ...(bearerSlot(source) !== undefined ? { bearerCredentialSlot: bearerSlot(source) } : {}),
+    ...(credentials !== undefined ? { credentials } : {}),
+  })
+  return {
+    ...probe,
+    sourceId: source.id,
   }
 }
 
@@ -361,16 +467,25 @@ export async function createHarborLocalMcpToolRuntime(
   return buildHarborLocalToolIndexFromSqlite(input.projectRoot, {
     callTool: async (call, tool) => {
       const source = await readHarborLocalMcpSource(input.projectRoot, tool.namespace)
-      if (!source) throw new Error(`Unknown local MCP source for namespace "${tool.namespace}".`)
+      if (!source) throw new HarborLocalError({
+        code: "local_mcp_source_unknown",
+        message: `Unknown local MCP source for namespace "${tool.namespace}".`,
+        details: { namespace: tool.namespace },
+      })
       const binding = (await listHarborLocalMcpToolBindings(input.projectRoot, source.id))
         .find((candidate) => `${candidate.namespace}.${candidate.toolId}` === call.toolId)
-      if (!binding) throw new Error(`No MCP binding found for local tool "${call.toolId}".`)
+      if (!binding) throw new HarborLocalError({
+        code: "local_tool_unknown",
+        message: `No MCP binding found for local tool "${call.toolId}".`,
+        details: { toolId: call.toolId, sourceId: source.id },
+      })
       const adapter = adapterForSource({ source, fetch: input.fetch, allowLocalNetwork: input.allowLocalNetwork })
       const credentials = await optionalCredentials({
         projectRoot: input.projectRoot,
         source,
         env: input.env,
         envName: input.envName,
+        fetch: input.fetch,
       })
       return {
         toolId: call.toolId,
@@ -389,6 +504,10 @@ export async function createHarborLocalMcpToolIndexFromBindings(
   sourceId: string
 ): Promise<HarborLocalToolIndex> {
   const source = await readHarborLocalMcpSource(projectRoot, sourceId)
-  if (!source) throw new Error(`Unknown local MCP source "${sourceId}".`)
+  if (!source) throw new HarborLocalError({
+    code: "local_mcp_source_unknown",
+    message: `Unknown local MCP source "${sourceId}".`,
+    details: { sourceId },
+  })
   return createHarborLocalToolIndex(await searchableRecordsForSource(projectRoot, source))
 }

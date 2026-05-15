@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
 import { createCredentialResolver, createMemoryCredentialStore } from '@hrbr/source-credentials'
 import { createToolRegistry } from '@hrbr/tools'
-import { createMcpHttpSourceAdapter, McpSourceError } from '../src/index'
+import { createMcpHttpSourceAdapter, McpSourceError, probeMcpHttpSource } from '../src/index'
 
 function json(payload: unknown, init?: ResponseInit): Response {
   return new Response(JSON.stringify(payload), {
@@ -193,6 +193,98 @@ describe('@hrbr/source-mcp', () => {
         timeoutMs: 0,
       })
     ).toThrow(/timeoutMs must be a positive number/)
+  })
+
+  it('probes MCP HTTP endpoints without discovering tools', async () => {
+    const seen: string[] = []
+    const result = await probeMcpHttpSource({
+      namespace: 'probe',
+      displayName: 'Probe MCP',
+      endpoint: 'https://probe.example.com/mcp',
+      fetch: async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as { method: string }
+        seen.push(body.method)
+        if (body.method === 'initialize') {
+          return json(
+            {
+              jsonrpc: '2.0',
+              id: 1,
+              result: {
+                protocolVersion: '2025-03-26',
+                capabilities: { tools: {} },
+                serverInfo: { name: 'probe-server', version: '1.0.0' },
+              },
+            },
+            { headers: { 'mcp-session-id': 'probe-session' } }
+          )
+        }
+        if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
+        throw new Error(`Unexpected method ${body.method}`)
+      },
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      status: 'ready',
+      namespace: 'probe',
+      protocolVersion: '2025-03-26',
+      sessionId: 'probe-session',
+      serverInfo: { name: 'probe-server', version: '1.0.0' },
+    })
+    expect(seen).toEqual(['initialize', 'notifications/initialized'])
+  })
+
+  it('returns auth-required probe diagnostics for protected MCP endpoints', async () => {
+    const result = await probeMcpHttpSource({
+      namespace: 'secure_probe',
+      displayName: 'Secure Probe MCP',
+      endpoint: 'https://secure-probe.example.com/mcp',
+      fetch: async () => new Response('missing bearer token', { status: 401 }),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 'auth_required',
+      statusCode: 401,
+      method: 'initialize',
+      message: 'missing bearer token',
+    })
+  })
+
+  it('returns wrong-shape probe diagnostics for non-object initialize results', async () => {
+    const result = await probeMcpHttpSource({
+      namespace: 'wrong_shape',
+      displayName: 'Wrong Shape MCP',
+      endpoint: 'https://wrong-shape.example.com/mcp',
+      fetch: async () =>
+        json({
+          jsonrpc: '2.0',
+          id: 1,
+          result: ['not', 'an', 'object'],
+        }),
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 'invalid_response',
+      method: 'initialize',
+      message: 'MCP initialize result was not a JSON object.',
+      dataShape: { type: 'array', length: 3 },
+    })
+  })
+
+  it('returns blocked probe diagnostics for private-network endpoints', async () => {
+    const result = await probeMcpHttpSource({
+      namespace: 'local_probe',
+      displayName: 'Local Probe MCP',
+      endpoint: 'http://127.0.0.1:7331/mcp',
+    })
+
+    expect(result).toMatchObject({
+      ok: false,
+      status: 'blocked',
+      method: 'configure',
+    })
   })
 
   it('uses caller abort signals for MCP requests', async () => {

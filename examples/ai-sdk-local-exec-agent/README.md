@@ -10,7 +10,7 @@ const data = await harbor.exec.run(generated.code)
 const { object: summary } = await generateObject({ model, schema, prompt: summarize(data) })
 ```
 
-Harbor SDK owns source setup, OAuth refresh, namespace resolution, QuickJS execution, MCP dispatch, credentials, and policy.
+Harbor SDK owns source setup, OAuth refresh, namespace resolution, the generated exec tool guide, QuickJS execution, MCP dispatch, credentials, and policy.
 
 The original Flue example remains at `examples/flue-local-exec-agent`.
 
@@ -18,7 +18,7 @@ The original Flue example remains at `examples/flue-local-exec-agent`.
 
 The example automatically loads `.env` from its own directory. If that file does not exist, it also falls back to `examples/flue-local-exec-agent/.env` and reuses `examples/flue-local-exec-agent/.harbor/` when present.
 
-Create `examples/ai-sdk-local-exec-agent/.env`:
+Create `examples/ai-sdk-local-exec-agent/.env` when you want isolated state:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...

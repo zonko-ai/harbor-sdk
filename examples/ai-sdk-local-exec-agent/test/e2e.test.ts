@@ -2,7 +2,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "bun:test"
-import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
+import { createHarbor } from "@hrbr/sdk/local"
 import { serveLinearNotionReadonlyFixtureServers } from "./fixtures"
 
 async function withTempProject<T>(fn: (dir: string) => Promise<T>): Promise<T> {
@@ -19,7 +19,7 @@ describe("AI SDK local exec read-only summary example", () => {
     await withTempProject(async (projectRoot) => {
       const servers = await serveLinearNotionReadonlyFixtureServers()
       try {
-        const harbor = createHarborLocalRuntime({
+        const harbor = createHarbor({
           projectRoot,
           env: { HARBOR_LOCAL_CREDENTIAL_KEY: "fixture-key" },
           allowLocalNetwork: true,

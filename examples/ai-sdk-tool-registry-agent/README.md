@@ -5,7 +5,7 @@ This example uses the Vercel AI SDK directly. It does not use Flue.
 The division of responsibility is:
 
 1. Vercel AI SDK calls Anthropic and returns Zod-validated registry steps.
-2. Harbor SDK installs Linear/Notion MCP sources, handles OAuth, refreshes tools, searches the local registry, invokes MCP tools, and enforces write policy.
+2. Harbor SDK installs Linear/Notion MCP sources, handles OAuth, probes source health, refreshes tools, searches the local registry, invokes MCP tools, and enforces write policy.
 3. The model treats MCP outputs as opaque observations and decides the next registry action.
 
 The original Flue example remains at `examples/flue-tool-registry-agent`.
@@ -14,7 +14,7 @@ The original Flue example remains at `examples/flue-tool-registry-agent`.
 
 The example automatically loads `.env` from its own directory. If that file does not exist, it also falls back to `examples/flue-tool-registry-agent/.env` and reuses `examples/flue-tool-registry-agent/.harbor/` when present.
 
-Create `examples/ai-sdk-tool-registry-agent/.env`:
+Create `examples/ai-sdk-tool-registry-agent/.env` when you want isolated state:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-...

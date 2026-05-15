@@ -6,12 +6,11 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test test",
     "dev": "flue dev --target node --env .env",
-    "run": "flue run local-exec --target node --env .env --payload '{\"prompt\":\"Get latest Linear issues from Harbor Alpha and latest relevant Notion docs/pages, then summarize current project status.\"}'"
+    "run": "flue run local-exec --target node --id local-exec-local --env .env --payload '{\"prompt\":\"Get latest Linear issues from Harbor Alpha and latest relevant Notion docs/pages, then summarize current project status.\"}'"
   },
   "dependencies": {
     "@flue/runtime": "^0.6.1",
-    "@hrbr/runtime-local": "workspace:*",
-    "@hrbr/source-mcp": "workspace:*",
+    "@hrbr/sdk": "workspace:*",
     "valibot": "^1.1.0",
     "zod": "^4.4.3"
   },

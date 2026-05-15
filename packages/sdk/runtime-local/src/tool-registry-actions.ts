@@ -2,6 +2,7 @@ import {
   createHarborLocalMcpToolRuntime,
   type HarborLocalMcpToolRuntimeInput,
 } from "./mcp-runtime"
+import { HarborLocalError } from "./errors"
 import * as v from "valibot"
 import type {
   HarborLocalToolCallResult,
@@ -72,7 +73,11 @@ export function harborLocalRegistryActionFromAgentStep(
   }
   if (step.action === "schema") return { kind: "schema", toolId: step.toolId ?? "" }
   if (step.action === "invoke") return { kind: "invoke", toolId: step.toolId ?? "", input: step.input ?? {} }
-  throw new Error("Final agent steps are not executable Harbor registry actions.")
+  throw new HarborLocalError({
+    code: "local_registry_action_invalid",
+    message: "Final agent steps are not executable Harbor registry actions.",
+    details: { action: step.action },
+  })
 }
 
 export interface HarborLocalRegistryWriteToolInput {

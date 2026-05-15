@@ -3,11 +3,15 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./core": "./src/core.ts",
+    "./local": "./src/local.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test"
   },
   "dependencies": {
     "@hrbr/ai": "workspace:*",
@@ -16,7 +20,6 @@
     "@hrbr/orbit": "workspace:*",
     "@hrbr/plugins": "workspace:*",
     "@hrbr/runs": "workspace:*",
-    "@hrbr/runtime-cloudflare": "workspace:*",
     "@hrbr/runtime-local": "workspace:*",
     "@hrbr/source-core": "workspace:*",
     "@hrbr/source-credentials": "workspace:*",

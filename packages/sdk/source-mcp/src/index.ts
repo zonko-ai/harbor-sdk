@@ -48,6 +48,37 @@ export interface McpSourceAdapterInput {
     | undefined
 }
 
+export type McpHttpProbeStatus =
+  | 'ready'
+  | 'auth_required'
+  | 'blocked'
+  | 'http_error'
+  | 'invalid_response'
+  | 'mcp_error'
+  | 'network_error'
+
+export interface McpHttpProbeResult {
+  readonly ok: boolean
+  readonly status: McpHttpProbeStatus
+  readonly endpoint: string
+  readonly namespace: string
+  readonly message: string
+  readonly method?: string | undefined
+  readonly statusCode?: number | undefined
+  readonly code?: number | undefined
+  readonly dataShape?: unknown
+  readonly protocolVersion?: string | undefined
+  readonly serverInfo?: unknown
+  readonly capabilities?: unknown
+  readonly instructions?: string | undefined
+  readonly sessionId?: string | undefined
+}
+
+export interface McpHttpProbeInput extends McpSourceAdapterInput {
+  readonly credentials?: SourceAdapterCredentials | undefined
+  readonly signal?: AbortSignal | undefined
+}
+
 interface JsonRpcRequest {
   readonly jsonrpc: '2.0'
   readonly id?: number | string | undefined
@@ -79,6 +110,18 @@ interface McpTool {
 interface McpToolsListResult {
   readonly tools?: readonly McpTool[] | undefined
   readonly nextCursor?: string | undefined
+}
+
+interface McpInitializeResult {
+  readonly protocolVersion?: string | undefined
+  readonly serverInfo?: unknown
+  readonly capabilities?: unknown
+  readonly instructions?: string | undefined
+}
+
+interface McpHttpSessionState {
+  nextId: number
+  sessionId: string | undefined
 }
 
 export class McpSourceError extends Error {
@@ -182,6 +225,17 @@ function validateEndpointUrl(input: McpSourceAdapterInput): void {
   }
 }
 
+function validateTimeoutMs(input: McpSourceAdapterInput): number {
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new McpSourceError({
+      method: 'configure',
+      message: `MCP source "${input.namespace}" timeoutMs must be a positive number.`,
+    })
+  }
+  return timeoutMs
+}
+
 function composeAbortSignal(signal: AbortSignal | undefined, timeoutMs: number): {
   readonly signal: AbortSignal
   readonly dispose: () => void
@@ -253,6 +307,112 @@ function rpcResult<T>(response: JsonRpcResponse | null, method: string): T {
   return response?.result as T
 }
 
+async function requestHeaders(
+  input: McpSourceAdapterInput,
+  sessionId: string | undefined,
+  ctx: McpSourceHeaderContext,
+  method: string
+): Promise<Record<string, string>> {
+  const resolved: Record<string, string> = {
+    accept: 'application/json, text/event-stream',
+    'content-type': 'application/json',
+  }
+  if (sessionId !== undefined) resolved['mcp-session-id'] = sessionId
+  if (input.bearerCredentialSlot !== undefined) {
+    if (!ctx.credentials) {
+      throw new McpSourceError({
+        method,
+        message: `MCP source "${input.namespace}" requires credential slot "${input.bearerCredentialSlot}".`,
+      })
+    }
+    resolved.authorization = `Bearer ${ctx.credentials.require(input.bearerCredentialSlot)}`
+  }
+  const extra = typeof input.headers === 'function' ? await input.headers(ctx) : input.headers
+  for (const [key, value] of Object.entries(extra ?? {})) {
+    if (value !== undefined) resolved[key] = value
+  }
+  return resolved
+}
+
+async function sendRpc<T>(
+  input: McpSourceAdapterInput,
+  state: McpHttpSessionState,
+  method: string,
+  params: unknown,
+  ctx: McpSourceHeaderContext,
+  options?: { readonly notification?: boolean | undefined; readonly signal?: AbortSignal | undefined }
+): Promise<T> {
+  const fetchImpl = input.fetch ?? globalThis.fetch
+  const abort = composeAbortSignal(options?.signal, validateTimeoutMs(input))
+  try {
+    const response = await fetchImpl(input.endpoint, {
+      method: 'POST',
+      redirect: 'error',
+      headers: await requestHeaders(input, state.sessionId, ctx, method),
+      signal: abort.signal,
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        ...(options?.notification ? {} : { id: state.nextId++ }),
+        method,
+        ...(params === undefined ? {} : { params }),
+      } satisfies JsonRpcRequest),
+    })
+    state.sessionId = response.headers.get('mcp-session-id') ?? state.sessionId
+    return rpcResult<T>(await readRpcResponse(response, method), method)
+  } catch (error) {
+    if (error instanceof McpSourceError) throw error
+    throw new McpSourceError({
+      method,
+      message: error instanceof Error ? error.message : `MCP ${method} request failed.`,
+      data: error,
+    })
+  } finally {
+    abort.dispose()
+  }
+}
+
+function dataShape(value: unknown): unknown {
+  if (Array.isArray(value)) return { type: 'array', length: value.length }
+  if (isRecord(value)) return { type: 'object', keys: Object.keys(value).slice(0, 12) }
+  if (value === null) return { type: 'null' }
+  return { type: typeof value }
+}
+
+function probeError(input: McpSourceAdapterInput, error: unknown): McpHttpProbeResult {
+  if (error instanceof McpSourceError) {
+    const status: McpHttpProbeStatus =
+      error.method === 'configure'
+        ? 'blocked'
+        : error.status === 401 || error.status === 403
+          ? 'auth_required'
+          : error.status !== undefined
+            ? 'http_error'
+            : error.code !== undefined
+              ? 'mcp_error'
+              : /not valid JSON|not a JSON object|response/i.test(error.message)
+                ? 'invalid_response'
+                : 'network_error'
+    return {
+      ok: false,
+      status,
+      endpoint: input.endpoint,
+      namespace: input.namespace,
+      message: error.message,
+      method: error.method,
+      ...(error.status !== undefined ? { statusCode: error.status } : {}),
+      ...(error.code !== undefined ? { code: error.code } : {}),
+      ...(error.data !== undefined ? { dataShape: dataShape(error.data) } : {}),
+    }
+  }
+  return {
+    ok: false,
+    status: 'network_error',
+    endpoint: input.endpoint,
+    namespace: input.namespace,
+    message: error instanceof Error ? error.message : String(error),
+  }
+}
+
 function toolDefinition(tool: McpTool): SourceToolDefinition {
   return {
     name: tool.name,
@@ -266,42 +426,9 @@ function toolDefinition(tool: McpTool): SourceToolDefinition {
 
 export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): SourceAdapter {
   validateEndpointUrl(input)
-  const fetchImpl = input.fetch ?? globalThis.fetch
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new McpSourceError({
-      method: 'configure',
-      message: `MCP source "${input.namespace}" timeoutMs must be a positive number.`,
-    })
-  }
-  let nextId = 1
+  validateTimeoutMs(input)
   let initialized = false
-  let sessionId: string | undefined
-
-  async function headers(
-    ctx: McpSourceHeaderContext,
-    method: string
-  ): Promise<Record<string, string>> {
-    const resolved: Record<string, string> = {
-      accept: 'application/json, text/event-stream',
-      'content-type': 'application/json',
-    }
-    if (sessionId !== undefined) resolved['mcp-session-id'] = sessionId
-    if (input.bearerCredentialSlot !== undefined) {
-      if (!ctx.credentials) {
-        throw new McpSourceError({
-          method,
-          message: `MCP source "${input.namespace}" requires credential slot "${input.bearerCredentialSlot}".`,
-        })
-      }
-      resolved.authorization = `Bearer ${ctx.credentials.require(input.bearerCredentialSlot)}`
-    }
-    const extra = typeof input.headers === 'function' ? await input.headers(ctx) : input.headers
-    for (const [key, value] of Object.entries(extra ?? {})) {
-      if (value !== undefined) resolved[key] = value
-    }
-    return resolved
-  }
+  const state: McpHttpSessionState = { nextId: 1, sessionId: undefined }
 
   async function send<T>(
     method: string,
@@ -309,32 +436,7 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
     ctx: McpSourceHeaderContext,
     options?: { readonly notification?: boolean | undefined; readonly signal?: AbortSignal | undefined }
   ): Promise<T> {
-    const abort = composeAbortSignal(options?.signal, timeoutMs)
-    try {
-      const response = await fetchImpl(input.endpoint, {
-        method: 'POST',
-        redirect: 'error',
-        headers: await headers(ctx, method),
-        signal: abort.signal,
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          ...(options?.notification ? {} : { id: nextId++ }),
-          method,
-          ...(params === undefined ? {} : { params }),
-        } satisfies JsonRpcRequest),
-      })
-      sessionId = response.headers.get('mcp-session-id') ?? sessionId
-      return rpcResult<T>(await readRpcResponse(response, method), method)
-    } catch (error) {
-      if (error instanceof McpSourceError) throw error
-      throw new McpSourceError({
-        method,
-        message: error instanceof Error ? error.message : `MCP ${method} request failed.`,
-        data: error,
-      })
-    } finally {
-      abort.dispose()
-    }
+    return sendRpc(input, state, method, params, ctx, options)
   }
 
   async function initialize(ctx: McpSourceHeaderContext & { readonly signal?: AbortSignal | undefined }): Promise<void> {
@@ -395,4 +497,56 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
       )
     },
   })
+}
+
+export async function probeMcpHttpSource(input: McpHttpProbeInput): Promise<McpHttpProbeResult> {
+  try {
+    validateEndpointUrl(input)
+    validateTimeoutMs(input)
+    const state: McpHttpSessionState = { nextId: 1, sessionId: undefined }
+    const result = await sendRpc<unknown>(
+      input,
+      state,
+      'initialize',
+      {
+        protocolVersion: input.protocolVersion ?? '2025-03-26',
+        capabilities: {},
+        clientInfo: input.clientInfo ?? { name: '@hrbr/source-mcp', version: '0.0.0' },
+      },
+      { credentials: input.credentials },
+      { signal: input.signal }
+    )
+    if (!isRecord(result)) {
+      return {
+        ok: false,
+        status: 'invalid_response',
+        endpoint: input.endpoint,
+        namespace: input.namespace,
+        message: 'MCP initialize result was not a JSON object.',
+        method: 'initialize',
+        dataShape: dataShape(result),
+        ...(state.sessionId !== undefined ? { sessionId: state.sessionId } : {}),
+      }
+    }
+    await sendRpc(input, state, 'notifications/initialized', undefined, { credentials: input.credentials }, {
+      notification: true,
+      signal: input.signal,
+    })
+    const initialize = result as McpInitializeResult
+    return {
+      ok: true,
+      status: 'ready',
+      endpoint: input.endpoint,
+      namespace: input.namespace,
+      message: `MCP source "${input.namespace}" handshake completed.`,
+      method: 'initialize',
+      ...(typeof initialize.protocolVersion === 'string' ? { protocolVersion: initialize.protocolVersion } : {}),
+      ...(initialize.serverInfo !== undefined ? { serverInfo: initialize.serverInfo } : {}),
+      ...(initialize.capabilities !== undefined ? { capabilities: initialize.capabilities } : {}),
+      ...(typeof initialize.instructions === 'string' ? { instructions: initialize.instructions } : {}),
+      ...(state.sessionId !== undefined ? { sessionId: state.sessionId } : {}),
+    }
+  } catch (error) {
+    return probeError(input, error)
+  }
 }

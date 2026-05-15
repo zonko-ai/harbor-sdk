@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { generateObject } from "ai"
-import { createHarborLocalRuntime } from "@hrbr/runtime-local/promise"
+import { createHarbor, harborLocalConsoleLogger } from "@hrbr/sdk/local"
 import { z } from "zod"
 
 const codeResultSchema = z.object({ code: z.string() })
@@ -82,40 +82,6 @@ function mcpSourcesFrom(env: Record<string, string | undefined>) {
   ]
 }
 
-function namespaceVar(namespace: string): string {
-  return namespace
-    .split(/[^A-Za-z0-9_$]+/g)
-    .filter(Boolean)
-    .map((part, index) => index === 0
-      ? part
-      : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join("")
-}
-
-function toolMethodName(toolName: string): string {
-  return toolName
-    .split(/[^A-Za-z0-9_$]+|_/g)
-    .filter(Boolean)
-    .map((part, index) => index === 0
-      ? part
-      : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join("")
-}
-
-function toolCallGuideFrom(setup: Awaited<ReturnType<ReturnType<typeof createHarborLocalRuntime>["sources"]["ensureMcpSources"]>>) {
-  return setup.sources.flatMap((source) =>
-    source.refresh?.tools.map((tool) => ({
-      namespace: source.source.namespace,
-      global: namespaceVar(source.source.namespace),
-      toolName: tool.toolName,
-      method: toolMethodName(tool.toolName),
-      call: `${namespaceVar(source.source.namespace)}.${toolMethodName(tool.toolName)}(input)`,
-      description: tool.description ?? null,
-      inputSchema: tool.inputSchema ?? null,
-    })) ?? []
-  )
-}
-
 function codePrompt(prompt: string, bindings: unknown, tools: unknown): string {
   return [
     "Write Harbor local exec JavaScript code only.",
@@ -139,19 +105,22 @@ export async function runAiSdkLocalExecAgent(input: {
   const runtimeEnv = input.env ?? envFromProcess()
   requireLocalCredentialKey(runtimeEnv)
   const allowLocalNetwork = Boolean(runtimeEnv.HARBOR_LINEAR_MCP_ENDPOINT || runtimeEnv.HARBOR_NOTION_MCP_ENDPOINT)
-  const harbor = createHarborLocalRuntime({ projectRoot: input.projectRoot ?? projectRootFrom(runtimeEnv, process.cwd()), env: runtimeEnv, allowLocalNetwork })
+  const harbor = createHarbor({
+    projectRoot: input.projectRoot ?? projectRootFrom(runtimeEnv, process.cwd()),
+    env: runtimeEnv,
+    allowLocalNetwork,
+    logger: harborLocalConsoleLogger(),
+  })
   const setup = await harbor.sources.ensureMcpSources({
     sources: mcpSourcesFrom(runtimeEnv),
     connect: true,
     refresh: true,
-    onStatus: (event) => console.log(`[harbor] ${event.message}`),
-    onAuthorizationUrl: ({ sourceId, authorizationUrl }) => console.log(`Open this URL to connect ${sourceId}:\n${authorizationUrl}\n`),
   })
   if (!setup.ready) return { answer: `Sources are not ready: ${JSON.stringify(setup.sources)}` }
 
   const model = anthropicModelFrom(runtimeEnv)
   const bindings = await harbor.exec.bindings()
-  const toolCallGuide = toolCallGuideFrom(setup)
+  const toolCallGuide = await harbor.exec.toolGuide()
   const { object: generated } = await generateObject({
     model,
     schema: codeResultSchema,

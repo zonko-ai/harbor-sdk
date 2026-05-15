@@ -1,6 +1,7 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "node:crypto"
 import { readFile, writeFile } from "node:fs/promises"
 import { harborLocalPaths, LOCAL_WORKSPACE_ID } from "./index"
+import { HarborLocalError } from "./errors"
 
 export const HARBOR_LOCAL_CREDENTIAL_KEY_ENV = "HARBOR_LOCAL_CREDENTIAL_KEY"
 
@@ -93,7 +94,11 @@ export function readHarborLocalCredentialKeyFromEnv(
   const env = input.env ?? process.env
   const key = env[envName]?.trim()
   if (!key) {
-    throw new Error(`${envName} is required to read or write local Harbor credentials.`)
+    throw new HarborLocalError({
+      code: "local_credentials_key_required",
+      message: `${envName} is required to read or write local Harbor credentials.`,
+      details: { envName },
+    })
   }
   return key
 }

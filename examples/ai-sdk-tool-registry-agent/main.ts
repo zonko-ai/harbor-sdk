@@ -3,9 +3,10 @@ import { resolve } from "node:path"
 import { createAnthropic } from "@ai-sdk/anthropic"
 import { generateObject } from "ai"
 import {
-  createHarborLocalRuntime,
+  createHarbor,
+  harborLocalConsoleLogger,
   harborLocalRegistryActionFromAgentStep,
-} from "@hrbr/runtime-local/promise"
+} from "@hrbr/sdk/local"
 import { z } from "zod"
 
 const mcpSources = [
@@ -113,18 +114,20 @@ export async function runAiSdkToolRegistryAgent(input: {
   requireLocalCredentialKey(registryEnv)
   const confirmWrites = registryEnv.HARBOR_CONFIRM_NOTION_WRITE === "1"
   const observations: unknown[] = []
-  const harbor = createHarborLocalRuntime({ projectRoot: input.projectRoot ?? projectRootFrom(registryEnv, process.cwd()), env: registryEnv })
+  const harbor = createHarbor({
+    projectRoot: input.projectRoot ?? projectRootFrom(registryEnv, process.cwd()),
+    env: registryEnv,
+    logger: harborLocalConsoleLogger(),
+  })
   const sourceSetup = await harbor.sources.ensureMcpSources({
     sources: mcpSources,
     connect: true,
     refresh: true,
-    onStatus: (event) => console.log(`[harbor] ${event.message}`),
-    onAuthorizationUrl: ({ sourceId, authorizationUrl }) => {
-      console.log(`Open this URL to connect ${sourceId}:\n${authorizationUrl}\n`)
-    },
   })
-  console.log(`[harbor] Source setup complete: ${sourceSetup.ready ? "ready" : "not ready"}`)
-  observations.push({ kind: "mcp_source_setup", result: sourceSetup })
+  const sourceProbes = sourceSetup.ready
+    ? await Promise.all(sourceSetup.sources.map((source) => harbor.sources.probeMcp(source.source.id)))
+    : []
+  observations.push({ kind: "mcp_source_setup", result: sourceSetup, probes: sourceProbes })
 
   const model = anthropicModelFrom(registryEnv)
   for (let step = 0; step < 12; step++) {

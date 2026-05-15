@@ -1,8 +1,9 @@
 /**
- * Public Harbor SDK entrypoint.
+ * Stable primitive surface for advanced SDK users.
  *
- * This package is intentionally an aggregator over stable SDK primitives. It
- * should not grow Harbor SaaS internals or runtime implementation details.
+ * Keep runtime adapters, hosted product internals, and experimental packages
+ * out of this subpath. The default npm path should remain Promise-first; this
+ * subpath is for users composing Harbor primitives directly.
  */
 
 export * as ai from "@hrbr/ai"
@@ -11,7 +12,6 @@ export * as common from "@hrbr/common"
 export * as orbit from "@hrbr/orbit"
 export * as plugins from "@hrbr/plugins"
 export * as runs from "@hrbr/runs"
-export * as runtimeLocal from "@hrbr/runtime-local"
 export * as sourceCore from "@hrbr/source-core"
 export * as sourceCredentials from "@hrbr/source-credentials"
 export * as sourceMcp from "@hrbr/source-mcp"

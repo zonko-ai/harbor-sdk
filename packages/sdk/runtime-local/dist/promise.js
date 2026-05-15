@@ -106,8 +106,7 @@ var init_sqlite = __esm(() => {
     "mcp_sources",
     "mcp_source_headers",
     "mcp_source_query_params",
-    "mcp_tool_bindings",
-    "cloudflare_resources"
+    "mcp_tool_bindings"
   ];
   HARBOR_LOCAL_MIGRATIONS = [
     {
@@ -364,18 +363,6 @@ CREATE TABLE IF NOT EXISTS mcp_tool_bindings (
   updated_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS cloudflare_resources (
-  id TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
-  account_id TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  name TEXT NOT NULL,
-  cloudflare_id TEXT,
-  metadata_json TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
 CREATE INDEX IF NOT EXISTS idx_tool_index_workspace_search ON tool_index(workspace_id, namespace, name);
 CREATE INDEX IF NOT EXISTS idx_runs_workspace_started ON runs(workspace_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_spans_run_started ON spans(run_id, started_at);
@@ -384,7 +371,6 @@ CREATE INDEX IF NOT EXISTS idx_oauth_grants_source_status ON oauth_grants(worksp
 CREATE INDEX IF NOT EXISTS idx_oauth_pending_source_status ON oauth_pending_flows(workspace_id, source_ref_id, status);
 CREATE INDEX IF NOT EXISTS idx_mcp_sources_workspace_namespace ON mcp_sources(workspace_id, namespace);
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_bindings_source ON mcp_tool_bindings(workspace_id, source_id);
-CREATE INDEX IF NOT EXISTS idx_cloudflare_resources_workspace_kind ON cloudflare_resources(workspace_id, kind);
 `.trim()
     }
   ];
@@ -397,7 +383,7 @@ function requireHarborLocalConfirmation(input) {
   }
 }
 function harborLocalSecurityAction(input) {
-  const destructive = input.destructive ?? (input.kind === "local.delete" || input.kind === "cloudflare.mutate" || input.kind === "credentials.change" || input.kind === "package.publish");
+  const destructive = input.destructive ?? (input.kind === "local.delete" || input.kind === "credentials.change" || input.kind === "package.publish");
   return {
     kind: input.kind,
     title: input.title,
@@ -429,6 +415,47 @@ function runHarborLocalStaticSecurityChecks(manifest) {
     message: "Network-capable packages should declare allowed hosts."
   });
   return checks;
+}
+
+// packages/sdk/runtime-local/src/errors.ts
+function isHarborLocalError(error) {
+  return error instanceof HarborLocalError;
+}
+function toHarborLocalError(error, fallback) {
+  if (error instanceof HarborLocalError)
+    return error;
+  return new HarborLocalError({
+    code: fallback.code,
+    message: error instanceof Error && error.message ? error.message : fallback.message,
+    details: fallback.details,
+    cause: error
+  });
+}
+var HarborLocalError;
+var init_errors = __esm(() => {
+  HarborLocalError = class HarborLocalError extends Error {
+    code;
+    details;
+    constructor(input) {
+      super(input.message, input.cause === undefined ? undefined : { cause: input.cause });
+      this.name = "HarborLocalError";
+      this.code = input.code;
+      this.details = input.details;
+    }
+  };
+});
+
+// packages/sdk/runtime-local/src/logger.ts
+function harborLocalConsoleLogger(input = {}) {
+  const prefix = input.prefix ?? "[harbor]";
+  return (event) => {
+    const write = event.level === "error" ? console.error : event.level === "warn" ? console.warn : console.log;
+    write(`${prefix} ${event.message}`);
+    if (event.authorizationUrl)
+      write(`Open this URL to connect ${event.sourceId ?? "MCP source"}:
+${event.authorizationUrl}
+`);
+  };
 }
 
 // packages/sdk/runtime-local/src/package-format.ts
@@ -10068,7 +10095,7 @@ function errorWithPath(message, path) {
   }
   return new Error(message);
 }
-var init_errors = __esm(() => {
+var init_errors2 = __esm(() => {
   init_Formatter();
 });
 
@@ -10288,7 +10315,7 @@ var init_arbitrary = __esm(() => {
   init_SchemaAST();
   init_Struct();
   init_UndefinedOr();
-  init_errors();
+  init_errors2();
   init_annotations();
   arbitraryMemoMap = /* @__PURE__ */ new WeakMap;
   max3 = /* @__PURE__ */ makeReducer(ReducerMax);
@@ -10705,7 +10732,7 @@ var init_equivalence = __esm(() => {
   init_Predicate();
   init_SchemaAST();
   init_SchemaParser();
-  init_errors();
+  init_errors2();
   init_annotations();
   toEquivalence = /* @__PURE__ */ memoize((ast) => {
     return recur3(ast, []);
@@ -25969,6 +25996,16 @@ function validateEndpointUrl(input) {
     });
   }
 }
+function validateTimeoutMs(input) {
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new McpSourceError({
+      method: "configure",
+      message: `MCP source "${input.namespace}" timeoutMs must be a positive number.`
+    });
+  }
+  return timeoutMs;
+}
 function composeAbortSignal(signal, timeoutMs) {
   const controller = new AbortController;
   const abort = () => controller.abort(signal?.reason);
@@ -26028,6 +26065,91 @@ function rpcResult(response, method) {
   }
   return response?.result;
 }
+async function requestHeaders(input, sessionId, ctx, method) {
+  const resolved = {
+    accept: "application/json, text/event-stream",
+    "content-type": "application/json"
+  };
+  if (sessionId !== undefined)
+    resolved["mcp-session-id"] = sessionId;
+  if (input.bearerCredentialSlot !== undefined) {
+    if (!ctx.credentials) {
+      throw new McpSourceError({
+        method,
+        message: `MCP source "${input.namespace}" requires credential slot "${input.bearerCredentialSlot}".`
+      });
+    }
+    resolved.authorization = `Bearer ${ctx.credentials.require(input.bearerCredentialSlot)}`;
+  }
+  const extra = typeof input.headers === "function" ? await input.headers(ctx) : input.headers;
+  for (const [key, value3] of Object.entries(extra ?? {})) {
+    if (value3 !== undefined)
+      resolved[key] = value3;
+  }
+  return resolved;
+}
+async function sendRpc(input, state, method, params, ctx, options) {
+  const fetchImpl = input.fetch ?? globalThis.fetch;
+  const abort = composeAbortSignal(options?.signal, validateTimeoutMs(input));
+  try {
+    const response = await fetchImpl(input.endpoint, {
+      method: "POST",
+      redirect: "error",
+      headers: await requestHeaders(input, state.sessionId, ctx, method),
+      signal: abort.signal,
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        ...options?.notification ? {} : { id: state.nextId++ },
+        method,
+        ...params === undefined ? {} : { params }
+      })
+    });
+    state.sessionId = response.headers.get("mcp-session-id") ?? state.sessionId;
+    return rpcResult(await readRpcResponse(response, method), method);
+  } catch (error) {
+    if (error instanceof McpSourceError)
+      throw error;
+    throw new McpSourceError({
+      method,
+      message: error instanceof Error ? error.message : `MCP ${method} request failed.`,
+      data: error
+    });
+  } finally {
+    abort.dispose();
+  }
+}
+function dataShape(value3) {
+  if (Array.isArray(value3))
+    return { type: "array", length: value3.length };
+  if (isRecord(value3))
+    return { type: "object", keys: Object.keys(value3).slice(0, 12) };
+  if (value3 === null)
+    return { type: "null" };
+  return { type: typeof value3 };
+}
+function probeError(input, error) {
+  if (error instanceof McpSourceError) {
+    const status = error.method === "configure" ? "blocked" : error.status === 401 || error.status === 403 ? "auth_required" : error.status !== undefined ? "http_error" : error.code !== undefined ? "mcp_error" : /not valid JSON|not a JSON object|response/i.test(error.message) ? "invalid_response" : "network_error";
+    return {
+      ok: false,
+      status,
+      endpoint: input.endpoint,
+      namespace: input.namespace,
+      message: error.message,
+      method: error.method,
+      ...error.status !== undefined ? { statusCode: error.status } : {},
+      ...error.code !== undefined ? { code: error.code } : {},
+      ...error.data !== undefined ? { dataShape: dataShape(error.data) } : {}
+    };
+  }
+  return {
+    ok: false,
+    status: "network_error",
+    endpoint: input.endpoint,
+    namespace: input.namespace,
+    message: error instanceof Error ? error.message : String(error)
+  };
+}
 function toolDefinition(tool) {
   return {
     name: tool.name,
@@ -26040,68 +26162,11 @@ function toolDefinition(tool) {
 }
 function createMcpHttpSourceAdapter(input) {
   validateEndpointUrl(input);
-  const fetchImpl = input.fetch ?? globalThis.fetch;
-  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS2;
-  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-    throw new McpSourceError({
-      method: "configure",
-      message: `MCP source "${input.namespace}" timeoutMs must be a positive number.`
-    });
-  }
-  let nextId = 1;
+  validateTimeoutMs(input);
   let initialized = false;
-  let sessionId;
-  async function headers(ctx, method) {
-    const resolved = {
-      accept: "application/json, text/event-stream",
-      "content-type": "application/json"
-    };
-    if (sessionId !== undefined)
-      resolved["mcp-session-id"] = sessionId;
-    if (input.bearerCredentialSlot !== undefined) {
-      if (!ctx.credentials) {
-        throw new McpSourceError({
-          method,
-          message: `MCP source "${input.namespace}" requires credential slot "${input.bearerCredentialSlot}".`
-        });
-      }
-      resolved.authorization = `Bearer ${ctx.credentials.require(input.bearerCredentialSlot)}`;
-    }
-    const extra = typeof input.headers === "function" ? await input.headers(ctx) : input.headers;
-    for (const [key, value3] of Object.entries(extra ?? {})) {
-      if (value3 !== undefined)
-        resolved[key] = value3;
-    }
-    return resolved;
-  }
+  const state = { nextId: 1, sessionId: undefined };
   async function send(method, params, ctx, options) {
-    const abort = composeAbortSignal(options?.signal, timeoutMs);
-    try {
-      const response = await fetchImpl(input.endpoint, {
-        method: "POST",
-        redirect: "error",
-        headers: await headers(ctx, method),
-        signal: abort.signal,
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          ...options?.notification ? {} : { id: nextId++ },
-          method,
-          ...params === undefined ? {} : { params }
-        })
-      });
-      sessionId = response.headers.get("mcp-session-id") ?? sessionId;
-      return rpcResult(await readRpcResponse(response, method), method);
-    } catch (error) {
-      if (error instanceof McpSourceError)
-        throw error;
-      throw new McpSourceError({
-        method,
-        message: error instanceof Error ? error.message : `MCP ${method} request failed.`,
-        data: error
-      });
-    } finally {
-      abort.dispose();
-    }
+    return sendRpc(input, state, method, params, ctx, options);
   }
   async function initialize(ctx) {
     if (initialized)
@@ -26143,6 +26208,50 @@ function createMcpHttpSourceAdapter(input) {
       }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
     }
   });
+}
+async function probeMcpHttpSource(input) {
+  try {
+    validateEndpointUrl(input);
+    validateTimeoutMs(input);
+    const state = { nextId: 1, sessionId: undefined };
+    const result2 = await sendRpc(input, state, "initialize", {
+      protocolVersion: input.protocolVersion ?? "2025-03-26",
+      capabilities: {},
+      clientInfo: input.clientInfo ?? { name: "@hrbr/source-mcp", version: "0.0.0" }
+    }, { credentials: input.credentials }, { signal: input.signal });
+    if (!isRecord(result2)) {
+      return {
+        ok: false,
+        status: "invalid_response",
+        endpoint: input.endpoint,
+        namespace: input.namespace,
+        message: "MCP initialize result was not a JSON object.",
+        method: "initialize",
+        dataShape: dataShape(result2),
+        ...state.sessionId !== undefined ? { sessionId: state.sessionId } : {}
+      };
+    }
+    await sendRpc(input, state, "notifications/initialized", undefined, { credentials: input.credentials }, {
+      notification: true,
+      signal: input.signal
+    });
+    const initialize = result2;
+    return {
+      ok: true,
+      status: "ready",
+      endpoint: input.endpoint,
+      namespace: input.namespace,
+      message: `MCP source "${input.namespace}" handshake completed.`,
+      method: "initialize",
+      ...typeof initialize.protocolVersion === "string" ? { protocolVersion: initialize.protocolVersion } : {},
+      ...initialize.serverInfo !== undefined ? { serverInfo: initialize.serverInfo } : {},
+      ...initialize.capabilities !== undefined ? { capabilities: initialize.capabilities } : {},
+      ...typeof initialize.instructions === "string" ? { instructions: initialize.instructions } : {},
+      ...state.sessionId !== undefined ? { sessionId: state.sessionId } : {}
+    };
+  } catch (error) {
+    return probeError(input, error);
+  }
 }
 var McpSourceError, DEFAULT_TIMEOUT_MS2 = 30000;
 var init_src2 = __esm(() => {
@@ -26284,6 +26393,24 @@ async function exchangeOAuthAuthorizationCode(input) {
     body: params.toString()
   }), "OAuth authorization code exchange"));
 }
+async function refreshOAuthTokenSet(input) {
+  const fetchImpl = input.fetch ?? globalThis.fetch;
+  const params = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: input.refreshToken,
+    client_id: input.clientId
+  });
+  if (input.clientSecret)
+    params.set("client_secret", input.clientSecret);
+  return tokenSetFromResponse(await readJsonResponse(await fetchImpl(input.tokenEndpoint, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: params.toString()
+  }), "OAuth refresh token exchange"));
+}
 var AuthKind, InstallFlow;
 var init_src3 = __esm(() => {
   init_dist4();
@@ -26349,7 +26476,11 @@ function readHarborLocalCredentialKeyFromEnv(input = {}) {
   const env = input.env ?? process.env;
   const key = env[envName]?.trim();
   if (!key) {
-    throw new Error(`${envName} is required to read or write local Harbor credentials.`);
+    throw new HarborLocalError({
+      code: "local_credentials_key_required",
+      message: `${envName} is required to read or write local Harbor credentials.`,
+      details: { envName }
+    });
   }
   return key;
 }
@@ -26412,7 +26543,8 @@ async function importHarborLocalCredentialsFromEnvKey(projectRoot, input) {
 }
 var HARBOR_LOCAL_CREDENTIAL_KEY_ENV = "HARBOR_LOCAL_CREDENTIAL_KEY";
 var init_credentials = __esm(() => {
-  init_src5();
+  init_src4();
+  init_errors();
 });
 
 // packages/sdk/runtime-local/src/tool-search.ts
@@ -26695,8 +26827,8 @@ function createHarborLocalCredentialResolverFromEnv(projectRoot, input = {}) {
   });
 }
 var init_plugin_store = __esm(() => {
-  init_src5();
-  init_src5();
+  init_src4();
+  init_src4();
   init_credentials();
 });
 
@@ -26977,7 +27109,7 @@ async function listHarborLocalMcpToolBindings(projectRoot, sourceId) {
   }
 }
 var init_mcp_store = __esm(() => {
-  init_src5();
+  init_src4();
 });
 
 // packages/sdk/runtime-local/src/oauth.ts
@@ -27032,6 +27164,59 @@ function grantFromRow(row) {
     ...row["expires_at"] !== null && row["expires_at"] !== undefined ? { expiresAt: String(row["expires_at"]) } : {},
     createdAt: String(row["created_at"]),
     updatedAt: String(row["updated_at"])
+  };
+}
+function oauthClientFromRow(row) {
+  return {
+    id: String(row["id"]),
+    sourceRefId: String(row["source_ref_id"]),
+    clientId: String(row["client_id"]),
+    ...row["client_secret_ref"] !== null && row["client_secret_ref"] !== undefined ? { clientSecretRef: String(row["client_secret_ref"]) } : {},
+    tokenEndpoint: String(row["token_endpoint"])
+  };
+}
+function shouldRefreshGrant(grant, input) {
+  if (input.force === true)
+    return true;
+  if (!grant.expiresAt)
+    return false;
+  const expiresAt = Date.parse(grant.expiresAt);
+  if (!Number.isFinite(expiresAt))
+    return true;
+  const now2 = (input.now ?? (() => new Date))().getTime();
+  return expiresAt <= now2 + (input.refreshSkewMs ?? 300000);
+}
+function credentialValue(credentials, sourceRefId2, slot) {
+  return credentials.find((record3) => record3.sourceRefId === sourceRefId2 && record3.slot === slot && record3.status === "active")?.value;
+}
+function upsertCredential(byId, input) {
+  const id2 = `${input.sourceRefId}:${input.slot}`;
+  const existing = byId.get(id2);
+  byId.set(id2, {
+    id: id2,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    sourceRefId: input.sourceRefId,
+    slot: input.slot,
+    value: input.value,
+    scope: "local",
+    status: "active",
+    createdAt: existing?.createdAt ?? input.now,
+    updatedAt: input.now
+  });
+}
+async function markGrantReconnectRequired(projectRoot, sourceRefId2, error) {
+  const now2 = new Date().toISOString();
+  const db = openDatabase3(projectRoot);
+  try {
+    db.prepare("UPDATE oauth_grants SET status = ?, updated_at = ? WHERE source_ref_id = ? AND status = ?").run("reconnect_required", now2, sourceRefId2, "active");
+  } finally {
+    db.close();
+  }
+  const status = await readHarborLocalOAuthStatus(projectRoot, sourceRefId2);
+  return {
+    status: "reconnect_required",
+    ...status.grant ? { grant: status.grant } : {},
+    ...error ? { error } : {}
   };
 }
 async function startHarborLocalOAuthFlow(input) {
@@ -27194,6 +27379,101 @@ async function completeHarborLocalOAuthCallback(projectRoot, input) {
     now: input.now
   });
 }
+async function refreshHarborLocalOAuthGrant(projectRoot, input) {
+  await ensureHarborLocalProject({ projectRoot });
+  const db = openDatabase3(projectRoot);
+  let grant = null;
+  let client = null;
+  try {
+    const grantRow = db.prepare(`
+      SELECT * FROM oauth_grants
+      WHERE source_ref_id = ?
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `).all(input.sourceRefId)[0];
+    grant = grantRow ? grantFromRow(grantRow) : null;
+    if (!grant)
+      return { status: "requires_oauth" };
+    if (grant.status === "reconnect_required")
+      return { status: "reconnect_required", grant };
+    if (!shouldRefreshGrant(grant, input))
+      return { status: "not_needed", grant };
+    const clientRow = db.prepare("SELECT * FROM oauth_clients WHERE id = ? LIMIT 1").all(grant.oauthClientId)[0];
+    client = clientRow ? oauthClientFromRow(clientRow) : null;
+  } finally {
+    db.close();
+  }
+  if (!client) {
+    return markGrantReconnectRequired(projectRoot, input.sourceRefId, "OAuth client metadata is missing.");
+  }
+  const key = readHarborLocalCredentialKeyFromEnv(input);
+  const current = await readHarborLocalCredentials(projectRoot, key);
+  const refreshToken = credentialValue(current.credentials, input.sourceRefId, "refresh_token");
+  if (!refreshToken) {
+    return markGrantReconnectRequired(projectRoot, input.sourceRefId, "OAuth refresh token is missing.");
+  }
+  const clientSecret = client.clientSecretRef ? credentialValue(current.credentials, input.sourceRefId, client.clientSecretRef) : undefined;
+  let tokens;
+  try {
+    tokens = await refreshOAuthTokenSet({
+      tokenEndpoint: client.tokenEndpoint,
+      refreshToken,
+      clientId: client.clientId,
+      ...clientSecret ? { clientSecret } : {},
+      fetch: input.fetch
+    });
+  } catch (error) {
+    return markGrantReconnectRequired(projectRoot, input.sourceRefId, error instanceof Error ? error.message : String(error));
+  }
+  const now2 = timestamp3(input.now);
+  const scopes = tokens.scopes ?? grant.scopes;
+  const dbAfterRefresh = openDatabase3(projectRoot);
+  try {
+    dbAfterRefresh.prepare(`
+      UPDATE oauth_grants
+      SET status = ?, scopes_json = ?, expires_at = ?, updated_at = ?
+      WHERE id = ?
+    `).run("active", JSON.stringify(scopes), tokens.expiresAt ?? grant.expiresAt ?? null, now2, grant.id);
+    for (const slot of ["access_token", "refresh_token"]) {
+      dbAfterRefresh.prepare(`
+        INSERT INTO credential_metadata (
+          id, workspace_id, source_ref_id, slot, scope, status, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET status = excluded.status, updated_at = excluded.updated_at
+      `).run(`${input.sourceRefId}:${slot}`, LOCAL_WORKSPACE_ID, input.sourceRefId, slot, "local", "active", now2, now2);
+    }
+  } finally {
+    dbAfterRefresh.close();
+  }
+  const byId = new Map(current.credentials.map((credential) => [credential.id, credential]));
+  upsertCredential(byId, {
+    sourceRefId: input.sourceRefId,
+    slot: "access_token",
+    value: tokens.accessToken,
+    now: now2
+  });
+  upsertCredential(byId, {
+    sourceRefId: input.sourceRefId,
+    slot: "refresh_token",
+    value: tokens.refreshToken ?? refreshToken,
+    now: now2
+  });
+  await writeHarborLocalCredentials(projectRoot, {
+    version: 1,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    credentials: [...byId.values()].sort((a, b) => a.id.localeCompare(b.id))
+  }, key);
+  return {
+    status: "refreshed",
+    grant: {
+      ...grant,
+      status: "active",
+      scopes,
+      ...tokens.expiresAt ?? grant.expiresAt ? { expiresAt: tokens.expiresAt ?? grant.expiresAt } : {},
+      updatedAt: now2
+    }
+  };
+}
 async function readHarborLocalOAuthStatus(projectRoot, sourceRefId2) {
   await ensureHarborLocalProject({ projectRoot });
   const db = openDatabase3(projectRoot);
@@ -27225,68 +27505,10 @@ async function readHarborLocalOAuthStatus(projectRoot, sourceRefId2) {
 }
 var init_oauth = __esm(() => {
   init_src3();
-  init_src5();
-  init_src5();
+  init_src4();
+  init_src4();
   init_credentials();
 });
-
-// packages/sdk/runtime-cloudflare/src/index.ts
-function resourceKey(resource) {
-  return `${resource.kind}:${resource.name}`;
-}
-function createCloudflareProvisioningPlan(input) {
-  const current = new Map((input.currentLock?.resources ?? []).map((resource) => [resourceKey(resource), resource]));
-  const desired = new Map(input.desiredResources.map((resource) => [resourceKey(resource), resource]));
-  const items2 = [];
-  for (const resource of input.desiredResources) {
-    const existing = current.get(resourceKey(resource));
-    items2.push({
-      action: existing ? "noop" : "create",
-      resource: existing ?? resource,
-      reason: existing ? "Resource is already present in the Cloudflare lock" : "Resource is required by the desired Orbit runtime",
-      destructive: false
-    });
-  }
-  for (const resource of current.values()) {
-    if (!desired.has(resourceKey(resource))) {
-      items2.push({
-        action: "delete",
-        resource,
-        reason: "Resource exists in the lock but is no longer desired",
-        destructive: true
-      });
-    }
-  }
-  return {
-    account: input.account,
-    items: items2,
-    requiresConfirmation: items2.some((item) => item.action !== "noop")
-  };
-}
-async function applyCloudflareProvisioningPlan(input) {
-  if (input.plan.requiresConfirmation && !input.confirmed) {
-    throw new Error("Cloudflare provisioning requires confirmation");
-  }
-  const resources = [];
-  for (const item of input.plan.items) {
-    if (item.action === "delete") {
-      await input.client?.deleteResource?.(item.resource);
-      continue;
-    }
-    if (item.action === "create") {
-      resources.push(await input.client?.createResource?.(item.resource) ?? item.resource);
-      continue;
-    }
-    if (item.action === "noop")
-      resources.push(item.resource);
-  }
-  return {
-    account: input.plan.account,
-    resources,
-    updatedAt: (input.now ?? (() => new Date))().toISOString()
-  };
-}
-var init_src4 = () => {};
 
 // packages/sdk/runtime-local/src/daemon.ts
 import { createHash as createHash2, randomBytes as randomBytes3 } from "node:crypto";
@@ -27317,21 +27539,6 @@ async function readJsonBody(req) {
 }
 function isAuthed(req, token) {
   return bearerToken(req) === token;
-}
-async function readCloudflareLock(projectRoot) {
-  const paths = harborLocalPaths(projectRoot);
-  try {
-    return JSON.parse(await readFile2(paths.cloudflareLock, "utf8"));
-  } catch (error) {
-    if (error.code === "ENOENT")
-      return null;
-    throw error;
-  }
-}
-async function writeCloudflareLock(projectRoot, lock) {
-  const paths = harborLocalPaths(projectRoot);
-  await writeFile2(paths.cloudflareLock, `${JSON.stringify(lock, null, 2)}
-`);
 }
 function hashHarborLocalToken(token) {
   return createHash2("sha256").update(token).digest("hex");
@@ -27421,55 +27628,6 @@ async function startHarborLocalDaemon(input) {
           return;
         }
         json3(res, 200, { ok: true, runtime: info });
-        return;
-      }
-      if (url.pathname === "/control/cloudflare/status") {
-        if (!isAuthed(req, token)) {
-          json3(res, 401, { ok: false, code: "unauthorized" });
-          return;
-        }
-        json3(res, 200, await readCloudflareLock(input.projectRoot));
-        return;
-      }
-      if (url.pathname === "/control/cloudflare/plan") {
-        if (!isAuthed(req, token)) {
-          json3(res, 401, { ok: false, code: "unauthorized" });
-          return;
-        }
-        const body = await readJsonBody(req);
-        json3(res, 200, createCloudflareProvisioningPlan({
-          account: body.account,
-          desiredResources: body.desiredResources,
-          currentLock: await readCloudflareLock(input.projectRoot)
-        }));
-        return;
-      }
-      if (url.pathname === "/control/cloudflare/apply") {
-        if (!isAuthed(req, token)) {
-          json3(res, 401, { ok: false, code: "unauthorized" });
-          return;
-        }
-        const body = await readJsonBody(req);
-        const plan = createCloudflareProvisioningPlan({
-          account: body.account,
-          desiredResources: body.desiredResources,
-          currentLock: await readCloudflareLock(input.projectRoot)
-        });
-        requireHarborLocalConfirmation({
-          action: harborLocalSecurityAction({
-            kind: "cloudflare.mutate",
-            title: "Apply Cloudflare provisioning plan",
-            destructive: plan.requiresConfirmation
-          }),
-          confirmed: body.confirmed === true
-        });
-        const lock = await applyCloudflareProvisioningPlan({
-          plan,
-          confirmed: body.confirmed === true,
-          now: now2
-        });
-        await writeCloudflareLock(input.projectRoot, lock);
-        json3(res, 200, lock);
         return;
       }
       const jobMatch = url.pathname.match(/^\/jobs\/([^/]+)\/run$/);
@@ -27566,10 +27724,9 @@ async function startHarborLocalDaemon(input) {
   };
 }
 var init_daemon = __esm(() => {
-  init_src4();
   init_jobs_apps();
   init_oauth();
-  init_src5();
+  init_src4();
 });
 
 // packages/sdk/runtime-local/src/mcp-runtime.ts
@@ -27621,7 +27778,28 @@ function bearerSlot(source) {
   return;
 }
 async function optionalCredentials(input) {
-  return bearerSlot(input.source) === undefined ? undefined : resolvedCredentials2({
+  const slot = bearerSlot(input.source);
+  if (slot === undefined)
+    return;
+  if (input.source.auth.kind === "oauth2") {
+    const oauth = await readHarborLocalOAuthStatus(input.projectRoot, input.source.id);
+    if (oauth.status === "ready" || oauth.status === "reconnect_required") {
+      const refresh = await refreshHarborLocalOAuthGrant(input.projectRoot, {
+        sourceRefId: input.source.id,
+        env: input.env,
+        envName: input.envName,
+        fetch: input.fetch
+      });
+      if (refresh.status === "reconnect_required") {
+        throw new HarborLocalError({
+          code: "local_mcp_oauth_reconnect_required",
+          message: refresh.error ?? `OAuth reconnect is required for MCP source "${input.source.id}".`,
+          details: { sourceId: input.source.id }
+        });
+      }
+    }
+  }
+  return slot === undefined ? undefined : resolvedCredentials2({
     projectRoot: input.projectRoot,
     sourceId: input.source.id,
     env: input.env,
@@ -27631,7 +27809,11 @@ async function optionalCredentials(input) {
 function adapterForSource(input) {
   const source = input.source;
   if (source.transport !== "remote" || !source.endpoint) {
-    throw new Error(`MCP source "${source.id}" is not a remote HTTP source.`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unsupported_transport",
+      message: `MCP source "${source.id}" is not a remote HTTP source.`,
+      details: { sourceId: source.id, transport: source.transport }
+    });
   }
   return createMcpHttpSourceAdapter({
     id: source.id,
@@ -27651,14 +27833,26 @@ async function waitForOAuthReady(projectRoot, sourceId, timeoutMs = 300000) {
       return status;
     await new Promise((resolve2) => setTimeout(resolve2, 1000));
   }
-  throw new Error(`Timed out waiting for OAuth callback for MCP source "${sourceId}".`);
+  throw new HarborLocalError({
+    code: "local_mcp_oauth_timeout",
+    message: `Timed out waiting for OAuth callback for MCP source "${sourceId}".`,
+    details: { sourceId, timeoutMs }
+  });
 }
 async function connectHarborLocalMcpOAuthSource(input) {
   const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId);
   if (!source)
-    throw new Error(`Unknown local MCP source "${input.sourceId}".`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unknown",
+      message: `Unknown local MCP source "${input.sourceId}".`,
+      details: { sourceId: input.sourceId }
+    });
   if (source.auth.kind !== "oauth2") {
-    throw new Error(`MCP source "${input.sourceId}" is not configured for oauth2 auth.`);
+    throw new HarborLocalError({
+      code: "local_mcp_oauth_not_configured",
+      message: `MCP source "${input.sourceId}" is not configured for oauth2 auth.`,
+      details: { sourceId: input.sourceId, auth: source.auth.kind }
+    });
   }
   let oauthClient = {
     clientId: "local-public-client"
@@ -27726,13 +27920,18 @@ async function searchableRecordsForSource(projectRoot, source) {
 async function refreshHarborLocalMcpSource(input) {
   const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId);
   if (!source)
-    throw new Error(`Unknown local MCP source "${input.sourceId}".`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unknown",
+      message: `Unknown local MCP source "${input.sourceId}".`,
+      details: { sourceId: input.sourceId }
+    });
   const adapter2 = adapterForSource({ source, fetch: input.fetch, allowLocalNetwork: input.allowLocalNetwork });
   const credentials = await optionalCredentials({
     projectRoot: input.projectRoot,
     source,
     env: input.env,
-    envName: input.envName
+    envName: input.envName,
+    fetch: input.fetch
   });
   const tools = await adapter2.listTools(credentials ? { credentials } : undefined);
   const bindings = await putHarborLocalMcpToolBindings({
@@ -27762,9 +27961,50 @@ async function refreshHarborLocalMcpSource(input) {
     tools: bindings
   };
 }
+async function probeHarborLocalMcpSource(input) {
+  const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId);
+  if (!source)
+    throw new HarborLocalError({
+      code: "local_mcp_source_unknown",
+      message: `Unknown local MCP source "${input.sourceId}".`,
+      details: { sourceId: input.sourceId }
+    });
+  if (source.transport !== "remote" || !source.endpoint) {
+    return {
+      ok: false,
+      status: "blocked",
+      endpoint: source.endpoint ?? "",
+      namespace: source.namespace,
+      sourceId: source.id,
+      message: `MCP source "${source.id}" is not a remote HTTP source.`,
+      method: "configure"
+    };
+  }
+  const credentials = await optionalCredentials({
+    projectRoot: input.projectRoot,
+    source,
+    env: input.env,
+    envName: input.envName,
+    fetch: input.fetch
+  });
+  const probe = await probeMcpHttpSource({
+    id: source.id,
+    namespace: source.namespace,
+    displayName: source.name,
+    endpoint: source.endpoint,
+    allowLocalNetwork: input.allowLocalNetwork,
+    ...input.fetch !== undefined ? { fetch: input.fetch } : {},
+    ...bearerSlot(source) !== undefined ? { bearerCredentialSlot: bearerSlot(source) } : {},
+    ...credentials !== undefined ? { credentials } : {}
+  });
+  return {
+    ...probe,
+    sourceId: source.id
+  };
+}
 async function writeMcpToolIndex(projectRoot, sourceId, records) {
   const { createRequire: createRequire6 } = await import("node:module");
-  const { harborLocalPaths: harborLocalPaths2 } = await Promise.resolve().then(() => (init_src5(), exports_src));
+  const { harborLocalPaths: harborLocalPaths2 } = await Promise.resolve().then(() => (init_src4(), exports_src));
   const req = createRequire6(import.meta.url);
   const Database = (() => {
     try {
@@ -27795,16 +28035,25 @@ async function createHarborLocalMcpToolRuntime(input) {
     callTool: async (call, tool) => {
       const source = await readHarborLocalMcpSource(input.projectRoot, tool.namespace);
       if (!source)
-        throw new Error(`Unknown local MCP source for namespace "${tool.namespace}".`);
+        throw new HarborLocalError({
+          code: "local_mcp_source_unknown",
+          message: `Unknown local MCP source for namespace "${tool.namespace}".`,
+          details: { namespace: tool.namespace }
+        });
       const binding = (await listHarborLocalMcpToolBindings(input.projectRoot, source.id)).find((candidate) => `${candidate.namespace}.${candidate.toolId}` === call.toolId);
       if (!binding)
-        throw new Error(`No MCP binding found for local tool "${call.toolId}".`);
+        throw new HarborLocalError({
+          code: "local_tool_unknown",
+          message: `No MCP binding found for local tool "${call.toolId}".`,
+          details: { toolId: call.toolId, sourceId: source.id }
+        });
       const adapter2 = adapterForSource({ source, fetch: input.fetch, allowLocalNetwork: input.allowLocalNetwork });
       const credentials = await optionalCredentials({
         projectRoot: input.projectRoot,
         source,
         env: input.env,
-        envName: input.envName
+        envName: input.envName,
+        fetch: input.fetch
       });
       return {
         toolId: call.toolId,
@@ -27816,7 +28065,11 @@ async function createHarborLocalMcpToolRuntime(input) {
 async function createHarborLocalMcpToolIndexFromBindings(projectRoot, sourceId) {
   const source = await readHarborLocalMcpSource(projectRoot, sourceId);
   if (!source)
-    throw new Error(`Unknown local MCP source "${sourceId}".`);
+    throw new HarborLocalError({
+      code: "local_mcp_source_unknown",
+      message: `Unknown local MCP source "${sourceId}".`,
+      details: { sourceId }
+    });
   return createHarborLocalToolIndex(await searchableRecordsForSource(projectRoot, source));
 }
 var init_mcp_runtime = __esm(() => {
@@ -27826,6 +28079,7 @@ var init_mcp_runtime = __esm(() => {
   init_mcp_store();
   init_oauth();
   init_daemon();
+  init_errors();
 });
 
 // node_modules/.bun/valibot@1.4.0+1fb4c65d43e298b9/node_modules/valibot/dist/index.mjs
@@ -28233,7 +28487,11 @@ function harborLocalRegistryActionFromAgentStep(step) {
     return { kind: "schema", toolId: step.toolId ?? "" };
   if (step.action === "invoke")
     return { kind: "invoke", toolId: step.toolId ?? "", input: step.input ?? {} };
-  throw new Error("Final agent steps are not executable Harbor registry actions.");
+  throw new HarborLocalError({
+    code: "local_registry_action_invalid",
+    message: "Final agent steps are not executable Harbor registry actions.",
+    details: { action: step.action }
+  });
 }
 function normalizeInvokeInput(input) {
   if (typeof input !== "string")
@@ -28296,6 +28554,7 @@ var harborLocalRegistryActionSchema, harborLocalRegistryAgentStepSchema, WRITE_T
 }) => WRITE_TOOL_PATTERN.test(toolId2) || WRITE_TOOL_PATTERN.test(tool?.name ?? "");
 var init_tool_registry_actions = __esm(() => {
   init_mcp_runtime();
+  init_errors();
   init_dist5();
   harborLocalRegistryActionSchema = variant2("kind", [
     object2({
@@ -28415,6 +28674,25 @@ async function listExecBindings(input) {
     db.close();
   }
 }
+async function listExecToolGuide(input) {
+  const toolRuntime = await createHarborLocalMcpToolRuntime(input);
+  const bindings = await listExecBindings(input);
+  return bindings.flatMap((binding) => toolRuntime.schemas({ namespace: binding.namespace }).map((schema) => toolRuntime.describe(schema.toolId)).filter((tool) => tool !== null).map((tool) => {
+    const global = harborLocalNamespaceToJsVar(tool.namespace);
+    const method = toCamelCase(tool.name);
+    return {
+      namespace: tool.namespace,
+      global,
+      aliases: binding.aliases,
+      toolId: tool.toolId,
+      toolName: tool.name,
+      method,
+      call: `${global}.${method}(input)`,
+      ...tool.description !== undefined ? { description: tool.description } : {},
+      ...tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}
+    };
+  }));
+}
 function resolveNamespaces(code, bindings) {
   const refs = referencedIdentifiers(code);
   const resolved = [];
@@ -28462,9 +28740,14 @@ function errorMessage(error) {
     return error;
   return "Local exec failed";
 }
+function execErrorCode(error) {
+  const message = errorMessage(error);
+  return error instanceof HarborLocalError && error.code === "local_write_confirmation_required" || /^Blocked write tool /.test(message) ? "local_write_confirmation_required" : "local_exec_error";
+}
 function createHarborLocalExecRuntime(input) {
   return {
     bindings: () => listExecBindings(input),
+    toolGuide: () => listExecToolGuide(input),
     run: async (code, options = {}) => {
       const started = Date.now();
       const logs = [];
@@ -28476,8 +28759,9 @@ function createHarborLocalExecRuntime(input) {
         return {
           ok: false,
           error: {
-            code: "EXEC_ERROR",
-            message: `Namespace "${missingNamespace}" is not available. Available namespace aliases: ${bindings.flatMap((binding) => [...binding.aliases]).join(", ") || "none"}.`
+            code: "local_exec_error",
+            message: `Namespace "${missingNamespace}" is not available. Available namespace aliases: ${bindings.flatMap((binding) => [...binding.aliases]).join(", ") || "none"}.`,
+            details: { namespace: missingNamespace }
           },
           namespaces: namespaces.map((binding) => binding.namespace),
           logs,
@@ -28514,7 +28798,11 @@ ${code}
               throw new Error(`Unknown local exec tool: ${toolId2}`);
             const isWrite = options.isWriteTool?.(tool) ?? harborLocalDefaultWriteToolMatcher({ toolId: toolId2, tool });
             if (isWrite && options.confirmWrites !== true) {
-              throw new Error(`Blocked write tool "${toolId2}". Re-run with write confirmation enabled to allow it.`);
+              throw new HarborLocalError({
+                code: "local_write_confirmation_required",
+                message: `Blocked write tool "${toolId2}". Re-run with write confirmation enabled to allow it.`,
+                details: { toolId: toolId2 }
+              });
             }
             const result2 = await toolRuntime.call({ toolId: toolId2, input: request.input ?? {} });
             return result2.output;
@@ -28531,8 +28819,9 @@ ${code}
         return {
           ok: false,
           error: {
-            code: "EXEC_ERROR",
-            message: errorMessage(error)
+            code: execErrorCode(error),
+            message: errorMessage(error),
+            ...error instanceof HarborLocalError && error.details !== undefined ? { details: error.details } : {}
           },
           namespaces: namespaces.map((binding) => binding.namespace),
           logs,
@@ -28545,7 +28834,8 @@ ${code}
 var init_exec = __esm(() => {
   init_tool_registry_actions();
   init_mcp_runtime();
-  init_src5();
+  init_src4();
+  init_errors();
 });
 
 // packages/sdk/runtime-local/src/registry.ts
@@ -28658,7 +28948,7 @@ async function watchHarborRegistryDevRefs(projectRoot, onEvent) {
   };
 }
 var init_registry = __esm(() => {
-  init_src5();
+  init_src4();
 });
 
 // packages/sdk/runtime-local/src/mcp-plugin.ts
@@ -28789,6 +29079,7 @@ __export(exports_src, {
   upsertHarborRegistryDevRef: () => upsertHarborRegistryDevRef,
   upsertHarborLocalMcpSource: () => upsertHarborLocalMcpSource,
   updateHarborLocalMcpSourceStatus: () => updateHarborLocalMcpSourceStatus,
+  toHarborLocalError: () => toHarborLocalError,
   startHarborLocalOAuthFlow: () => startHarborLocalOAuthFlow,
   startHarborLocalDaemon: () => startHarborLocalDaemon,
   runHarborLocalWorkflow: () => runHarborLocalWorkflow,
@@ -28800,6 +29091,7 @@ __export(exports_src, {
   runHarborLocalAppRoute: () => runHarborLocalAppRoute,
   requireHarborLocalConfirmation: () => requireHarborLocalConfirmation,
   removeHarborRegistryDevRef: () => removeHarborRegistryDevRef,
+  refreshHarborLocalOAuthGrant: () => refreshHarborLocalOAuthGrant,
   refreshHarborLocalMcpSource: () => refreshHarborLocalMcpSource,
   redactHarborSecret: () => redactHarborSecret,
   readHarborRegistryDevRefs: () => readHarborRegistryDevRefs,
@@ -28811,9 +29103,11 @@ __export(exports_src, {
   readHarborLocalCredentials: () => readHarborLocalCredentials,
   readHarborLocalCredentialKeyFromEnv: () => readHarborLocalCredentialKeyFromEnv,
   putHarborLocalMcpToolBindings: () => putHarborLocalMcpToolBindings,
+  probeHarborLocalMcpSource: () => probeHarborLocalMcpSource,
   matchHarborLocalAppRoute: () => matchHarborLocalAppRoute,
   listHarborLocalSources: () => listHarborLocalSources,
   listHarborLocalMcpToolBindings: () => listHarborLocalMcpToolBindings,
+  isHarborLocalError: () => isHarborLocalError,
   installHarborLocalPluginManifest: () => installHarborLocalPluginManifest,
   installHarborLocalMcpPlugin: () => installHarborLocalMcpPlugin,
   initializeHarborLocalSqlite: () => initializeHarborLocalSqlite,
@@ -28829,6 +29123,7 @@ __export(exports_src, {
   harborLocalNamespaceToJsVar: () => harborLocalNamespaceToJsVar,
   harborLocalDefaultWriteToolMatcher: () => harborLocalDefaultWriteToolMatcher,
   harborLocalDaemonConnection: () => harborLocalDaemonConnection,
+  harborLocalConsoleLogger: () => harborLocalConsoleLogger,
   generateHarborLocalWorkflowPackageManifest: () => generateHarborLocalWorkflowPackageManifest,
   generateHarborLocalWorkflowManifest: () => generateHarborLocalWorkflowManifest,
   generateHarborLocalPluginPackageManifest: () => generateHarborLocalPluginPackageManifest,
@@ -28852,6 +29147,7 @@ __export(exports_src, {
   completeHarborLocalOAuthCallback: () => completeHarborLocalOAuthCallback,
   buildHarborLocalToolIndexFromSqlite: () => buildHarborLocalToolIndexFromSqlite,
   LOCAL_WORKSPACE_ID: () => LOCAL_WORKSPACE_ID,
+  HarborLocalError: () => HarborLocalError,
   HARBOR_SQLITE_FILE: () => HARBOR_SQLITE_FILE,
   HARBOR_RUNTIME_FILE: () => HARBOR_RUNTIME_FILE,
   HARBOR_REGISTRY_REFS_FILE: () => HARBOR_REGISTRY_REFS_FILE,
@@ -28861,8 +29157,7 @@ __export(exports_src, {
   HARBOR_LOCAL_LAYOUT: () => HARBOR_LOCAL_LAYOUT,
   HARBOR_LOCAL_DIR: () => HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV: () => HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
-  HARBOR_CREDENTIALS_FILE: () => HARBOR_CREDENTIALS_FILE,
-  HARBOR_CLOUDFLARE_LOCK_FILE: () => HARBOR_CLOUDFLARE_LOCK_FILE
+  HARBOR_CREDENTIALS_FILE: () => HARBOR_CREDENTIALS_FILE
 });
 import { mkdir as mkdir2, readFile as readFile4, writeFile as writeFile4 } from "node:fs/promises";
 import { join as join3 } from "node:path";
@@ -28877,8 +29172,7 @@ function harborLocalPaths(projectRoot) {
     registryRefs: resolve2(HARBOR_LOCAL_LAYOUT.registryRefs),
     artifacts: resolve2(HARBOR_LOCAL_LAYOUT.artifacts),
     traces: resolve2(HARBOR_LOCAL_LAYOUT.traces),
-    cache: resolve2(HARBOR_LOCAL_LAYOUT.cache),
-    cloudflareLock: resolve2(HARBOR_LOCAL_LAYOUT.cloudflareLock)
+    cache: resolve2(HARBOR_LOCAL_LAYOUT.cache)
   };
 }
 async function pathExists(path) {
@@ -28944,9 +29238,10 @@ function harborLocalDaemonConnection(manifest) {
     headers: { authorization: `Bearer ${manifest.token}` }
   };
 }
-var LOCAL_WORKSPACE_ID = "local", HARBOR_LOCAL_DIR = ".harbor", HARBOR_RUNTIME_FILE = "runtime.json", HARBOR_SQLITE_FILE = "harbor.sqlite", HARBOR_CREDENTIALS_FILE = "credentials.enc", HARBOR_REGISTRY_REFS_FILE = "registry-dev-refs.json", HARBOR_CLOUDFLARE_LOCK_FILE = "cloudflare.lock.json", HARBOR_LOCAL_LAYOUT, DEFAULT_REGISTRY_REFS;
-var init_src5 = __esm(() => {
+var LOCAL_WORKSPACE_ID = "local", HARBOR_LOCAL_DIR = ".harbor", HARBOR_RUNTIME_FILE = "runtime.json", HARBOR_SQLITE_FILE = "harbor.sqlite", HARBOR_CREDENTIALS_FILE = "credentials.enc", HARBOR_REGISTRY_REFS_FILE = "registry-dev-refs.json", HARBOR_LOCAL_LAYOUT, DEFAULT_REGISTRY_REFS;
+var init_src4 = __esm(() => {
   init_sqlite();
+  init_errors();
   init_submission();
   init_package_format();
   init_workflows();
@@ -28971,8 +29266,7 @@ var init_src5 = __esm(() => {
     registryRefs: `${HARBOR_LOCAL_DIR}/${HARBOR_REGISTRY_REFS_FILE}`,
     artifacts: `${HARBOR_LOCAL_DIR}/artifacts`,
     traces: `${HARBOR_LOCAL_DIR}/traces`,
-    cache: `${HARBOR_LOCAL_DIR}/cache`,
-    cloudflareLock: `${HARBOR_LOCAL_DIR}/${HARBOR_CLOUDFLARE_LOCK_FILE}`
+    cache: `${HARBOR_LOCAL_DIR}/cache`
   };
   DEFAULT_REGISTRY_REFS = {
     version: 1,
@@ -28982,7 +29276,7 @@ var init_src5 = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/promise.ts
-init_src5();
+init_src4();
 // packages/sdk/registry-catalog/data/v1/catalog.json
 var catalog_default = {
   version: 1,
@@ -40760,6 +41054,7 @@ var REGISTRY_CATALOG_ENTRIES = REGISTRY_CATALOG_SLUGS.map((slug) => {
 });
 // packages/sdk/runtime-local/src/promise.ts
 init_credentials();
+init_src4();
 init_tool_registry_actions();
 function createHarborLocalRuntime(input) {
   const base2 = {
@@ -40769,16 +41064,29 @@ function createHarborLocalRuntime(input) {
     ...input.fetch ? { fetch: input.fetch } : {}
   };
   const refreshMcp = (sourceId) => refreshHarborLocalMcpSource({ ...base2, sourceId });
+  const emit = async (event, onStatus, legacyStatus) => {
+    await input.logger?.(event);
+    if (legacyStatus)
+      await onStatus?.(legacyStatus);
+  };
   const ensureOne = async (ensureInput, sourceInput) => {
     const catalog = catalogEntryForEndpoint(sourceInput.endpoint);
     const discovery = sourceInput.discovery ?? catalogDiscovery(catalog);
     const authKind = sourceInput.auth === "none" ? "none" : sourceInput.auth === "oauth2" || discovery ? "oauth2" : "none";
     const sourceId = sourceInput.namespace ?? catalog?.default_namespace ?? nameFromEndpoint(sourceInput.endpoint);
-    await ensureInput.onStatus?.({
+    const installMessage = `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`;
+    await emit({
+      level: "info",
+      area: "mcp",
+      code: "mcp_source_install",
+      sourceId,
+      endpoint: sourceInput.endpoint,
+      message: installMessage
+    }, ensureInput.onStatus, {
       stage: "install",
       sourceId,
       endpoint: sourceInput.endpoint,
-      message: `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`
+      message: installMessage
     });
     const source = await upsertHarborLocalMcpSource({
       projectRoot: input.projectRoot,
@@ -40793,11 +41101,19 @@ function createHarborLocalRuntime(input) {
     });
     if (authKind === "oauth2") {
       const oauth = await readHarborLocalOAuthStatus(input.projectRoot, source.id);
-      await ensureInput.onStatus?.({
+      const oauthMessage = `OAuth status for MCP source "${source.id}" is ${oauth.status}.`;
+      await emit({
+        level: oauth.status === "reconnect_required" ? "warn" : "info",
+        area: "oauth",
+        code: "mcp_oauth_status",
+        sourceId: source.id,
+        status: oauth.status,
+        message: oauthMessage
+      }, ensureInput.onStatus, {
         stage: "oauth",
         sourceId: source.id,
         status: oauth.status,
-        message: `OAuth status for MCP source "${source.id}" is ${oauth.status}.`
+        message: oauthMessage
       });
       if (oauth.status === "reconnect_required") {
         return {
@@ -40828,16 +41144,29 @@ function createHarborLocalRuntime(input) {
           clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`
         });
         try {
-          await ensureInput.onStatus?.({
+          const pendingMessage = `Waiting for OAuth callback for MCP source "${source.id}".`;
+          await emit({
+            level: "info",
+            area: "oauth",
+            code: "mcp_oauth_waiting_for_callback",
+            sourceId: source.id,
+            status: "pending",
+            message: pendingMessage
+          }, ensureInput.onStatus, {
             stage: "oauth",
             sourceId: source.id,
             status: "pending",
-            message: `Waiting for OAuth callback for MCP source "${source.id}".`
+            message: pendingMessage
           });
-          await ensureInput.onAuthorizationUrl?.({
+          await input.logger?.({
+            level: "info",
+            area: "oauth",
+            code: "mcp_oauth_authorization_url",
             sourceId: source.id,
-            authorizationUrl: connect.authorizationUrl
+            authorizationUrl: connect.authorizationUrl,
+            message: `OAuth authorization URL is ready for MCP source "${source.id}".`
           });
+          await ensureInput.onAuthorizationUrl?.({ sourceId: source.id, authorizationUrl: connect.authorizationUrl });
           await connect.waitForReady();
         } finally {
           await connect.close();
@@ -40852,17 +41181,33 @@ function createHarborLocalRuntime(input) {
       };
     }
     try {
-      await ensureInput.onStatus?.({
+      const refreshMessage = `Refreshing MCP tools for source "${source.id}".`;
+      await emit({
+        level: "info",
+        area: "mcp",
+        code: "mcp_source_refresh",
+        sourceId: source.id,
+        message: refreshMessage
+      }, ensureInput.onStatus, {
         stage: "refresh",
         sourceId: source.id,
-        message: `Refreshing MCP tools for source "${source.id}".`
+        message: refreshMessage
       });
       const refresh = await refreshMcp(source.id);
-      await ensureInput.onStatus?.({
+      const readyMessage = `MCP source "${source.id}" is ready with ${refresh.toolCount} tools.`;
+      await emit({
+        level: "info",
+        area: "mcp",
+        code: "mcp_source_ready",
+        sourceId: source.id,
+        status: "ready",
+        toolCount: refresh.toolCount,
+        message: readyMessage
+      }, ensureInput.onStatus, {
         stage: "ready",
         sourceId: source.id,
         toolCount: refresh.toolCount,
-        message: `MCP source "${source.id}" is ready with ${refresh.toolCount} tools.`
+        message: readyMessage
       });
       return {
         source: await readHarborLocalMcpSource(input.projectRoot, source.id) ?? source,
@@ -40872,10 +41217,19 @@ function createHarborLocalRuntime(input) {
       };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      await ensureInput.onStatus?.({
+      const errorMessage2 = `Failed refreshing MCP source "${source.id}": ${message}`;
+      await emit({
+        level: "error",
+        area: "mcp",
+        code: "mcp_source_refresh_failed",
+        sourceId: source.id,
+        status: "refresh_failed",
+        error,
+        message: errorMessage2
+      }, ensureInput.onStatus, {
         stage: "error",
         sourceId: source.id,
-        message: `Failed refreshing MCP source "${source.id}": ${message}`
+        message: errorMessage2
       });
       return {
         source,
@@ -40907,6 +41261,7 @@ function createHarborLocalRuntime(input) {
         discovery,
         clientName
       }),
+      probeMcp: (sourceId) => probeHarborLocalMcpSource({ ...base2, sourceId }),
       refreshMcp,
       setupMcp: async (setup) => {
         const source = await upsertHarborLocalMcpSource({
@@ -40953,7 +41308,8 @@ function createHarborLocalRuntime(input) {
     },
     exec: {
       run: async (code, options) => createHarborLocalExecRuntime(base2).run(code, options),
-      bindings: async () => createHarborLocalExecRuntime(base2).bindings()
+      bindings: async () => createHarborLocalExecRuntime(base2).bindings(),
+      toolGuide: async () => createHarborLocalExecRuntime(base2).toolGuide()
     }
   };
 }
@@ -40980,9 +41336,12 @@ function nameFromEndpoint(endpoint) {
   }
 }
 export {
+  isHarborLocalError,
   harborLocalRegistryAgentStepSchema,
   harborLocalRegistryActionSchema,
   harborLocalRegistryActionFromAgentStep,
+  harborLocalConsoleLogger,
   createHarborLocalRuntime,
+  HarborLocalError,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV
 };

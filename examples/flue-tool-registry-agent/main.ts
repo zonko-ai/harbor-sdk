@@ -1,9 +1,10 @@
 import type { FlueContext } from "@flue/runtime"
 import {
-  createHarborLocalRuntime,
+  createHarbor,
+  harborLocalConsoleLogger,
   harborLocalRegistryActionFromAgentStep,
   harborLocalRegistryAgentStepSchema,
-} from "@hrbr/runtime-local/promise"
+} from "@hrbr/sdk/local"
 import * as v from "valibot"
 
 export const triggers = { webhook: true }
@@ -46,18 +47,16 @@ export default async function ({ init, payload, env }: FlueContext) {
   const registryEnv = envFrom(env)
   const confirmWrites = registryEnv.HARBOR_CONFIRM_NOTION_WRITE === "1"
   const observations: unknown[] = []
-  const harbor = createHarborLocalRuntime({ projectRoot: process.cwd(), env: registryEnv })
+  const harbor = createHarbor({ projectRoot: process.cwd(), env: registryEnv, logger: harborLocalConsoleLogger() })
   const sourceSetup = await harbor.sources.ensureMcpSources({
     sources: mcpSources,
     connect: true,
     refresh: true,
-    onStatus: (event) => console.log(`[harbor] ${event.message}`),
-    onAuthorizationUrl: ({ sourceId, authorizationUrl }) => {
-      console.log(`Open this URL to connect ${sourceId}:\n${authorizationUrl}\n`)
-    },
   })
-  console.log(`[harbor] Source setup complete: ${sourceSetup.ready ? "ready" : "not ready"}`)
-  observations.push({ kind: "mcp_source_setup", result: sourceSetup })
+  const sourceProbes = sourceSetup.ready
+    ? await Promise.all(sourceSetup.sources.map((source) => harbor.sources.probeMcp(source.source.id)))
+    : []
+  observations.push({ kind: "mcp_source_setup", result: sourceSetup, probes: sourceProbes })
   const session = await (await init({ model: "anthropic/claude-sonnet-4-6" })).session()
 
   for (let step = 0; step < 12; step++) {

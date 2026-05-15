@@ -24,7 +24,6 @@ export const HARBOR_LOCAL_TABLES = [
   "mcp_source_headers",
   "mcp_source_query_params",
   "mcp_tool_bindings",
-  "cloudflare_resources",
 ] as const
 
 export type HarborLocalTable = (typeof HARBOR_LOCAL_TABLES)[number]
@@ -294,18 +293,6 @@ CREATE TABLE IF NOT EXISTS mcp_tool_bindings (
   updated_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS cloudflare_resources (
-  id TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
-  account_id TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  name TEXT NOT NULL,
-  cloudflare_id TEXT,
-  metadata_json TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
 CREATE INDEX IF NOT EXISTS idx_tool_index_workspace_search ON tool_index(workspace_id, namespace, name);
 CREATE INDEX IF NOT EXISTS idx_runs_workspace_started ON runs(workspace_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_spans_run_started ON spans(run_id, started_at);
@@ -314,7 +301,6 @@ CREATE INDEX IF NOT EXISTS idx_oauth_grants_source_status ON oauth_grants(worksp
 CREATE INDEX IF NOT EXISTS idx_oauth_pending_source_status ON oauth_pending_flows(workspace_id, source_ref_id, status);
 CREATE INDEX IF NOT EXISTS idx_mcp_sources_workspace_namespace ON mcp_sources(workspace_id, namespace);
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_bindings_source ON mcp_tool_bindings(workspace_id, source_id);
-CREATE INDEX IF NOT EXISTS idx_cloudflare_resources_workspace_kind ON cloudflare_resources(workspace_id, kind);
 `.trim(),
   },
 ]

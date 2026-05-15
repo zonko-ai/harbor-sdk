@@ -2,6 +2,7 @@ import { createRequire } from "node:module"
 import { harborLocalDefaultWriteToolMatcher } from "./tool-registry-actions"
 import { createHarborLocalMcpToolRuntime, type HarborLocalMcpToolRuntimeInput } from "./mcp-runtime"
 import { harborLocalPaths, LOCAL_WORKSPACE_ID, runHarborLocalQuickJS } from "./index"
+import { HarborLocalError } from "./errors"
 import type { HarborLocalToolDescription } from "./tool-search"
 
 interface Statement {
@@ -32,8 +33,9 @@ export interface HarborLocalExecRunResult {
 }
 
 export interface HarborLocalExecError {
-  readonly code: "EXEC_ERROR"
+  readonly code: "local_exec_error" | "local_write_confirmation_required"
   readonly message: string
+  readonly details?: Readonly<Record<string, unknown>> | undefined
 }
 
 export interface HarborLocalExecLogEntry {
@@ -47,11 +49,24 @@ export interface HarborLocalExecBinding {
   readonly toolCount: number
 }
 
+export interface HarborLocalExecToolGuide {
+  readonly namespace: string
+  readonly global: string
+  readonly aliases: readonly string[]
+  readonly toolId: string
+  readonly toolName: string
+  readonly method: string
+  readonly call: string
+  readonly description?: string | undefined
+  readonly inputSchema?: unknown
+}
+
 export interface HarborLocalExecRuntimeInput extends HarborLocalMcpToolRuntimeInput {}
 
 export interface HarborLocalExecRuntime {
   readonly run: (code: string, options?: HarborLocalExecRunOptions) => Promise<HarborLocalExecRunResult>
   readonly bindings: () => Promise<readonly HarborLocalExecBinding[]>
+  readonly toolGuide: () => Promise<readonly HarborLocalExecToolGuide[]>
 }
 
 function loadDatabase(): SqlDatabaseCtor {
@@ -158,6 +173,31 @@ async function listExecBindings(input: HarborLocalExecRuntimeInput): Promise<rea
   }
 }
 
+async function listExecToolGuide(input: HarborLocalExecRuntimeInput): Promise<readonly HarborLocalExecToolGuide[]> {
+  const toolRuntime = await createHarborLocalMcpToolRuntime(input)
+  const bindings = await listExecBindings(input)
+  return bindings.flatMap((binding) =>
+    toolRuntime.schemas({ namespace: binding.namespace })
+      .map((schema) => toolRuntime.describe(schema.toolId))
+      .filter((tool): tool is HarborLocalToolDescription => tool !== null)
+      .map((tool) => {
+        const global = harborLocalNamespaceToJsVar(tool.namespace)
+        const method = toCamelCase(tool.name)
+        return {
+          namespace: tool.namespace,
+          global,
+          aliases: binding.aliases,
+          toolId: tool.toolId,
+          toolName: tool.name,
+          method,
+          call: `${global}.${method}(input)`,
+          ...(tool.description !== undefined ? { description: tool.description } : {}),
+          ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+        }
+      })
+  )
+}
+
 function resolveNamespaces(code: string, bindings: readonly HarborLocalExecBinding[]): readonly {
   readonly namespace: string
   readonly alias: string
@@ -216,9 +256,18 @@ function errorMessage(error: unknown): string {
   return "Local exec failed"
 }
 
+function execErrorCode(error: unknown): HarborLocalExecError["code"] {
+  const message = errorMessage(error)
+  return (error instanceof HarborLocalError && error.code === "local_write_confirmation_required") ||
+    /^Blocked write tool /.test(message)
+    ? "local_write_confirmation_required"
+    : "local_exec_error"
+}
+
 export function createHarborLocalExecRuntime(input: HarborLocalExecRuntimeInput): HarborLocalExecRuntime {
   return {
     bindings: () => listExecBindings(input),
+    toolGuide: () => listExecToolGuide(input),
     run: async (code, options = {}) => {
       const started = Date.now()
       const logs: HarborLocalExecLogEntry[] = []
@@ -230,8 +279,9 @@ export function createHarborLocalExecRuntime(input: HarborLocalExecRuntimeInput)
         return {
           ok: false,
           error: {
-            code: "EXEC_ERROR",
+            code: "local_exec_error",
             message: `Namespace "${missingNamespace}" is not available. Available namespace aliases: ${bindings.flatMap((binding) => [...binding.aliases]).join(", ") || "none"}.`,
+            details: { namespace: missingNamespace },
           },
           namespaces: namespaces.map((binding) => binding.namespace),
           logs,
@@ -268,7 +318,11 @@ export function createHarborLocalExecRuntime(input: HarborLocalExecRuntimeInput)
             if (!tool) throw new Error(`Unknown local exec tool: ${toolId}`)
             const isWrite = options.isWriteTool?.(tool) ?? harborLocalDefaultWriteToolMatcher({ toolId, tool })
             if (isWrite && options.confirmWrites !== true) {
-              throw new Error(`Blocked write tool "${toolId}". Re-run with write confirmation enabled to allow it.`)
+              throw new HarborLocalError({
+                code: "local_write_confirmation_required",
+                message: `Blocked write tool "${toolId}". Re-run with write confirmation enabled to allow it.`,
+                details: { toolId },
+              })
             }
             const result = await toolRuntime.call({ toolId, input: request.input ?? {} })
             return result.output
@@ -285,8 +339,9 @@ export function createHarborLocalExecRuntime(input: HarborLocalExecRuntimeInput)
         return {
           ok: false,
           error: {
-            code: "EXEC_ERROR",
+            code: execErrorCode(error),
             message: errorMessage(error),
+            ...(error instanceof HarborLocalError && error.details !== undefined ? { details: error.details } : {}),
           },
           namespaces: namespaces.map((binding) => binding.namespace),
           logs,
