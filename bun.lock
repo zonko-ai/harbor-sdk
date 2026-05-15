@@ -38,8 +38,7 @@
       "name": "ai-sdk-local-exec-agent-example",
       "dependencies": {
         "@ai-sdk/anthropic": "^3.0.77",
-        "@hrbr/runtime-local": "workspace:*",
-        "@hrbr/source-mcp": "workspace:*",
+        "@hrbr/sdk": "workspace:*",
         "ai": "^6.0.182",
         "zod": "^4.4.3",
       },
@@ -52,8 +51,7 @@
       "name": "ai-sdk-tool-registry-agent-example",
       "dependencies": {
         "@ai-sdk/anthropic": "^3.0.77",
-        "@hrbr/runtime-local": "workspace:*",
-        "@hrbr/source-mcp": "workspace:*",
+        "@hrbr/sdk": "workspace:*",
         "ai": "^6.0.182",
         "zod": "^4.4.3",
       },
@@ -66,8 +64,7 @@
       "name": "flue-local-exec-agent-example",
       "dependencies": {
         "@flue/runtime": "^0.6.1",
-        "@hrbr/runtime-local": "workspace:*",
-        "@hrbr/source-mcp": "workspace:*",
+        "@hrbr/sdk": "workspace:*",
         "valibot": "^1.1.0",
         "zod": "^4.4.3",
       },
@@ -81,8 +78,7 @@
       "name": "flue-tool-registry-agent-example",
       "dependencies": {
         "@flue/runtime": "^0.6.1",
-        "@hrbr/runtime-local": "workspace:*",
-        "@hrbr/source-mcp": "workspace:*",
+        "@hrbr/sdk": "workspace:*",
         "valibot": "^1.1.0",
         "zod": "^4.4.3",
       },
@@ -137,17 +133,6 @@
       "name": "sdk-orbit-runtime-example",
       "dependencies": {
         "@hrbr/orbit": "workspace:*",
-      },
-      "devDependencies": {
-        "@hrbr/tsconfig": "workspace:*",
-        "typescript": "catalog:",
-      },
-    },
-    "examples/sdk-platform-runtime": {
-      "name": "sdk-platform-runtime-example",
-      "dependencies": {
-        "@hrbr/runtime-cloudflare": "workspace:*",
-        "@hrbr/runtime-local": "workspace:*",
       },
       "devDependencies": {
         "@hrbr/tsconfig": "workspace:*",
@@ -317,7 +302,6 @@
       "dependencies": {
         "@hrbr/orbit": "workspace:*",
         "@hrbr/registry-catalog": "workspace:*",
-        "@hrbr/runtime-cloudflare": "workspace:*",
         "@hrbr/source-auth": "workspace:*",
         "@hrbr/source-mcp": "workspace:*",
         "@hrbr/tools": "workspace:*",
@@ -349,7 +333,6 @@
         "@hrbr/orbit": "workspace:*",
         "@hrbr/plugins": "workspace:*",
         "@hrbr/runs": "workspace:*",
-        "@hrbr/runtime-cloudflare": "workspace:*",
         "@hrbr/runtime-local": "workspace:*",
         "@hrbr/source-core": "workspace:*",
         "@hrbr/source-credentials": "workspace:*",
@@ -1229,8 +1212,6 @@
     "sdk-custom-source-example": ["sdk-custom-source-example@workspace:examples/sdk-custom-source"],
 
     "sdk-orbit-runtime-example": ["sdk-orbit-runtime-example@workspace:examples/sdk-orbit-runtime"],
-
-    "sdk-platform-runtime-example": ["sdk-platform-runtime-example@workspace:examples/sdk-platform-runtime"],
 
     "sdk-tool-catalog-example": ["sdk-tool-catalog-example@workspace:examples/sdk-tool-catalog"],
 
