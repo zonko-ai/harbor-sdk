@@ -40,6 +40,7 @@ import {
   listHarborLocalSources,
   completeHarborLocalOAuthFlow,
   connectHarborLocalMcpOAuthSource,
+  discoverHarborLocalMcpOAuth,
   putHarborLocalMcpToolBindings,
   readHarborLocalCredentialKeyFromEnv,
   readHarborLocalRuntimeManifest,
@@ -1089,6 +1090,102 @@ describe("@hrbr/runtime-local MCP source store", () => {
       } finally {
         await connect.close()
       }
+    })
+  })
+
+  it("discovers OAuth metadata for path-based MCP endpoints", async () => {
+    const seen: string[] = []
+    const fetch = async (url: string | URL | Request): Promise<Response> => {
+      const href = String(url)
+      seen.push(href)
+      if (href === "https://mcp.linear.app/.well-known/oauth-protected-resource/mcp") {
+        return new Response("not found", { status: 404 })
+      }
+      if (href === "https://mcp.linear.app/.well-known/oauth-protected-resource") {
+        return Response.json({
+          resource: "https://mcp.linear.app",
+          authorization_servers: ["https://mcp.linear.app"],
+        })
+      }
+      if (href === "https://mcp.linear.app/.well-known/oauth-authorization-server") {
+        return Response.json({
+          issuer: "https://mcp.linear.app",
+          authorization_endpoint: "https://mcp.linear.app/authorize",
+          token_endpoint: "https://mcp.linear.app/token",
+          registration_endpoint: "https://mcp.linear.app/register",
+          token_endpoint_auth_methods_supported: ["client_secret_post", "none"],
+          revocation_endpoint: "https://mcp.linear.app/token",
+        })
+      }
+      throw new Error(`Unexpected discovery request ${href}`)
+    }
+
+    await expect(discoverHarborLocalMcpOAuth({
+      endpoint: "https://mcp.linear.app/mcp",
+      fetch,
+    })).resolves.toEqual({
+      authorizationServer: "https://mcp.linear.app",
+      authorizationEndpoint: "https://mcp.linear.app/authorize",
+      tokenEndpoint: "https://mcp.linear.app/token",
+      registrationEndpoint: "https://mcp.linear.app/register",
+      scopes: [],
+      resource: "https://mcp.linear.app",
+      hasDynamicRegistration: true,
+      tokenEndpointAuthMethods: ["client_secret_post", "none"],
+      revocationEndpoint: "https://mcp.linear.app/token",
+    })
+    expect(seen).toEqual([
+      "https://mcp.linear.app/.well-known/oauth-protected-resource/mcp",
+      "https://mcp.linear.app/.well-known/oauth-protected-resource",
+      "https://mcp.linear.app/.well-known/oauth-authorization-server",
+    ])
+  })
+
+  it("auto-discovers OAuth when ensuring MCP sources with auth auto", async () => {
+    await withTempProject(async (projectRoot) => {
+      const harbor = createHarborLocalRuntime({
+        projectRoot,
+        env: { [HARBOR_LOCAL_CREDENTIAL_KEY_ENV]: "vault-key" },
+        fetch: async (url: string | URL | Request): Promise<Response> => {
+          const href = String(url)
+          if (href === "https://mcp.linear.app/.well-known/oauth-protected-resource/mcp") {
+            return new Response("not found", { status: 404 })
+          }
+          if (href === "https://mcp.linear.app/.well-known/oauth-protected-resource") {
+            return Response.json({
+              resource: "https://mcp.linear.app",
+              authorization_servers: ["https://mcp.linear.app"],
+            })
+          }
+          if (href === "https://mcp.linear.app/.well-known/oauth-authorization-server") {
+            return Response.json({
+              authorization_endpoint: "https://mcp.linear.app/authorize",
+              token_endpoint: "https://mcp.linear.app/token",
+              registration_endpoint: "https://mcp.linear.app/register",
+            })
+          }
+          throw new Error(`Unexpected request ${href}`)
+        },
+      })
+
+      await expect(harbor.sources.ensureMcpSources({
+        connect: false,
+        refresh: false,
+        sources: [{
+          endpoint: "https://mcp.linear.app/mcp",
+          name: "Linear MCP",
+          namespace: "linear-mcp",
+        }],
+      })).resolves.toMatchObject({
+        ready: false,
+        sources: [{
+          status: "requires_oauth",
+          source: {
+            id: "linear-mcp",
+            auth: { kind: "oauth2" },
+          },
+        }],
+      })
     })
   })
 

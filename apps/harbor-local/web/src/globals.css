@@ -1,0 +1,250 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --color-background: oklch(var(--background));
+  --color-foreground: oklch(var(--foreground));
+  --color-border: oklch(var(--border));
+  --color-border-light: oklch(var(--border-light));
+  --color-input: oklch(var(--input));
+  --color-ring: oklch(var(--ring));
+
+  --color-primary: oklch(var(--primary));
+  --color-primary-foreground: oklch(var(--primary-foreground));
+
+  --color-secondary: oklch(var(--secondary));
+  --color-secondary-foreground: oklch(var(--secondary-foreground));
+
+  --color-muted: oklch(var(--muted));
+  --color-muted-foreground: oklch(var(--muted-foreground));
+
+  --color-accent: oklch(var(--accent));
+  --color-accent-foreground: oklch(var(--accent-foreground));
+
+  --color-destructive: oklch(var(--destructive));
+  --color-destructive-foreground: oklch(var(--destructive-foreground));
+
+  --color-success: oklch(var(--success));
+  --color-warning: oklch(var(--warning));
+
+  --color-popover: oklch(var(--popover));
+  --color-popover-foreground: oklch(var(--popover-foreground));
+  --color-card: oklch(var(--card));
+  --color-card-foreground: oklch(var(--card-foreground));
+
+  --color-sidebar: oklch(var(--sidebar));
+  --color-sidebar-foreground: oklch(var(--sidebar-foreground));
+  --color-sidebar-border: oklch(var(--sidebar-border));
+  --color-sidebar-accent: oklch(var(--sidebar-accent));
+  --color-sidebar-accent-foreground: oklch(var(--sidebar-accent-foreground));
+}
+
+/* ─── Light theme (default) ─── */
+:root {
+  --radius: 0.5rem;
+
+  --background: 96.5% 0.005 80;
+  --foreground: 18% 0.005 286;
+
+  --card: 99% 0.003 80;
+  --card-foreground: 18% 0.005 286;
+  --popover: 99% 0.003 80;
+  --popover-foreground: 18% 0.005 286;
+
+  --primary: 18% 0.005 286;
+  --primary-foreground: 99% 0.003 80;
+
+  --secondary: 93% 0.008 80;
+  --secondary-foreground: 18% 0.005 286;
+
+  --muted: 93% 0.008 80;
+  --muted-foreground: 47% 0.012 286;
+
+  --accent: 93% 0.008 80;
+  --accent-foreground: 18% 0.005 286;
+
+  --destructive: 56% 0.21 25;
+  --destructive-foreground: 99% 0.003 80;
+
+  --success: 52% 0.14 160;
+  --warning: 68% 0.16 75;
+
+  --border: 84% 0.012 80;
+  --border-light: 90% 0.01 80;
+  --input: 88% 0.012 80;
+  --ring: 60% 0.02 286;
+
+  --sidebar: 97.5% 0.005 80;
+  --sidebar-foreground: 18% 0.005 286;
+  --sidebar-border: 88% 0.012 80;
+  --sidebar-accent: 92% 0.012 80;
+  --sidebar-accent-foreground: 18% 0.005 286;
+}
+
+/* ─── Dark theme override ─── */
+.dark {
+  --background: 14.05% 0.004 285.8;
+  --foreground: 98.48% 0 0;
+
+  --card: 16.3% 0.006 285.7;
+  --card-foreground: 98.48% 0 0;
+  --popover: 14.05% 0.004 285.8;
+  --popover-foreground: 98.48% 0 0;
+
+  --primary: 98.48% 0 0;
+  --primary-foreground: 14.05% 0.004 285.8;
+
+  --secondary: 27% 0.006 286;
+  --secondary-foreground: 97% 0.003 265;
+
+  --muted: 27.41% 0.006 286;
+  --muted-foreground: 71.19% 0.013 286.1;
+
+  --accent: 27.41% 0.006 286;
+  --accent-foreground: 98.48% 0 0;
+
+  --destructive: 63% 0.21 25;
+  --destructive-foreground: 98.48% 0 0;
+
+  --success: 72% 0.17 160;
+  --warning: 82% 0.16 80;
+
+  --border: 31.51% 0.007 286;
+  --border-light: 24% 0.006 286;
+  --input: 27% 0.006 286;
+  --ring: 55% 0.01 286;
+
+  --sidebar: 13% 0.004 285.8;
+  --sidebar-foreground: 98.48% 0 0;
+  --sidebar-border: 22% 0.005 286;
+  --sidebar-accent: 22% 0.006 286;
+  --sidebar-accent-foreground: 98.48% 0 0;
+}
+
+* {
+  border-color: oklch(var(--border));
+}
+
+html {
+  color-scheme: light;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html, body {
+  background: oklch(var(--background));
+  color: oklch(var(--foreground));
+  font-family: var(--font-sans);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: oklch(var(--border));
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: oklch(var(--muted-foreground) / 0.6);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+.content-scroll {
+  scrollbar-gutter: stable;
+}
+
+/* ─── BorderBeam (conic-gradient ring animation) ─── */
+
+@property --beam-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+.border-beam-root {
+  position: relative;
+  border-radius: inherit;
+  display: flex;
+  min-width: 0;
+  isolation: isolate;
+}
+
+.border-beam-root > .border-beam-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: var(--beam-border, 1.25px);
+  background: conic-gradient(
+    from var(--beam-angle, 0deg),
+    transparent 0deg,
+    var(--beam-color, rgb(180 180 200)) calc(var(--beam-size, 35%) * 0.6),
+    color-mix(in oklch, var(--beam-color, rgb(180 180 200)) 30%, transparent) var(--beam-size, 35%),
+    transparent calc(var(--beam-size, 35%) + 8deg)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 200ms ease;
+  z-index: 1;
+}
+
+.border-beam-root[data-active="true"] > .border-beam-ring {
+  opacity: 1;
+  animation: border-beam-rotate var(--beam-duration, 3s) linear infinite;
+}
+
+.border-beam-root > .border-beam-content {
+  position: relative;
+  z-index: 0;
+  flex: 1;
+  min-width: 0;
+  border-radius: inherit;
+  display: flex;
+}
+
+.border-beam-root > .border-beam-content > * {
+  flex: 1;
+  min-width: 0;
+}
+
+@keyframes border-beam-rotate {
+  to {
+    --beam-angle: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .border-beam-root[data-active="true"] > .border-beam-ring {
+    animation: none;
+    background: color-mix(in oklch, var(--beam-color, rgb(180 180 200)) 25%, transparent);
+  }
+}

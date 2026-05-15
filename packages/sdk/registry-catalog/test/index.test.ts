@@ -78,10 +78,10 @@ describe("@hrbr/registry-catalog committed JSON data", () => {
     expect(REGISTRY_LOCAL_MCP_CATALOG.version).toBe(1)
     expect(REGISTRY_LOCAL_MCP_CATALOG.source).toEqual({
       kind: "harbor-main-staging-d1",
-      table: "plugin_registry_entries",
-      rowFilter: "kind = 'mcp'",
+      table: "plugin_registry_entries + plugin_registry_entry_admin_overrides",
+      rowFilter: "effective kind = 'mcp' and is_active = 1",
     })
-    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES).toHaveLength(106)
+    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES).toHaveLength(105)
 
     const slugs = new Set<string>()
     for (const entry of REGISTRY_LOCAL_MCP_CATALOG_ENTRIES) {
@@ -100,9 +100,15 @@ describe("@hrbr/registry-catalog committed JSON data", () => {
       defaultNamespace: "linear-mcp",
       endpoint: "https://mcp.linear.app/mcp",
       auth: { mode: "none", requiredSecrets: [] },
-      availability: { status: "coming_soon", selectable: false, code: "superseded_by_kind" },
-      localAvailability: { status: "active", selectable: true, code: "local_mcp_only" },
+      availability: { status: "active", selectable: true, overridden: true },
+      localAvailability: { status: "active", selectable: true },
       verified: true,
+    })
+    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES.find((entry) => entry.slug === "airtable-mcp")).toMatchObject({
+      availability: { status: "active", selectable: true, overridden: true },
+      localAvailability: { status: "active", selectable: true },
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/airtable-mcp.svg",
     })
     expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES.find((entry) => entry.slug === "notion-mcp")).toMatchObject({
       auth: { mode: "oauth2", requiredSecrets: [] },

@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url"
 interface RegistryRow {
   readonly slug: string
   readonly kind: string
+  readonly is_active: number | boolean
   readonly entry_json: string
   readonly availability_status: string
   readonly availability_selectable: number | boolean
@@ -17,6 +18,10 @@ interface RegistryRow {
   readonly availability_overridden: number | boolean
   readonly requires_global_oauth_client: number | boolean
   readonly global_oauth_eligible: number | boolean
+  readonly display_name_override?: string | null | undefined
+  readonly description_override?: string | null | undefined
+  readonly category_override?: string | null | undefined
+  readonly icon_url_override?: string | null | undefined
 }
 
 interface RegistryEntry {
@@ -173,12 +178,33 @@ function readRowsFromStagingD1(harborRoot: string): readonly RegistryRow[] {
       "--remote",
       "--json",
       "--command",
-      `SELECT slug, kind, entry_json,
+      `SELECT slug, kind, is_active, entry_json,
               availability_status, availability_selectable, availability_hidden_in_onboarding,
               availability_label, availability_reason, availability_code, availability_overridden,
-              requires_global_oauth_client, global_oauth_eligible
-         FROM plugin_registry_entries
+              requires_global_oauth_client, global_oauth_eligible,
+              display_name_override, description_override, category_override, icon_url_override
+         FROM (
+           SELECT slug, kind, is_active, entry_json,
+                  availability_status, availability_selectable, availability_hidden_in_onboarding,
+                  availability_label, availability_reason, availability_code, availability_overridden,
+                  requires_global_oauth_client, global_oauth_eligible,
+                  display_name_override, description_override, category_override, icon_url_override
+             FROM plugin_registry_entry_admin_overrides
+           UNION ALL
+           SELECT slug, kind, is_active, entry_json,
+                  availability_status, availability_selectable, availability_hidden_in_onboarding,
+                  availability_label, availability_reason, availability_code, availability_overridden,
+                  requires_global_oauth_client, global_oauth_eligible,
+                  display_name_override, description_override, category_override, icon_url_override
+             FROM plugin_registry_entries base
+            WHERE NOT EXISTS (
+              SELECT 1
+                FROM plugin_registry_entry_admin_overrides admin
+               WHERE admin.slug = base.slug
+            )
+         ) plugin_registry_entries
         WHERE kind = 'mcp'
+          AND is_active = 1
         ORDER BY slug ASC;`,
     ],
     { cwd: apiRoot, env, encoding: "utf8" }
@@ -215,7 +241,14 @@ function projectOAuth(discovery: RegistryOAuthDiscovery | undefined): LocalMcpCa
 }
 
 function projectRow(row: RegistryRow): LocalMcpCatalogEntry {
-  const entry = JSON.parse(row.entry_json) as RegistryEntry
+  const base = JSON.parse(row.entry_json) as RegistryEntry
+  const entry = {
+    ...base,
+    ...(nonEmpty(row.display_name_override) ? { display_name: row.display_name_override! } : {}),
+    ...(nonEmpty(row.description_override) ? { description: row.description_override! } : {}),
+    ...(nonEmpty(row.category_override) ? { category: row.category_override! } : {}),
+    ...(nonEmpty(row.icon_url_override) ? { icon_url: row.icon_url_override! } : {}),
+  }
   if (entry.kind !== "mcp" || row.kind !== "mcp") {
     throw new Error(`Expected MCP registry row for ${row.slug}.`)
   }
@@ -301,8 +334,8 @@ writeFileSync(output, stableJson({
   version: 1,
   source: {
     kind: "harbor-main-staging-d1",
-    table: "plugin_registry_entries",
-    rowFilter: "kind = 'mcp'",
+    table: "plugin_registry_entries + plugin_registry_entry_admin_overrides",
+    rowFilter: "effective kind = 'mcp' and is_active = 1",
   },
   entries,
 }))

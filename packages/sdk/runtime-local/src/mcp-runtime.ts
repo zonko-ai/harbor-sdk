@@ -75,11 +75,15 @@ export interface HarborLocalMcpToolRuntimeInput extends HarborLocalCredentialRes
 }
 
 export interface HarborLocalMcpOAuthDiscovery {
+  readonly authorizationServer?: string | undefined
   readonly authorizationEndpoint: string
   readonly tokenEndpoint: string
   readonly registrationEndpoint?: string | undefined
   readonly scopes?: readonly string[] | undefined
   readonly resource?: string | undefined
+  readonly hasDynamicRegistration?: boolean | undefined
+  readonly tokenEndpointAuthMethods?: readonly string[] | undefined
+  readonly revocationEndpoint?: string | undefined
 }
 
 export interface HarborLocalMcpOAuthConnectInput extends HarborLocalCredentialResolverFromEnvInput {
@@ -100,6 +104,122 @@ export interface HarborLocalMcpOAuthConnectHandle {
   readonly daemon: HarborLocalDaemonHandle
   readonly waitForReady: (timeoutMs?: number) => Promise<HarborLocalOAuthStatus>
   readonly close: () => Promise<void>
+}
+
+interface McpOAuthResourceMetadata {
+  readonly resource?: string | undefined
+  readonly authorization_servers?: readonly string[] | undefined
+  readonly scopes_supported?: readonly string[] | undefined
+}
+
+interface McpOAuthAuthorizationServerMetadata {
+  readonly authorization_endpoint?: string | undefined
+  readonly token_endpoint?: string | undefined
+  readonly registration_endpoint?: string | undefined
+  readonly scopes_supported?: readonly string[] | undefined
+  readonly token_endpoint_auth_methods_supported?: readonly string[] | undefined
+  readonly revocation_endpoint?: string | undefined
+}
+
+const OAUTH_DISCOVERY_TIMEOUT_MS = 8_000
+
+function validHttpUrl(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString().replace(/\/$/, "") : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function wellKnownUrl(
+  base: string,
+  name: "oauth-protected-resource" | "oauth-authorization-server" | "openid-configuration",
+  preserveQuery = false
+): string {
+  const input = new URL(base)
+  const pathSuffix = input.pathname === "/" ? "" : input.pathname.replace(/\/$/, "")
+  const url = new URL(input.origin)
+  url.pathname = name === "openid-configuration"
+    ? `${pathSuffix}/.well-known/openid-configuration`
+    : `/.well-known/${name}${pathSuffix}`
+  url.search = preserveQuery ? input.search : ""
+  url.hash = ""
+  return url.toString()
+}
+
+async function fetchDiscoveryJson<T>(
+  url: string,
+  fetchImpl: McpSourceFetch | undefined
+): Promise<T | null> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), OAUTH_DISCOVERY_TIMEOUT_MS)
+  try {
+    const res = await (fetchImpl ?? fetch)(url, {
+      headers: {
+        accept: "application/json",
+        "mcp-protocol-version": "2025-03-26",
+      },
+      signal: controller.signal,
+    })
+    if (!res.ok) return null
+    const contentType = res.headers.get("content-type") ?? ""
+    if (contentType && !contentType.toLowerCase().includes("json")) return null
+    return await res.json() as T
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+export async function discoverHarborLocalMcpOAuth(input: {
+  readonly endpoint: string
+  readonly fetch?: McpSourceFetch | undefined
+}): Promise<HarborLocalMcpOAuthDiscovery | null> {
+  const endpoint = validHttpUrl(input.endpoint)
+  if (!endpoint) return null
+  const endpointUrl = new URL(endpoint)
+  const resourceCandidates = [
+    wellKnownUrl(endpoint, "oauth-protected-resource", true),
+    ...(endpointUrl.pathname !== "/"
+      ? [wellKnownUrl(endpointUrl.origin, "oauth-protected-resource")]
+      : []),
+  ]
+  let resourceMeta: McpOAuthResourceMetadata | null = null
+  for (const candidate of resourceCandidates) {
+    resourceMeta = await fetchDiscoveryJson<McpOAuthResourceMetadata>(candidate, input.fetch)
+    if (resourceMeta) break
+  }
+  const authorizationServer = validHttpUrl(resourceMeta?.authorization_servers?.[0]) ?? endpointUrl.origin
+  const authMeta = await fetchDiscoveryJson<McpOAuthAuthorizationServerMetadata>(
+    wellKnownUrl(authorizationServer, "oauth-authorization-server"),
+    input.fetch
+  ) ?? await fetchDiscoveryJson<McpOAuthAuthorizationServerMetadata>(
+    wellKnownUrl(authorizationServer, "openid-configuration"),
+    input.fetch
+  )
+  const authorizationEndpoint = validHttpUrl(authMeta?.authorization_endpoint)
+  const tokenEndpoint = validHttpUrl(authMeta?.token_endpoint)
+  if (!authorizationEndpoint || !tokenEndpoint) return null
+  const registrationEndpoint = validHttpUrl(authMeta?.registration_endpoint)
+  const scopes = resourceMeta?.scopes_supported?.length
+    ? resourceMeta.scopes_supported
+    : authMeta?.scopes_supported ?? []
+  return {
+    authorizationServer,
+    authorizationEndpoint,
+    tokenEndpoint,
+    ...(registrationEndpoint ? { registrationEndpoint } : {}),
+    scopes: [...scopes],
+    ...(resourceMeta?.resource ? { resource: resourceMeta.resource } : {}),
+    hasDynamicRegistration: !!registrationEndpoint,
+    ...(authMeta?.token_endpoint_auth_methods_supported
+      ? { tokenEndpointAuthMethods: [...authMeta.token_endpoint_auth_methods_supported] }
+      : {}),
+    ...(authMeta?.revocation_endpoint ? { revocationEndpoint: authMeta.revocation_endpoint } : {}),
+  }
 }
 
 function titleFromToolName(name: string): string {

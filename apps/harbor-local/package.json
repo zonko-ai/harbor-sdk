@@ -4,6 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "bun run src/dev.ts",
+    "dev:web": "bun run --cwd web dev",
+    "build:web": "bun run --cwd web build",
+    "install:web": "bun --cwd web install",
     "typecheck": "tsc --noEmit",
     "test": "bun test test"
   },

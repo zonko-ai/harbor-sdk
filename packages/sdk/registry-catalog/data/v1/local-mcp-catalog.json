@@ -2,8 +2,8 @@
   "version": 1,
   "source": {
     "kind": "harbor-main-staging-d1",
-    "table": "plugin_registry_entries",
-    "rowFilter": "kind = 'mcp'"
+    "table": "plugin_registry_entries + plugin_registry_entry_admin_overrides",
+    "rowFilter": "effective kind = 'mcp' and is_active = 1"
   },
   "entries": [
     {
@@ -32,7 +32,7 @@
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/ahrefs-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/ahrefs-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -54,25 +54,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/airtable-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/airtable-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -187,25 +182,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "This provider is exposed via another source kind. Policy: REST API > GraphQL API > MCP > CLI. Use `asana-api` instead.",
-        "code": "superseded_by_kind"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
         "selectable": true,
-        "hiddenInOnboarding": false,
-        "reason": "Enabled for local Harbor because v1 is MCP-only.",
-        "code": "local_mcp_only"
+        "hiddenInOnboarding": false
       },
-      "requiresGlobalOAuthClient": false,
+      "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/asana-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/asana-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -227,25 +217,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/atlassian-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/atlassian-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -302,25 +287,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "This provider is exposed via another source kind. Policy: REST API > GraphQL API > MCP > CLI. Use `axiom-api` instead.",
-        "code": "superseded_by_kind"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
         "selectable": true,
-        "hiddenInOnboarding": false,
-        "reason": "Enabled for local Harbor because v1 is MCP-only.",
-        "code": "local_mcp_only"
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/axiom-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/axiom-mcp.svg",
       "links": []
     },
     {
@@ -336,25 +316,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/azure-devops-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/azure-devops-mcp.svg",
       "links": []
     },
     {
@@ -405,25 +380,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/bitly-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/bitly-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -445,25 +415,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/box-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/box-mcp.svg",
       "links": []
     },
     {
@@ -479,25 +444,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/brevo-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/brevo-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -519,25 +479,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/brightdata-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/brightdata-mcp.svg",
       "links": []
     },
     {
@@ -649,25 +604,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/calendly-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/calendly-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -689,25 +639,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/canva-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/canva-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -764,25 +709,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/clickup-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/clickup-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -804,25 +744,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/close-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/close-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -844,25 +779,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "This provider is exposed via another source kind. Policy: REST API > GraphQL API > MCP > CLI. Use `cloudflare-api` instead.",
-        "code": "superseded_by_kind"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
         "selectable": true,
-        "hiddenInOnboarding": false,
-        "reason": "Enabled for local Harbor because v1 is MCP-only.",
-        "code": "local_mcp_only"
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/cloudflare-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/cloudflare-mcp.svg",
       "links": []
     },
     {
@@ -942,24 +872,19 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
+      "verified": true,
       "iconUrl": "https://stag.tryharbor.ai/plugin-icons/context7-mcp.svg",
       "links": [
         {
@@ -1046,25 +971,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/datadog-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/datadog-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -1121,25 +1041,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/devrev-mcp.png",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/devrev-mcp.png",
       "links": []
     },
     {
@@ -1155,70 +1070,25 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/digitalocean-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/digitalocean-mcp.svg",
       "links": [
         {
           "kind": "docs",
           "label": "Docs",
           "url": "https://docs.digitalocean.com/products/mcp"
-        }
-      ]
-    },
-    {
-      "slug": "docusign-mcp",
-      "displayName": "DocuSign MCP",
-      "description": "E-signature workflows, envelope management, and document automation",
-      "category": "data",
-      "defaultNamespace": "docusign-mcp",
-      "endpoint": "https://mcp.docusign.com/mcp",
-      "transport": "http",
-      "auth": {
-        "mode": "none",
-        "requiredSecrets": []
-      },
-      "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
-      },
-      "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
-      },
-      "requiresGlobalOAuthClient": true,
-      "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/docusign-mcp.svg",
-      "links": [
-        {
-          "kind": "docs",
-          "label": "Docs",
-          "url": "https://developers.docusign.com"
         }
       ]
     },
@@ -1270,25 +1140,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/dropbox-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/dropbox-mcp.svg",
       "links": []
     },
     {
@@ -1339,25 +1204,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/fal-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/fal-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -1379,25 +1239,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "This provider is exposed via another source kind. Policy: REST API > GraphQL API > MCP > CLI. Use `figma-api` instead.",
-        "code": "superseded_by_kind"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
         "selectable": true,
-        "hiddenInOnboarding": false,
-        "reason": "Enabled for local Harbor because v1 is MCP-only.",
-        "code": "local_mcp_only"
+        "hiddenInOnboarding": false
       },
-      "requiresGlobalOAuthClient": false,
+      "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/figma-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/figma-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -1450,25 +1305,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/freshdesk-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/freshdesk-mcp.svg",
       "links": []
     },
     {
@@ -1484,25 +1334,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": true,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/github-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/github-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -1693,25 +1538,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/google-maps-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/google-maps-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -1768,25 +1608,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/granola-mcp.png",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/granola-mcp.png",
       "links": [
         {
           "kind": "docs",
@@ -1878,25 +1713,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/hubspot-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/hubspot-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -1953,25 +1783,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/incidentio-mcp.png",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/incidentio-mcp.png",
       "links": [
         {
           "kind": "docs",
@@ -1993,25 +1818,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/instacart-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/instacart-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2033,25 +1853,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/intercom-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/intercom-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2073,25 +1888,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/jina-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/jina-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2148,25 +1958,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "This provider is exposed via another source kind. Policy: REST API > GraphQL API > MCP > CLI. Use `linear-graphql` instead.",
-        "code": "superseded_by_kind"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
         "selectable": true,
-        "hiddenInOnboarding": false,
-        "reason": "Enabled for local Harbor because v1 is MCP-only.",
-        "code": "local_mcp_only"
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/linear-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/linear-mcp.svg",
       "links": []
     },
     {
@@ -2316,25 +2121,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/mixpanel-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/mixpanel-mcp.svg",
       "links": []
     },
     {
@@ -2350,25 +2150,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/mollie-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/mollie-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2390,25 +2185,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/monday-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/monday-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2459,25 +2249,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/newrelic-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/newrelic-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2589,25 +2374,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/pagerduty-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/pagerduty-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2669,25 +2449,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/paypal-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/paypal-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2709,25 +2484,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/pinterest-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/pinterest-mcp.svg",
       "links": []
     },
     {
@@ -2743,25 +2513,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/plaid-mcp.png",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/plaid-mcp.png",
       "links": [
         {
           "kind": "docs",
@@ -2783,25 +2548,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/plane-mcp.png",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/plane-mcp.png",
       "links": [
         {
           "kind": "docs",
@@ -2861,7 +2621,7 @@
         "status": "active",
         "selectable": true,
         "hiddenInOnboarding": false,
-        "overridden": false
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
@@ -2871,7 +2631,7 @@
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/posthog-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/posthog-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -2992,25 +2752,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/render-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/render-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -3102,25 +2857,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/scraperapi-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/scraperapi-mcp.svg",
       "links": []
     },
     {
@@ -3209,7 +2959,7 @@
         "status": "active",
         "selectable": true,
         "hiddenInOnboarding": false,
-        "overridden": false
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
@@ -3219,7 +2969,7 @@
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/sentry-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/sentry-mcp.svg",
       "links": []
     },
     {
@@ -3322,25 +3072,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires preconfigured OAuth app credentials before public setup.",
-        "code": "manual_oauth_setup"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/square-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/square-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -3362,25 +3107,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/stackoverflow-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://www.svgrepo.com/show/510239/stack-overflow.svg",
       "links": []
     },
     {
@@ -3396,25 +3136,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "This provider is exposed via another source kind. Policy: REST API > GraphQL API > MCP > CLI. Use `stripe-api` instead.",
-        "code": "superseded_by_kind"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
         "selectable": true,
-        "hiddenInOnboarding": false,
-        "reason": "Enabled for local Harbor because v1 is MCP-only.",
-        "code": "local_mcp_only"
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/stripe-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/stripe-mcp.svg",
       "links": []
     },
     {
@@ -3430,25 +3165,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/stytch-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/stytch-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -3473,7 +3203,7 @@
         "status": "active",
         "selectable": true,
         "hiddenInOnboarding": false,
-        "overridden": false
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
@@ -3483,7 +3213,7 @@
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/supabase-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/supabase-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -3505,25 +3235,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/tally-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/tally-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -3580,25 +3305,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Coming soon.",
-        "code": "known_broken"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/tigris-mcp.png",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/tigris-mcp.png",
       "links": [
         {
           "kind": "docs",
@@ -3620,25 +3340,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/typeform-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/typeform-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -3660,25 +3375,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "This provider is exposed via another source kind. Policy: REST API > GraphQL API > MCP > CLI. Use `vercel-api` instead.",
-        "code": "superseded_by_kind"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
         "status": "active",
         "selectable": true,
-        "hiddenInOnboarding": false,
-        "reason": "Enabled for local Harbor because v1 is MCP-only.",
-        "code": "local_mcp_only"
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
       "verified": true,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/vercel-mcp.svg",
+      "iconUrl": "https://tryharbor.ai/plugin-icons/vercel-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -3764,25 +3474,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/xero-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/xero-mcp.svg",
       "links": [
         {
           "kind": "docs",
@@ -3804,25 +3509,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Upstream endpoint returned auth-required without OAuth metadata. Install path is not verified yet.",
-        "code": "install_verification_pending"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": false,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/you-mcp.png",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/you-mcp.png",
       "links": []
     },
     {
@@ -3838,25 +3538,20 @@
         "requiredSecrets": []
       },
       "availability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "overridden": false,
-        "label": "Coming soon",
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false,
+        "overridden": true
       },
       "localAvailability": {
-        "status": "coming_soon",
-        "selectable": false,
-        "hiddenInOnboarding": true,
-        "reason": "Requires a confidential OAuth client secret before Harbor can safely start the flow.",
-        "code": "requires_client_secret"
+        "status": "active",
+        "selectable": true,
+        "hiddenInOnboarding": false
       },
       "requiresGlobalOAuthClient": true,
       "globalOAuthEligible": false,
-      "verified": false,
-      "iconUrl": "https://stag.tryharbor.ai/plugin-icons/zoom-mcp.svg",
+      "verified": true,
+      "iconUrl": "https://tryharbor.ai/plugin-icons/zoom-mcp.svg",
       "links": [
         {
           "kind": "docs",
