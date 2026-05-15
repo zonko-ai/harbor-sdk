@@ -4,11 +4,13 @@ export {
   REGISTRY_CATALOG_ENTRY_BY_SLUG,
   REGISTRY_CATALOG_ICON_HOST_OVERRIDES,
   REGISTRY_CATALOG_LOCAL_ICONS,
+  REGISTRY_LOCAL_MCP_CATALOG,
+  REGISTRY_LOCAL_MCP_CATALOG_ENTRIES,
   REGISTRY_CATALOG_POPULARITY,
   REGISTRY_CATALOG_SLUGS,
   REGISTRY_CATALOG_VERSION,
 } from './data'
-export type { RegistryCatalogEntryJson, RegistryCatalogJson } from './data'
+export type { LocalMcpCatalogEntryJson, LocalMcpCatalogJson, RegistryCatalogEntryJson, RegistryCatalogJson } from './data'
 
 export function canonicalJson(value: unknown): string {
   return JSON.stringify(sortJson(value))

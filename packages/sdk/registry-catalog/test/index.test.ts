@@ -9,6 +9,8 @@ import {
   REGISTRY_CATALOG_POPULARITY,
   REGISTRY_CATALOG_SLUGS,
   REGISTRY_CATALOG_VERSION,
+  REGISTRY_LOCAL_MCP_CATALOG,
+  REGISTRY_LOCAL_MCP_CATALOG_ENTRIES,
 } from "../src/index"
 
 describe("@hrbr/registry-catalog committed JSON data", () => {
@@ -70,5 +72,57 @@ describe("@hrbr/registry-catalog committed JSON data", () => {
 
   it("canonicalizes object key order for stable content hashing inputs", () => {
     expect(canonicalJson({ b: 1, a: { d: 2, c: 3 } })).toBe('{"a":{"c":3,"d":2},"b":1}')
+  })
+
+  it("exposes a local-safe MCP catalog seed for offline local Harbor", () => {
+    expect(REGISTRY_LOCAL_MCP_CATALOG.version).toBe(1)
+    expect(REGISTRY_LOCAL_MCP_CATALOG.source).toEqual({
+      kind: "harbor-main-staging-d1",
+      table: "plugin_registry_entries",
+      rowFilter: "kind = 'mcp'",
+    })
+    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES).toHaveLength(106)
+
+    const slugs = new Set<string>()
+    for (const entry of REGISTRY_LOCAL_MCP_CATALOG_ENTRIES) {
+      slugs.add(entry.slug)
+      expect(entry.endpoint).toMatch(/^https?:\/\//)
+      expect(["http", "sse"]).toContain(entry.transport)
+      expect(entry.defaultNamespace.length).toBeGreaterThan(0)
+      expect(entry.auth.requiredSecrets.every((secret) => /^[A-Z0-9_]+$/.test(secret))).toBe(true)
+      expect(entry.localAvailability.selectable).toBe(entry.verified)
+    }
+    expect(JSON.stringify(REGISTRY_LOCAL_MCP_CATALOG)).not.toMatch(/access_token|refresh_token|workspace_id|workos/i)
+
+    expect(slugs.size).toBe(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES.length)
+    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES.find((entry) => entry.slug === "linear-mcp")).toMatchObject({
+      displayName: "Linear MCP",
+      defaultNamespace: "linear-mcp",
+      endpoint: "https://mcp.linear.app/mcp",
+      auth: { mode: "none", requiredSecrets: [] },
+      availability: { status: "coming_soon", selectable: false, code: "superseded_by_kind" },
+      localAvailability: { status: "active", selectable: true, code: "local_mcp_only" },
+      verified: true,
+    })
+    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES.find((entry) => entry.slug === "notion-mcp")).toMatchObject({
+      auth: { mode: "oauth2", requiredSecrets: [] },
+      oauthDiscovery: {
+        authorizationEndpoint: "https://mcp.notion.com/authorize",
+        tokenEndpoint: "https://mcp.notion.com/token",
+        resource: "https://mcp.notion.com/mcp",
+      },
+    })
+    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES.find((entry) => entry.slug === "slack-mcp")).toMatchObject({
+      auth: { mode: "oauth2", requiredSecrets: [] },
+      oauthDiscovery: {
+        authorizationEndpoint: "https://slack-mcp.zonko-ai.workers.dev/authorize",
+      },
+    })
+    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES.find((entry) => entry.slug === "firecrawl-mcp")).toMatchObject({
+      auth: { mode: "bearer", requiredSecrets: ["FIRECRAWL_API_KEY"] },
+    })
+    expect(REGISTRY_LOCAL_MCP_CATALOG_ENTRIES.find((entry) => entry.slug === "browserbase-mcp")).toMatchObject({
+      auth: { mode: "query", requiredSecrets: ["BROWSERBASE_API_KEY"], queryParam: "browserbaseApiKey" },
+    })
   })
 })

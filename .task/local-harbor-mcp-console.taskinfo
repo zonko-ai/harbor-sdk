@@ -9,7 +9,7 @@ Progress Tracker:
 - [x] 2. Survey Harbor SDK and Harbor main MCP surfaces
 - [x] 3. Lock the local Harbor app boundary
 - [x] 4. Close SDK gaps for local MCP plugin lifecycle
-- [ ] 5. Add MCP catalog seed from Harbor main
+- [x] 5. Add MCP catalog seed from Harbor main
 - [ ] 6. Build local Harbor API server
 - [ ] 7. Build local Harbor MCP console UI
 - [ ] 8. Add local diagnostics and invocation history
@@ -45,7 +45,7 @@ Tasks:
 5. Add MCP catalog seed from Harbor main
    Scope: export local-safe MCP-only catalog metadata from Harbor main's staging Cloudflare D1 using `../harbor/.env.staging` plus the checked-in registry metadata as reference. Include Linear, Notion, and other compatible MCP entries, and support custom MCP URL installs separately from the seed. Explore the D1 table shape before deciding the exact export path.
    Output: local Harbor can show a static generated catalog while remaining fully offline at runtime. The seed includes only local-safe fields such as slug, display name, description, category, default namespace, endpoint, transport, auth mode, OAuth discovery, availability, icon, links, and verified status.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit catalog seed and any maintainer sync script or notes.
 
 6. Build local Harbor API server
@@ -120,3 +120,8 @@ Progress Log:
 - 2026-05-15T15:36:56+05:30: Added SDK-owned invocation history persistence in SQLite with `tool_invocations`, automatic registry invocation recording, and `createHarborLocalRuntime(...).invocations.list(...)` for the future diagnostics/history UI.
 - 2026-05-15T15:36:56+05:30: Regenerated `packages/sdk/runtime-local/dist/promise.js` so the publish-facing `@hrbr/runtime-local/promise` bundle includes the new SDK API.
 - 2026-05-15T15:36:56+05:30: Validation passed with `bun test packages/sdk/source-mcp/test/index.test.ts packages/sdk/runtime-local/test/index.test.ts`, `bun test packages/sdk/sdk/test/release.test.ts`, and `bun run typecheck:packages`.
+- 2026-05-15T15:45:24+05:30: Completed task 5 by querying Harbor main staging D1 `plugin_registry_entries` with `kind = 'mcp'` and generating a checked-in local MCP catalog seed for offline local Harbor.
+- 2026-05-15T15:45:24+05:30: Added `packages/sdk/registry-catalog/data/v1/local-mcp-catalog.json` with 106 MCP entries projected to local-safe fields only: slug, display name, description, category, namespace, endpoint, transport, auth mode, required secret env names, OAuth discovery metadata, hosted availability, local MCP-only availability, icon URL, links, and verified status.
+- 2026-05-15T15:45:24+05:30: Preserved hosted D1 availability separately from local availability; MCP entries hidden only because hosted Harbor prefers another source kind, such as `linear-mcp`, are selectable in local Harbor because v1 is MCP-only.
+- 2026-05-15T15:45:24+05:30: Added maintainer sync script `packages/sdk/registry-catalog/scripts/sync-local-mcp-catalog.ts`, wired it to `@hrbr/registry-catalog` as `sync:local-mcp-catalog`, and exported `REGISTRY_LOCAL_MCP_CATALOG` plus entry types from `@hrbr/registry-catalog`.
+- 2026-05-15T15:45:24+05:30: Validation passed with `bun test packages/sdk/registry-catalog/test/index.test.ts`, `bun run --filter @hrbr/registry-catalog typecheck`, and a deterministic regeneration check from the captured D1 rows.
