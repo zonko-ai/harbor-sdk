@@ -4,6 +4,7 @@ import { tmpdir } from "node:os"
 import { describe, expect, it } from "bun:test"
 import { createHarborLocalServer } from "../src/server"
 import type { HarborLocalServerEnv } from "../src/env"
+import { createMcpHttpSourceAdapter } from "@hrbr/source-mcp"
 
 async function withTempProject<T>(fn: (projectRoot: string) => Promise<T>): Promise<T> {
   const projectRoot = await mkdtemp(join(tmpdir(), "hrbr-local-app-"))
@@ -332,6 +333,67 @@ describe("@hrbr/harbor-local API server", () => {
         body: JSON.stringify({ query: "fixture items", namespace: "remove-me", limit: 10 }),
       }))) as { readonly ok: true; readonly data: { readonly hits: readonly unknown[] } }
       expect(search.data.hits).toHaveLength(0)
+    })
+  })
+
+  it("exposes local Harbor itself as an MCP control-plane server", async () => {
+    await withTempProject(async (projectRoot) => {
+      const calls: Array<{ readonly method: string; readonly tool?: string | undefined }> = []
+      const server = createHarborLocalServer({
+        env: testEnv(projectRoot),
+        fetch: fixtureFetch(calls),
+      })
+
+      await json(await server.fetch(new Request("http://local.harbor/api/sources/install", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          endpoint: "https://agent-visible.example.com/mcp",
+          name: "Agent Visible",
+          namespace: "agent-visible",
+          refresh: true,
+        }),
+      })))
+
+      const adapter = createMcpHttpSourceAdapter({
+        namespace: "harbor-local",
+        displayName: "Harbor Local",
+        endpoint: "http://local.harbor/mcp",
+        fetch: (url, init) => server.fetch(url instanceof Request
+          ? url
+          : new Request(url.toString(), init)),
+        allowLocalNetwork: true,
+      })
+      const tools = await adapter.listTools()
+      expect(tools.map((tool) => tool.name)).toEqual([
+        "harbor_catalog_list",
+        "harbor_sources_list",
+        "harbor_source_refresh",
+        "harbor_tools_search",
+        "harbor_tool_schema",
+        "harbor_tool_invoke",
+        "harbor_invocations_list",
+      ])
+
+      const search = await adapter.invokeTool("harbor_tools_search", {
+        query: "fixture items",
+        namespace: "agent-visible",
+      }) as { readonly structuredContent?: readonly { readonly toolId: string; readonly namespace: string }[] }
+      expect(search.structuredContent?.[0]).toMatchObject({
+        toolId: "agent-visible.list_items",
+        namespace: "agent-visible",
+      })
+
+      const invoked = await adapter.invokeTool("harbor_tool_invoke", {
+        toolId: "agent-visible.list_items",
+        input: { limit: 1 },
+      }) as { readonly structuredContent?: { readonly output?: { readonly structuredContent?: { readonly tool?: string } } } }
+      expect(invoked.structuredContent?.output?.structuredContent?.tool).toBe("list_items")
+
+      const history = await adapter.invokeTool("harbor_invocations_list", {
+        namespace: "agent-visible",
+      }) as { readonly structuredContent?: readonly { readonly toolId?: string }[] }
+      expect(history.structuredContent?.some((trace) => trace.toolId === "agent-visible.list_items")).toBe(true)
     })
   })
 

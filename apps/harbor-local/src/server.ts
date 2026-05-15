@@ -7,6 +7,7 @@ import {
 } from "@hrbr/sdk/local"
 import type { McpSourceFetch } from "@hrbr/source-mcp"
 import type { HarborLocalServerEnv } from "./env"
+import { handleLocalHarborMcpRequest } from "./mcp"
 
 export interface HarborLocalServerInput {
   readonly env: HarborLocalServerEnv
@@ -283,6 +284,7 @@ async function connectSource(input: HarborLocalServerInput, body: JsonBody): Pro
 async function route(input: HarborLocalServerInput, request: Request): Promise<Response> {
   const url = new URL(request.url)
   if (request.method === "OPTIONS") return new Response(null, { status: 204 })
+  if (url.pathname === "/mcp") return handleLocalHarborMcpRequest(input, request)
   if (request.method === "GET") {
     const staticFile = await staticResponse(url.pathname)
     if (staticFile) return staticFile

@@ -13,7 +13,7 @@ Progress Tracker:
 - [x] 6. Build local Harbor API server
 - [x] 7. Build local Harbor MCP console UI
 - [x] 8. Manual UI validation gate
-- [ ] 9. Add local Harbor MCP server surface for agents
+- [x] 9. Add local Harbor MCP server surface for agents
 - [ ] 10. Add local diagnostics and invocation history
 - [ ] 11. Validate fresh local project and MCP flows
 - [ ] 12. Final docs, tracker update, and GitHub push
@@ -71,7 +71,7 @@ Tasks:
 9. Add local Harbor MCP server surface for agents
    Scope: expose local Harbor itself as an inbound local MCP server that agents can connect to after plugins are installed through the UI. This may be implemented inside `apps/harbor-local` as an MCP endpoint or a small companion command/server, but it must call the same SDK/local API backend rather than duplicating OAuth, credential storage, discovery, indexing, search, or invocation logic.
    Output: users can connect local Harbor to Codex, Claude, or another MCP-capable agent and use tools such as catalog/source listing, source refresh, tool search, schema lookup, tool invocation, and invocation history. The MCP surface should expose registry search/invoke control-plane tools first, not generate one static MCP tool for every connected plugin tool.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit MCP server code, connection docs, and focused tests.
 
 10. Add local diagnostics and invocation history
@@ -157,3 +157,8 @@ Progress Log:
 - 2026-05-15T17:22:00+05:30: Fix from validation: connected MCP account cards now expose OAuth reconnect and disconnect controls; disconnect calls `POST /api/sources/remove`, removes source/tool/OAuth/credential rows, and clears encrypted credentials for that source when the local vault key is available.
 - 2026-05-15T17:22:00+05:30: Operational note from validation: `No route for POST /api/sources/remove` means the browser is talking to an older `apps/harbor-local` backend process; restart the local server after backend route changes.
 - 2026-05-15T17:22:00+05:30: Validation passed with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts packages/sdk/runtime-local/test/index.test.ts`, and `bun run --cwd apps/harbor-local build:web`.
+- 2026-05-15T17:38:00+05:30: Completed task 9 by adding an inbound local Harbor MCP endpoint at `POST /mcp` on the same `apps/harbor-local` server.
+- 2026-05-15T17:38:00+05:30: The MCP surface exposes control-plane tools: `harbor_catalog_list`, `harbor_sources_list`, `harbor_source_refresh`, `harbor_tools_search`, `harbor_tool_schema`, `harbor_tool_invoke`, and `harbor_invocations_list`.
+- 2026-05-15T17:38:00+05:30: The MCP endpoint calls the same `@hrbr/sdk/local` runtime as the browser API and does not duplicate OAuth, credentials, discovery, indexing, search, invocation, or history logic.
+- 2026-05-15T17:38:00+05:30: Added an MCP client integration test that installs a fixture MCP source through the API, connects to `http://local.harbor/mcp`, searches scoped tools, invokes an indexed plugin tool, and reads invocation history through local Harbor MCP tools.
+- 2026-05-15T17:38:00+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts`, and `bun run --filter @hrbr/runtime-local typecheck`.
