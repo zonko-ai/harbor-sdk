@@ -31,14 +31,16 @@ The default local state lives in:
 
 ## Main Surfaces
 
-| Surface | Purpose |
-| --- | --- |
-| `@hrbr/sdk/local` | Promise-first local runtime API for MCP setup, OAuth, tool search, invocation, exec, and traces. |
-| `@hrbr/source-mcp` | HTTP MCP adapter for discovering and calling external MCP servers. |
-| `@hrbr/runtime-local` | Local SQLite, encrypted credentials, OAuth, tool index, QuickJS, and invocation history implementation. |
-| `@hrbr/registry-catalog` | Checked-in MCP catalog metadata used by local examples and Local Harbor. |
-| `apps/harbor-local` | Local browser console for installing MCP plugins, refreshing tools, invoking tools, and viewing traces. |
-| Reef MCP endpoint | Agent-facing local MCP server with exactly two tools: `inspect` and `exec`. |
+
+| Surface                  | Purpose                                                                                                 |
+| ------------------------ | ------------------------------------------------------------------------------------------------------- |
+| `@hrbr/sdk/local`        | Promise-first local runtime API for MCP setup, OAuth, tool search, invocation, exec, and traces.        |
+| `@hrbr/source-mcp`       | HTTP MCP adapter for discovering and calling external MCP servers.                                      |
+| `@hrbr/runtime-local`    | Local SQLite, encrypted credentials, OAuth, tool index, QuickJS, and invocation history implementation. |
+| `@hrbr/registry-catalog` | Checked-in MCP catalog metadata used by local examples and Local Harbor.                                |
+| `apps/harbor-local`      | Local browser console for installing MCP plugins, refreshing tools, invoking tools, and viewing traces. |
+| Reef MCP endpoint        | Agent-facing local MCP server with exactly two tools: `inspect` and `exec`.                             |
+
 
 ## Install
 
@@ -71,25 +73,17 @@ Use a stable key for `HARBOR_LOCAL_CREDENTIAL_KEY`. It encrypts and decrypts loc
 Local Harbor is the fastest way to try the SDK with real MCP accounts.
 
 1. Start the server:
-
-   ```bash
+  ```bash
    HARBOR_LOCAL_CREDENTIAL_KEY=dev-key bun run --cwd apps/harbor-local dev
-   ```
-
+  ```
 2. Open the browser UI:
-
-   ```text
+  ```text
    http://127.0.0.1:7332
-   ```
-
+  ```
 3. Go to Plugins.
-
 4. Install an MCP plugin from the catalog, such as Linear or Notion, or install a custom MCP URL.
-
 5. Complete OAuth when prompted.
-
 6. Refresh the source to discover tools.
-
 7. Search tools, inspect schemas, invoke tools, and view Traces.
 
 Local Harbor is fully local for v1. It does not require hosted Harbor auth, WorkOS, hosted workspaces, Cloudflare runtime, Orbit, workflows, jobs, or apps.
@@ -199,31 +193,18 @@ console.log({ schema, result, traces })
 
 ## Examples
 
-| Example | What it shows |
-| --- | --- |
-| `examples/plugin-linear-mcp-local` | Install and call a Linear MCP source through local runtime primitives. |
-| `examples/plugin-notion-mcp-local` | Local OAuth flow, encrypted token storage, discovery, and safe read calls for Notion MCP. |
-| `examples/ai-sdk-tool-registry-agent` | Use Harbor SDK from a Vercel AI SDK agent with tool search and invocation. |
-| `examples/ai-sdk-local-exec-agent` | Let an AI SDK agent generate code that runs through Harbor local exec. |
-| `examples/flue-tool-registry-agent` | Use Harbor SDK from a Flue agent with registry-style actions. |
-| `examples/flue-local-exec-agent` | Use Flue to generate local exec code while Harbor SDK owns plugin execution. |
-| `examples/sdk-custom-source` | Build a custom source adapter and registry flow. |
-| `examples/sdk-orbit-runtime` | Explore Orbit runtime primitives. |
 
-## Package Map
+| Example                               | What it shows                                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `examples/plugin-linear-mcp-local`    | Install and call a Linear MCP source through local runtime primitives.                    |
+| `examples/plugin-notion-mcp-local`    | Local OAuth flow, encrypted token storage, discovery, and safe read calls for Notion MCP. |
+| `examples/ai-sdk-tool-registry-agent` | Use Harbor SDK from a Vercel AI SDK agent with tool search and invocation.                |
+| `examples/ai-sdk-local-exec-agent`    | Let an AI SDK agent generate code that runs through Harbor local exec.                    |
+| `examples/flue-tool-registry-agent`   | Use Harbor SDK from a Flue agent with registry-style actions.                             |
+| `examples/flue-local-exec-agent`      | Use Flue to generate local exec code while Harbor SDK owns plugin execution.              |
+| `examples/sdk-custom-source`          | Build a custom source adapter and registry flow.                                          |
+| `examples/sdk-orbit-runtime`          | Explore Orbit runtime primitives.                                                         |
 
-| Package | Purpose |
-| --- | --- |
-| `@hrbr/sdk` | Public SDK entrypoints, including `@hrbr/sdk/local`, `@hrbr/sdk/core`, and testing helpers. |
-| `@hrbr/runtime-local` | Local project setup, SQLite migrations, encrypted credentials, OAuth, MCP source lifecycle, QuickJS exec, and traces. |
-| `@hrbr/source-mcp` | HTTP MCP client adapter, discovery, tools/list, tools/call, OAuth-aware credential resolution, and tests. |
-| `@hrbr/source-auth` | OAuth helpers used by local MCP flows. |
-| `@hrbr/registry-catalog` | Registry catalog data and local MCP catalog seed. |
-| `@hrbr/tools` | Tool registry, search, schema, invoke, and policy-oriented types. |
-| `@hrbr/runs` | Run/span schemas and in-memory trace writer utilities. |
-| `@hrbr/workflows` | Typed workflow definition and execution helpers. |
-| `@hrbr/orbit` | Runtime primitive contracts for storage, cache, AI, DB, tools, jobs, apps, and sockets. |
-| `@hrbr/client` | Hosted Harbor client for managed Harbor APIs. |
 
 ## Development
 
@@ -259,47 +240,13 @@ Generate API docs:
 bun run docs:api
 ```
 
-## Current Scope
-
-Implemented local scope:
-
-- MCP plugin catalog seed
-- custom HTTP MCP URL install
-- local OAuth for MCP providers
-- encrypted credential and token storage
-- SQLite-backed source/tool/index state
-- lexical tool search
-- schema lookup
-- direct MCP tool invocation
-- local QuickJS exec
-- invocation history and traces
-- Local Harbor browser UI
-- Reef-style two-tool MCP endpoint for agents
-
-Not in local v1:
-
-- hosted Harbor auth or WorkOS
-- hosted team workspaces
-- Cloudflare runtime dependency
-- Orbit-backed hosted execution
-- workflows, jobs, apps, or chat
-- vector search or embeddings
-- billing, audit, or organization admin
-
-## Security Notes
-
-- Do not commit `.harbor/`.
-- Do not commit `.env` files containing provider keys.
-- Use a stable `HARBOR_LOCAL_CREDENTIAL_KEY` for each local project.
-- OAuth access tokens and refresh tokens are stored encrypted in `.harbor/credentials.enc`.
-- Tool outputs and invocation metadata are stored in SQLite so users can debug traces locally.
-
 ## License
 
 Proprietary unless a license is added by the project maintainers.
 
 ## Roadmap
 
-- [ ] Publish npm package
-- [ ] Add API and GraphQL plugins
-- [ ] Add Cloudflare runtime with cloud-native features
+- Publish npm package
+- Add API and GraphQL plugins
+- Add Cloudflare runtime with cloud-native features
+

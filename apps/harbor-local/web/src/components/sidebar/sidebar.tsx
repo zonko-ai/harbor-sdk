@@ -37,9 +37,14 @@ export function Sidebar({ currentPage, onNavigate, health }: SidebarProps) {
   return (
     <aside className="flex h-screen w-64 flex-col gap-1 bg-sidebar text-sidebar-foreground border-r border-sidebar-border p-3 sticky top-0">
       <div className="flex items-center gap-2.5 px-2 py-2 mb-2">
-        <div className="grid size-8 place-items-center rounded-md bg-foreground text-background font-bold text-sm">
-          H
-        </div>
+        <img
+          src="/brand/harbor-icon-128.png"
+          alt="Harbor"
+          width={32}
+          height={32}
+          className="size-8 rounded-md shrink-0 select-none"
+          draggable={false}
+        />
         <div className="flex flex-col min-w-0">
           <span className="text-sm font-semibold leading-tight tracking-tight truncate">
             Harbor Local
