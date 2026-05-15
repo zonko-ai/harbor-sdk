@@ -8,7 +8,7 @@ const data = await harbor.exec.run(code)
 const summary = await flueSummarize(data)
 ```
 
-Flue does not connect to MCP servers, handle OAuth callbacks, or manually invoke tools. The Harbor SDK local runtime owns source setup, OAuth refresh, namespace resolution, QuickJS execution, and MCP dispatch.
+Flue does not connect to MCP servers, handle OAuth callbacks, format namespace/tool method names, or manually invoke tools. The Harbor SDK local runtime owns source setup, OAuth refresh, namespace resolution, the exec tool guide, QuickJS execution, and MCP dispatch.
 
 ## Run
 

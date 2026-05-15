@@ -86,6 +86,7 @@ export {
   type HarborLocalExecRunResult,
   type HarborLocalExecRuntime,
   type HarborLocalExecRuntimeInput,
+  type HarborLocalExecToolGuide,
 } from "./exec"
 
 export {

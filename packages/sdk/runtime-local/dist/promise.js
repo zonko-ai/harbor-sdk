@@ -28582,6 +28582,25 @@ async function listExecBindings(input) {
     db.close();
   }
 }
+async function listExecToolGuide(input) {
+  const toolRuntime = await createHarborLocalMcpToolRuntime(input);
+  const bindings = await listExecBindings(input);
+  return bindings.flatMap((binding) => toolRuntime.schemas({ namespace: binding.namespace }).map((schema) => toolRuntime.describe(schema.toolId)).filter((tool) => tool !== null).map((tool) => {
+    const global = harborLocalNamespaceToJsVar(tool.namespace);
+    const method = toCamelCase(tool.name);
+    return {
+      namespace: tool.namespace,
+      global,
+      aliases: binding.aliases,
+      toolId: tool.toolId,
+      toolName: tool.name,
+      method,
+      call: `${global}.${method}(input)`,
+      ...tool.description !== undefined ? { description: tool.description } : {},
+      ...tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}
+    };
+  }));
+}
 function resolveNamespaces(code, bindings) {
   const refs = referencedIdentifiers(code);
   const resolved = [];
@@ -28632,6 +28651,7 @@ function errorMessage(error) {
 function createHarborLocalExecRuntime(input) {
   return {
     bindings: () => listExecBindings(input),
+    toolGuide: () => listExecToolGuide(input),
     run: async (code, options = {}) => {
       const started = Date.now();
       const logs = [];
@@ -41120,7 +41140,8 @@ function createHarborLocalRuntime(input) {
     },
     exec: {
       run: async (code, options) => createHarborLocalExecRuntime(base2).run(code, options),
-      bindings: async () => createHarborLocalExecRuntime(base2).bindings()
+      bindings: async () => createHarborLocalExecRuntime(base2).bindings(),
+      toolGuide: async () => createHarborLocalExecRuntime(base2).toolGuide()
     }
   };
 }

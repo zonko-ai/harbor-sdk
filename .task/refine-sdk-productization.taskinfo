@@ -11,7 +11,7 @@ Progress Tracker:
 - [x] 4. Remove Cloudflare runtime from public examples and exports
 - [x] 7. Create Promise-first local SDK facade
 - [x] 8. Finish MCP lifecycle completeness
-- [ ] 9. Rewrite framework examples against the public facade
+- [x] 9. Rewrite framework examples against the public facade
 - [ ] 10. Add SDK error and logging surface
 - [ ] 11. Add release-quality tests
 - [ ] 12. Update README and coming-soon docs markers
@@ -60,7 +60,7 @@ Tasks:
 9. Rewrite framework examples against the public facade
    Scope: keep both AI SDK and Flue as first-class framework integration examples. Each example should prove the framework owns the agent/model loop while Harbor SDK owns plugin install, OAuth, credential storage, discovery, search, invocation, and exec.
    Output: AI SDK and Flue examples are small, readable, and use the same public Harbor SDK facade.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit example rewrites and README updates.
 
 10. Add SDK error and logging surface
@@ -122,3 +122,6 @@ Progress Log:
 - 2026-05-15T13:11:11+05:30: Completed task 8 by adding `probeMcpHttpSource` to `@hrbr/source-mcp` with ready/auth-required/blocked/wrong-shape diagnostics and by exposing `sources.probeMcp(...)` through the Promise-first local runtime facade.
 - 2026-05-15T13:11:11+05:30: Confirmed the MCP lifecycle remains SDK-owned: OAuth refresh/reconnect, durable bindings, just-in-time credential resolution, lexical/BM25 search, invocation, and write gating are covered in `runtime-local` tests.
 - 2026-05-15T13:11:11+05:30: Regenerated `packages/sdk/runtime-local/dist/promise.js` and verified task 8 with `bun run --filter @hrbr/source-mcp typecheck`, `bun test packages/sdk/source-mcp/test/index.test.ts`, `bun run --filter @hrbr/runtime-local typecheck`, `bun test packages/sdk/runtime-local/test/index.test.ts`, `bun run --filter @hrbr/sdk typecheck`, and `bun run typecheck:examples`.
+- 2026-05-15T13:17:26+05:30: Completed task 9 by adding `exec.toolGuide()` to the public local runtime facade so framework examples no longer duplicate exec namespace/global/method-name resolution.
+- 2026-05-15T13:17:26+05:30: Updated AI SDK and Flue tool-registry examples to include `sources.probeMcp(...)` diagnostics as SDK-owned source health observations after setup.
+- 2026-05-15T13:17:26+05:30: Updated AI SDK and Flue local-exec examples to consume `harbor.exec.toolGuide()` and keep the framework-owned code generation loop focused on prompt/model/output handling.

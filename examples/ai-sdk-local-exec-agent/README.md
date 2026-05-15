@@ -10,7 +10,7 @@ const data = await harbor.exec.run(generated.code)
 const { object: summary } = await generateObject({ model, schema, prompt: summarize(data) })
 ```
 
-Harbor SDK owns source setup, OAuth refresh, namespace resolution, QuickJS execution, MCP dispatch, credentials, and policy.
+Harbor SDK owns source setup, OAuth refresh, namespace resolution, the generated exec tool guide, QuickJS execution, MCP dispatch, credentials, and policy.
 
 The original Flue example remains at `examples/flue-local-exec-agent`.
 

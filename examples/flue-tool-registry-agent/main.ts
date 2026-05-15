@@ -57,7 +57,10 @@ export default async function ({ init, payload, env }: FlueContext) {
     },
   })
   console.log(`[harbor] Source setup complete: ${sourceSetup.ready ? "ready" : "not ready"}`)
-  observations.push({ kind: "mcp_source_setup", result: sourceSetup })
+  const sourceProbes = sourceSetup.ready
+    ? await Promise.all(sourceSetup.sources.map((source) => harbor.sources.probeMcp(source.source.id)))
+    : []
+  observations.push({ kind: "mcp_source_setup", result: sourceSetup, probes: sourceProbes })
   const session = await (await init({ model: "anthropic/claude-sonnet-4-6" })).session()
 
   for (let step = 0; step < 12; step++) {

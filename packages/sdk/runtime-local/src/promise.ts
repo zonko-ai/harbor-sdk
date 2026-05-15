@@ -14,6 +14,7 @@ import {
   type HarborLocalExecBinding,
   type HarborLocalExecRunOptions,
   type HarborLocalExecRunResult,
+  type HarborLocalExecToolGuide,
   type HarborLocalMcpOAuthConnectHandle,
   type HarborLocalMcpOAuthDiscovery,
   type HarborLocalMcpProbeSourceResult,
@@ -51,6 +52,7 @@ export type {
   HarborLocalExecBinding,
   HarborLocalExecRunOptions,
   HarborLocalExecRunResult,
+  HarborLocalExecToolGuide,
 } from "./exec"
 
 export interface HarborLocalRuntimeInput {
@@ -195,6 +197,7 @@ export interface HarborLocalRuntime {
   readonly exec: {
     readonly run: (code: string, options?: HarborLocalExecRunOptions) => Promise<HarborLocalExecRunResult>
     readonly bindings: () => Promise<readonly HarborLocalExecBinding[]>
+    readonly toolGuide: () => Promise<readonly HarborLocalExecToolGuide[]>
   }
 }
 
@@ -413,6 +416,7 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
     exec: {
       run: async (code, options) => createHarborLocalExecRuntime(base).run(code, options),
       bindings: async () => createHarborLocalExecRuntime(base).bindings(),
+      toolGuide: async () => createHarborLocalExecRuntime(base).toolGuide(),
     },
   }
 }

@@ -33,40 +33,6 @@ function mcpSourcesFrom(env: Record<string, string | undefined>) {
   ]
 }
 
-function namespaceVar(namespace: string): string {
-  return namespace
-    .split(/[^A-Za-z0-9_$]+/g)
-    .filter(Boolean)
-    .map((part, index) => index === 0
-      ? part
-      : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join("")
-}
-
-function toolMethodName(toolName: string): string {
-  return toolName
-    .split(/[^A-Za-z0-9_$]+|_/g)
-    .filter(Boolean)
-    .map((part, index) => index === 0
-      ? part
-      : `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
-    .join("")
-}
-
-function toolCallGuideFrom(setup: Awaited<ReturnType<ReturnType<typeof createHarbor>["sources"]["ensureMcpSources"]>>) {
-  return setup.sources.flatMap((source) =>
-    source.refresh?.tools.map((tool) => ({
-      namespace: source.source.namespace,
-      global: namespaceVar(source.source.namespace),
-      toolName: tool.toolName,
-      method: toolMethodName(tool.toolName),
-      call: `${namespaceVar(source.source.namespace)}.${toolMethodName(tool.toolName)}(input)`,
-      description: tool.description ?? null,
-      inputSchema: tool.inputSchema ?? null,
-    })) ?? []
-  )
-}
-
 function codePrompt(prompt: string, bindings: unknown, tools: unknown): string {
   return [
     "Write Harbor local exec JavaScript code only.",
@@ -97,7 +63,7 @@ export default async function ({ init, payload, env }: FlueContext) {
 
   const session = await (await init({ model: "anthropic/claude-sonnet-4-6" })).session()
   const bindings = await harbor.exec.bindings()
-  const toolCallGuide = toolCallGuideFrom(setup)
+  const toolCallGuide = await harbor.exec.toolGuide()
   const { data: generated } = await session.prompt(codePrompt(prompt, bindings, toolCallGuide), {
     result: codeResult,
   })

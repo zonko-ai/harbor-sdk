@@ -30,14 +30,18 @@ const setup = await harbor.sources.ensureMcpSources({
   connect: true,
   refresh: true,
 })
+const probes = await Promise.all(setup.sources.map((source) =>
+  harbor.sources.probeMcp(source.source.id)
+))
 const { data: next } = await session.prompt(prompt, {
   result: harborLocalRegistryAgentStepSchema,
 })
 const result = await harbor.tools.runAction(harborLocalRegistryActionFromAgentStep(next), { confirmWrites })
 ```
 
-The SDK owns registry action validation and conversion. This example only keeps
-the final answer schema because that shape is specific to this Flue agent.
+The SDK owns source setup, probe diagnostics, registry action validation, and
+conversion. This example only keeps the final answer schema because that shape
+is specific to this Flue agent.
 
 ## Fixture E2E
 

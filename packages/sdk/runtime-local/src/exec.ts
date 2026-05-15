@@ -47,11 +47,24 @@ export interface HarborLocalExecBinding {
   readonly toolCount: number
 }
 
+export interface HarborLocalExecToolGuide {
+  readonly namespace: string
+  readonly global: string
+  readonly aliases: readonly string[]
+  readonly toolId: string
+  readonly toolName: string
+  readonly method: string
+  readonly call: string
+  readonly description?: string | undefined
+  readonly inputSchema?: unknown
+}
+
 export interface HarborLocalExecRuntimeInput extends HarborLocalMcpToolRuntimeInput {}
 
 export interface HarborLocalExecRuntime {
   readonly run: (code: string, options?: HarborLocalExecRunOptions) => Promise<HarborLocalExecRunResult>
   readonly bindings: () => Promise<readonly HarborLocalExecBinding[]>
+  readonly toolGuide: () => Promise<readonly HarborLocalExecToolGuide[]>
 }
 
 function loadDatabase(): SqlDatabaseCtor {
@@ -158,6 +171,31 @@ async function listExecBindings(input: HarborLocalExecRuntimeInput): Promise<rea
   }
 }
 
+async function listExecToolGuide(input: HarborLocalExecRuntimeInput): Promise<readonly HarborLocalExecToolGuide[]> {
+  const toolRuntime = await createHarborLocalMcpToolRuntime(input)
+  const bindings = await listExecBindings(input)
+  return bindings.flatMap((binding) =>
+    toolRuntime.schemas({ namespace: binding.namespace })
+      .map((schema) => toolRuntime.describe(schema.toolId))
+      .filter((tool): tool is HarborLocalToolDescription => tool !== null)
+      .map((tool) => {
+        const global = harborLocalNamespaceToJsVar(tool.namespace)
+        const method = toCamelCase(tool.name)
+        return {
+          namespace: tool.namespace,
+          global,
+          aliases: binding.aliases,
+          toolId: tool.toolId,
+          toolName: tool.name,
+          method,
+          call: `${global}.${method}(input)`,
+          ...(tool.description !== undefined ? { description: tool.description } : {}),
+          ...(tool.inputSchema !== undefined ? { inputSchema: tool.inputSchema } : {}),
+        }
+      })
+  )
+}
+
 function resolveNamespaces(code: string, bindings: readonly HarborLocalExecBinding[]): readonly {
   readonly namespace: string
   readonly alias: string
@@ -219,6 +257,7 @@ function errorMessage(error: unknown): string {
 export function createHarborLocalExecRuntime(input: HarborLocalExecRuntimeInput): HarborLocalExecRuntime {
   return {
     bindings: () => listExecBindings(input),
+    toolGuide: () => listExecToolGuide(input),
     run: async (code, options = {}) => {
       const started = Date.now()
       const logs: HarborLocalExecLogEntry[] = []

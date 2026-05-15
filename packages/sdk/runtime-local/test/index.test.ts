@@ -679,6 +679,29 @@ describe("@hrbr/runtime-local MCP source store", () => {
         { namespace: "linear-mcp", aliases: ["linear_mcp", "linearMcp"], toolCount: 2 },
         { namespace: "notion-mcp", aliases: ["notion_mcp", "notionMcp"], toolCount: 1 },
       ])
+      await expect(exec.toolGuide()).resolves.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          namespace: "linear-mcp",
+          global: "linearMcp",
+          toolName: "list_issues",
+          method: "listIssues",
+          call: "linearMcp.listIssues(input)",
+        }),
+        expect.objectContaining({
+          namespace: "linear-mcp",
+          global: "linearMcp",
+          toolName: "create_issue",
+          method: "createIssue",
+          call: "linearMcp.createIssue(input)",
+        }),
+        expect.objectContaining({
+          namespace: "notion-mcp",
+          global: "notionMcp",
+          toolName: "notion-search",
+          method: "notionSearch",
+          call: "notionMcp.notionSearch(input)",
+        }),
+      ]))
       await expect(exec.run(`
         const [linear, notion] = await Promise.all([
           linearMcp.listIssues({ query: "Harbor Alpha" }),

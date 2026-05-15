@@ -124,7 +124,10 @@ export async function runAiSdkToolRegistryAgent(input: {
     },
   })
   console.log(`[harbor] Source setup complete: ${sourceSetup.ready ? "ready" : "not ready"}`)
-  observations.push({ kind: "mcp_source_setup", result: sourceSetup })
+  const sourceProbes = sourceSetup.ready
+    ? await Promise.all(sourceSetup.sources.map((source) => harbor.sources.probeMcp(source.source.id)))
+    : []
+  observations.push({ kind: "mcp_source_setup", result: sourceSetup, probes: sourceProbes })
 
   const model = anthropicModelFrom(registryEnv)
   for (let step = 0; step < 12; step++) {
