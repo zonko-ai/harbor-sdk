@@ -1,6 +1,6 @@
 # Harbor SDK
 
-[Demo recording](docs/assets/local-harbor-demo.mov)
+![Local Harbor demo](docs/assets/local-harbor-demo.gif)
 
 Harbor SDK is a TypeScript toolkit for building local and hosted tool runtimes around MCP plugins, encrypted credentials, OAuth, tool discovery, schema inspection, execution, and traces.
 
