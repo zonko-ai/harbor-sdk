@@ -106,8 +106,7 @@ var init_sqlite = __esm(() => {
     "mcp_sources",
     "mcp_source_headers",
     "mcp_source_query_params",
-    "mcp_tool_bindings",
-    "cloudflare_resources"
+    "mcp_tool_bindings"
   ];
   HARBOR_LOCAL_MIGRATIONS = [
     {
@@ -364,18 +363,6 @@ CREATE TABLE IF NOT EXISTS mcp_tool_bindings (
   updated_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS cloudflare_resources (
-  id TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
-  account_id TEXT NOT NULL,
-  kind TEXT NOT NULL,
-  name TEXT NOT NULL,
-  cloudflare_id TEXT,
-  metadata_json TEXT,
-  created_at TEXT NOT NULL,
-  updated_at TEXT NOT NULL
-);
-
 CREATE INDEX IF NOT EXISTS idx_tool_index_workspace_search ON tool_index(workspace_id, namespace, name);
 CREATE INDEX IF NOT EXISTS idx_runs_workspace_started ON runs(workspace_id, started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_spans_run_started ON spans(run_id, started_at);
@@ -384,7 +371,6 @@ CREATE INDEX IF NOT EXISTS idx_oauth_grants_source_status ON oauth_grants(worksp
 CREATE INDEX IF NOT EXISTS idx_oauth_pending_source_status ON oauth_pending_flows(workspace_id, source_ref_id, status);
 CREATE INDEX IF NOT EXISTS idx_mcp_sources_workspace_namespace ON mcp_sources(workspace_id, namespace);
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_bindings_source ON mcp_tool_bindings(workspace_id, source_id);
-CREATE INDEX IF NOT EXISTS idx_cloudflare_resources_workspace_kind ON cloudflare_resources(workspace_id, kind);
 `.trim()
     }
   ];
@@ -397,7 +383,7 @@ function requireHarborLocalConfirmation(input) {
   }
 }
 function harborLocalSecurityAction(input) {
-  const destructive = input.destructive ?? (input.kind === "local.delete" || input.kind === "cloudflare.mutate" || input.kind === "credentials.change" || input.kind === "package.publish");
+  const destructive = input.destructive ?? (input.kind === "local.delete" || input.kind === "credentials.change" || input.kind === "package.publish");
   return {
     kind: input.kind,
     title: input.title,
@@ -26412,7 +26398,7 @@ async function importHarborLocalCredentialsFromEnvKey(projectRoot, input) {
 }
 var HARBOR_LOCAL_CREDENTIAL_KEY_ENV = "HARBOR_LOCAL_CREDENTIAL_KEY";
 var init_credentials = __esm(() => {
-  init_src5();
+  init_src4();
 });
 
 // packages/sdk/runtime-local/src/tool-search.ts
@@ -26695,8 +26681,8 @@ function createHarborLocalCredentialResolverFromEnv(projectRoot, input = {}) {
   });
 }
 var init_plugin_store = __esm(() => {
-  init_src5();
-  init_src5();
+  init_src4();
+  init_src4();
   init_credentials();
 });
 
@@ -26977,7 +26963,7 @@ async function listHarborLocalMcpToolBindings(projectRoot, sourceId) {
   }
 }
 var init_mcp_store = __esm(() => {
-  init_src5();
+  init_src4();
 });
 
 // packages/sdk/runtime-local/src/oauth.ts
@@ -27225,68 +27211,10 @@ async function readHarborLocalOAuthStatus(projectRoot, sourceRefId2) {
 }
 var init_oauth = __esm(() => {
   init_src3();
-  init_src5();
-  init_src5();
+  init_src4();
+  init_src4();
   init_credentials();
 });
-
-// packages/sdk/runtime-cloudflare/src/index.ts
-function resourceKey(resource) {
-  return `${resource.kind}:${resource.name}`;
-}
-function createCloudflareProvisioningPlan(input) {
-  const current = new Map((input.currentLock?.resources ?? []).map((resource) => [resourceKey(resource), resource]));
-  const desired = new Map(input.desiredResources.map((resource) => [resourceKey(resource), resource]));
-  const items2 = [];
-  for (const resource of input.desiredResources) {
-    const existing = current.get(resourceKey(resource));
-    items2.push({
-      action: existing ? "noop" : "create",
-      resource: existing ?? resource,
-      reason: existing ? "Resource is already present in the Cloudflare lock" : "Resource is required by the desired Orbit runtime",
-      destructive: false
-    });
-  }
-  for (const resource of current.values()) {
-    if (!desired.has(resourceKey(resource))) {
-      items2.push({
-        action: "delete",
-        resource,
-        reason: "Resource exists in the lock but is no longer desired",
-        destructive: true
-      });
-    }
-  }
-  return {
-    account: input.account,
-    items: items2,
-    requiresConfirmation: items2.some((item) => item.action !== "noop")
-  };
-}
-async function applyCloudflareProvisioningPlan(input) {
-  if (input.plan.requiresConfirmation && !input.confirmed) {
-    throw new Error("Cloudflare provisioning requires confirmation");
-  }
-  const resources = [];
-  for (const item of input.plan.items) {
-    if (item.action === "delete") {
-      await input.client?.deleteResource?.(item.resource);
-      continue;
-    }
-    if (item.action === "create") {
-      resources.push(await input.client?.createResource?.(item.resource) ?? item.resource);
-      continue;
-    }
-    if (item.action === "noop")
-      resources.push(item.resource);
-  }
-  return {
-    account: input.plan.account,
-    resources,
-    updatedAt: (input.now ?? (() => new Date))().toISOString()
-  };
-}
-var init_src4 = () => {};
 
 // packages/sdk/runtime-local/src/daemon.ts
 import { createHash as createHash2, randomBytes as randomBytes3 } from "node:crypto";
@@ -27317,21 +27245,6 @@ async function readJsonBody(req) {
 }
 function isAuthed(req, token) {
   return bearerToken(req) === token;
-}
-async function readCloudflareLock(projectRoot) {
-  const paths = harborLocalPaths(projectRoot);
-  try {
-    return JSON.parse(await readFile2(paths.cloudflareLock, "utf8"));
-  } catch (error) {
-    if (error.code === "ENOENT")
-      return null;
-    throw error;
-  }
-}
-async function writeCloudflareLock(projectRoot, lock) {
-  const paths = harborLocalPaths(projectRoot);
-  await writeFile2(paths.cloudflareLock, `${JSON.stringify(lock, null, 2)}
-`);
 }
 function hashHarborLocalToken(token) {
   return createHash2("sha256").update(token).digest("hex");
@@ -27421,55 +27334,6 @@ async function startHarborLocalDaemon(input) {
           return;
         }
         json3(res, 200, { ok: true, runtime: info });
-        return;
-      }
-      if (url.pathname === "/control/cloudflare/status") {
-        if (!isAuthed(req, token)) {
-          json3(res, 401, { ok: false, code: "unauthorized" });
-          return;
-        }
-        json3(res, 200, await readCloudflareLock(input.projectRoot));
-        return;
-      }
-      if (url.pathname === "/control/cloudflare/plan") {
-        if (!isAuthed(req, token)) {
-          json3(res, 401, { ok: false, code: "unauthorized" });
-          return;
-        }
-        const body = await readJsonBody(req);
-        json3(res, 200, createCloudflareProvisioningPlan({
-          account: body.account,
-          desiredResources: body.desiredResources,
-          currentLock: await readCloudflareLock(input.projectRoot)
-        }));
-        return;
-      }
-      if (url.pathname === "/control/cloudflare/apply") {
-        if (!isAuthed(req, token)) {
-          json3(res, 401, { ok: false, code: "unauthorized" });
-          return;
-        }
-        const body = await readJsonBody(req);
-        const plan = createCloudflareProvisioningPlan({
-          account: body.account,
-          desiredResources: body.desiredResources,
-          currentLock: await readCloudflareLock(input.projectRoot)
-        });
-        requireHarborLocalConfirmation({
-          action: harborLocalSecurityAction({
-            kind: "cloudflare.mutate",
-            title: "Apply Cloudflare provisioning plan",
-            destructive: plan.requiresConfirmation
-          }),
-          confirmed: body.confirmed === true
-        });
-        const lock = await applyCloudflareProvisioningPlan({
-          plan,
-          confirmed: body.confirmed === true,
-          now: now2
-        });
-        await writeCloudflareLock(input.projectRoot, lock);
-        json3(res, 200, lock);
         return;
       }
       const jobMatch = url.pathname.match(/^\/jobs\/([^/]+)\/run$/);
@@ -27566,10 +27430,9 @@ async function startHarborLocalDaemon(input) {
   };
 }
 var init_daemon = __esm(() => {
-  init_src4();
   init_jobs_apps();
   init_oauth();
-  init_src5();
+  init_src4();
 });
 
 // packages/sdk/runtime-local/src/mcp-runtime.ts
@@ -27764,7 +27627,7 @@ async function refreshHarborLocalMcpSource(input) {
 }
 async function writeMcpToolIndex(projectRoot, sourceId, records) {
   const { createRequire: createRequire6 } = await import("node:module");
-  const { harborLocalPaths: harborLocalPaths2 } = await Promise.resolve().then(() => (init_src5(), exports_src));
+  const { harborLocalPaths: harborLocalPaths2 } = await Promise.resolve().then(() => (init_src4(), exports_src));
   const req = createRequire6(import.meta.url);
   const Database = (() => {
     try {
@@ -28545,7 +28408,7 @@ ${code}
 var init_exec = __esm(() => {
   init_tool_registry_actions();
   init_mcp_runtime();
-  init_src5();
+  init_src4();
 });
 
 // packages/sdk/runtime-local/src/registry.ts
@@ -28658,7 +28521,7 @@ async function watchHarborRegistryDevRefs(projectRoot, onEvent) {
   };
 }
 var init_registry = __esm(() => {
-  init_src5();
+  init_src4();
 });
 
 // packages/sdk/runtime-local/src/mcp-plugin.ts
@@ -28861,8 +28724,7 @@ __export(exports_src, {
   HARBOR_LOCAL_LAYOUT: () => HARBOR_LOCAL_LAYOUT,
   HARBOR_LOCAL_DIR: () => HARBOR_LOCAL_DIR,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV: () => HARBOR_LOCAL_CREDENTIAL_KEY_ENV,
-  HARBOR_CREDENTIALS_FILE: () => HARBOR_CREDENTIALS_FILE,
-  HARBOR_CLOUDFLARE_LOCK_FILE: () => HARBOR_CLOUDFLARE_LOCK_FILE
+  HARBOR_CREDENTIALS_FILE: () => HARBOR_CREDENTIALS_FILE
 });
 import { mkdir as mkdir2, readFile as readFile4, writeFile as writeFile4 } from "node:fs/promises";
 import { join as join3 } from "node:path";
@@ -28877,8 +28739,7 @@ function harborLocalPaths(projectRoot) {
     registryRefs: resolve2(HARBOR_LOCAL_LAYOUT.registryRefs),
     artifacts: resolve2(HARBOR_LOCAL_LAYOUT.artifacts),
     traces: resolve2(HARBOR_LOCAL_LAYOUT.traces),
-    cache: resolve2(HARBOR_LOCAL_LAYOUT.cache),
-    cloudflareLock: resolve2(HARBOR_LOCAL_LAYOUT.cloudflareLock)
+    cache: resolve2(HARBOR_LOCAL_LAYOUT.cache)
   };
 }
 async function pathExists(path) {
@@ -28944,8 +28805,8 @@ function harborLocalDaemonConnection(manifest) {
     headers: { authorization: `Bearer ${manifest.token}` }
   };
 }
-var LOCAL_WORKSPACE_ID = "local", HARBOR_LOCAL_DIR = ".harbor", HARBOR_RUNTIME_FILE = "runtime.json", HARBOR_SQLITE_FILE = "harbor.sqlite", HARBOR_CREDENTIALS_FILE = "credentials.enc", HARBOR_REGISTRY_REFS_FILE = "registry-dev-refs.json", HARBOR_CLOUDFLARE_LOCK_FILE = "cloudflare.lock.json", HARBOR_LOCAL_LAYOUT, DEFAULT_REGISTRY_REFS;
-var init_src5 = __esm(() => {
+var LOCAL_WORKSPACE_ID = "local", HARBOR_LOCAL_DIR = ".harbor", HARBOR_RUNTIME_FILE = "runtime.json", HARBOR_SQLITE_FILE = "harbor.sqlite", HARBOR_CREDENTIALS_FILE = "credentials.enc", HARBOR_REGISTRY_REFS_FILE = "registry-dev-refs.json", HARBOR_LOCAL_LAYOUT, DEFAULT_REGISTRY_REFS;
+var init_src4 = __esm(() => {
   init_sqlite();
   init_submission();
   init_package_format();
@@ -28971,8 +28832,7 @@ var init_src5 = __esm(() => {
     registryRefs: `${HARBOR_LOCAL_DIR}/${HARBOR_REGISTRY_REFS_FILE}`,
     artifacts: `${HARBOR_LOCAL_DIR}/artifacts`,
     traces: `${HARBOR_LOCAL_DIR}/traces`,
-    cache: `${HARBOR_LOCAL_DIR}/cache`,
-    cloudflareLock: `${HARBOR_LOCAL_DIR}/${HARBOR_CLOUDFLARE_LOCK_FILE}`
+    cache: `${HARBOR_LOCAL_DIR}/cache`
   };
   DEFAULT_REGISTRY_REFS = {
     version: 1,
@@ -28982,7 +28842,7 @@ var init_src5 = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/promise.ts
-init_src5();
+init_src4();
 // packages/sdk/registry-catalog/data/v1/catalog.json
 var catalog_default = {
   version: 1,

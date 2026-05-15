@@ -7,7 +7,7 @@ Status: in progress
 Progress Tracker:
 - [x] 1. Branch setup and baseline inspection
 - [x] 2. Lock public package boundaries
-- [ ] 3. Separate local runtime from Cloudflare runtime
+- [x] 3. Separate local runtime from Cloudflare runtime
 - [ ] 4. Remove Cloudflare runtime from public examples and exports
 - [ ] 5. Decide Harbor Cloud platform SDK relationship
 - [ ] 6. Build publishable package infrastructure
@@ -36,7 +36,7 @@ Tasks:
 3. Separate local runtime from Cloudflare runtime
    Scope: remove the horizontal-layer violation where `@hrbr/runtime-local` imports `@hrbr/runtime-cloudflare`. Explore whether shared Cloudflare plan types should move to a neutral internal package or whether Cloudflare routes should simply leave the local daemon.
    Output: `runtime-local` no longer depends on `runtime-cloudflare`; local runtime remains focused on local MCP/plugin/OAuth/credential/search/invoke/exec behavior.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit code and package dependency changes.
 
 4. Remove Cloudflare runtime from public examples and exports
@@ -108,3 +108,7 @@ Progress Log:
 - 2026-05-15T12:09:31+05:30: Completed task 2 by adding the draft public package boundary doc and defining `@hrbr/sdk/core`, `@hrbr/sdk/local`, and `@hrbr/sdk/testing` subpath exports.
 - 2026-05-15T12:09:31+05:30: Kept the legacy `@hrbr/sdk` aggregate unchanged for now; removal of Cloudflare from public exports is tracked under tasks 3 and 4.
 - 2026-05-15T12:09:31+05:30: Verified task 2 with `bun run --filter @hrbr/sdk typecheck`.
+- 2026-05-15T12:40:01+05:30: Completed task 3 by removing the `@hrbr/runtime-cloudflare` dependency from `@hrbr/runtime-local`.
+- 2026-05-15T12:40:01+05:30: Removed Cloudflare provisioning routes from the local daemon, removed local Cloudflare lock path/schema table/security action, and regenerated `packages/sdk/runtime-local/dist/promise.js`.
+- 2026-05-15T12:40:01+05:30: Added a regression assertion that `/control/cloudflare/plan` is not exposed by the local daemon.
+- 2026-05-15T12:40:01+05:30: Verified task 3 with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/sdk typecheck`, and `bun test packages/sdk/runtime-local/test/index.test.ts`.

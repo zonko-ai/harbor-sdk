@@ -2,7 +2,6 @@ import type { HarborLocalPackageManifest } from "./package-format"
 
 export type HarborLocalSecurityActionKind =
   | "local.delete"
-  | "cloudflare.mutate"
   | "tool.run"
   | "credentials.change"
   | "package.publish"
@@ -40,7 +39,6 @@ export function harborLocalSecurityAction(input: {
 }): HarborLocalSecurityAction {
   const destructive = input.destructive ?? (
     input.kind === "local.delete" ||
-    input.kind === "cloudflare.mutate" ||
     input.kind === "credentials.change" ||
     input.kind === "package.publish"
   )

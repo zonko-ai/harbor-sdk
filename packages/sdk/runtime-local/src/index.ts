@@ -244,7 +244,6 @@ export const HARBOR_RUNTIME_FILE = "runtime.json"
 export const HARBOR_SQLITE_FILE = "harbor.sqlite"
 export const HARBOR_CREDENTIALS_FILE = "credentials.enc"
 export const HARBOR_REGISTRY_REFS_FILE = "registry-dev-refs.json"
-export const HARBOR_CLOUDFLARE_LOCK_FILE = "cloudflare.lock.json"
 
 export const HARBOR_LOCAL_LAYOUT = {
   root: HARBOR_LOCAL_DIR,
@@ -255,7 +254,6 @@ export const HARBOR_LOCAL_LAYOUT = {
   artifacts: `${HARBOR_LOCAL_DIR}/artifacts`,
   traces: `${HARBOR_LOCAL_DIR}/traces`,
   cache: `${HARBOR_LOCAL_DIR}/cache`,
-  cloudflareLock: `${HARBOR_LOCAL_DIR}/${HARBOR_CLOUDFLARE_LOCK_FILE}`,
 } as const
 
 export type HarborLocalRuntimeStatus = "stopped" | "starting" | "running" | "stale"
@@ -296,7 +294,6 @@ export interface HarborLocalRuntimePaths {
   readonly artifacts: string
   readonly traces: string
   readonly cache: string
-  readonly cloudflareLock: string
 }
 
 export interface HarborLocalRuntime {
@@ -323,7 +320,6 @@ export function harborLocalPaths(projectRoot: string): HarborLocalRuntimePaths {
     artifacts: resolve(HARBOR_LOCAL_LAYOUT.artifacts),
     traces: resolve(HARBOR_LOCAL_LAYOUT.traces),
     cache: resolve(HARBOR_LOCAL_LAYOUT.cache),
-    cloudflareLock: resolve(HARBOR_LOCAL_LAYOUT.cloudflareLock),
   }
 }
 

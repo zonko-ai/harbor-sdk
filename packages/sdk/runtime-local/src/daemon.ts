@@ -3,13 +3,6 @@ import { readFile, writeFile } from "node:fs/promises"
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { AddressInfo } from "node:net"
 import {
-  applyCloudflareProvisioningPlan,
-  createCloudflareProvisioningPlan,
-  type CloudflareAccountRef,
-  type CloudflareOrbitResourceRef,
-  type CloudflareProvisioningLock,
-} from "@hrbr/runtime-cloudflare"
-import {
   runHarborLocalAppRoute,
   runHarborLocalJob,
   type HarborLocalAppDefinition,
@@ -20,7 +13,6 @@ import {
   completeHarborLocalOAuthCallback,
   type HarborLocalOAuthCallbackExchangeInput,
 } from "./oauth"
-import { harborLocalSecurityAction, requireHarborLocalConfirmation } from "./security"
 import {
   ensureHarborLocalProject,
   harborLocalPaths,
@@ -99,27 +91,6 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
 
 function isAuthed(req: IncomingMessage, token: string): boolean {
   return bearerToken(req) === token
-}
-
-interface CloudflareControlBody {
-  readonly account: CloudflareAccountRef
-  readonly desiredResources: readonly CloudflareOrbitResourceRef[]
-  readonly confirmed?: boolean | undefined
-}
-
-async function readCloudflareLock(projectRoot: string): Promise<CloudflareProvisioningLock | null> {
-  const paths = harborLocalPaths(projectRoot)
-  try {
-    return JSON.parse(await readFile(paths.cloudflareLock, "utf8")) as CloudflareProvisioningLock
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null
-    throw error
-  }
-}
-
-async function writeCloudflareLock(projectRoot: string, lock: CloudflareProvisioningLock): Promise<void> {
-  const paths = harborLocalPaths(projectRoot)
-  await writeFile(paths.cloudflareLock, `${JSON.stringify(lock, null, 2)}\n`)
 }
 
 export function hashHarborLocalToken(token: string): string {
@@ -222,55 +193,6 @@ export async function startHarborLocalDaemon(
           return
         }
         json(res, 200, { ok: true, runtime: info })
-        return
-      }
-      if (url.pathname === "/control/cloudflare/status") {
-        if (!isAuthed(req, token)) {
-          json(res, 401, { ok: false, code: "unauthorized" })
-          return
-        }
-        json(res, 200, await readCloudflareLock(input.projectRoot))
-        return
-      }
-      if (url.pathname === "/control/cloudflare/plan") {
-        if (!isAuthed(req, token)) {
-          json(res, 401, { ok: false, code: "unauthorized" })
-          return
-        }
-        const body = await readJsonBody(req) as CloudflareControlBody
-        json(res, 200, createCloudflareProvisioningPlan({
-          account: body.account,
-          desiredResources: body.desiredResources,
-          currentLock: await readCloudflareLock(input.projectRoot),
-        }))
-        return
-      }
-      if (url.pathname === "/control/cloudflare/apply") {
-        if (!isAuthed(req, token)) {
-          json(res, 401, { ok: false, code: "unauthorized" })
-          return
-        }
-        const body = await readJsonBody(req) as CloudflareControlBody
-        const plan = createCloudflareProvisioningPlan({
-          account: body.account,
-          desiredResources: body.desiredResources,
-          currentLock: await readCloudflareLock(input.projectRoot),
-        })
-        requireHarborLocalConfirmation({
-          action: harborLocalSecurityAction({
-            kind: "cloudflare.mutate",
-            title: "Apply Cloudflare provisioning plan",
-            destructive: plan.requiresConfirmation,
-          }),
-          confirmed: body.confirmed === true,
-        })
-        const lock = await applyCloudflareProvisioningPlan({
-          plan,
-          confirmed: body.confirmed === true,
-          now,
-        })
-        await writeCloudflareLock(input.projectRoot, lock)
-        json(res, 200, lock)
         return
       }
       const jobMatch = url.pathname.match(/^\/jobs\/([^/]+)\/run$/)

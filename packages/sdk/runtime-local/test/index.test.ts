@@ -137,7 +137,6 @@ describe("@hrbr/runtime-local sqlite schema", () => {
     expect(tables).toContain("mcp_source_headers")
     expect(tables).toContain("mcp_source_query_params")
     expect(tables).toContain("mcp_tool_bindings")
-    expect(tables).toContain("cloudflare_resources")
   })
 
   it("runs local migrations in version order", async () => {
@@ -153,7 +152,6 @@ describe("@hrbr/runtime-local sqlite schema", () => {
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS local_workspace")
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS mcp_sources")
     expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS mcp_tool_bindings")
-    expect(statements[0]).toContain("CREATE TABLE IF NOT EXISTS cloudflare_resources")
   })
 })
 
@@ -221,62 +219,20 @@ describe("@hrbr/runtime-local daemon", () => {
     })
   })
 
-  it("plans, applies, persists, and reports Cloudflare provisioning through control routes", async () => {
+  it("does not expose Cloudflare provisioning routes from the local daemon", async () => {
     await withTempProject(async (projectRoot) => {
-      const daemon = await startHarborLocalDaemon({
-        projectRoot,
-        token: "test-token",
-        now: () => new Date("2026-05-12T00:00:00.000Z"),
-      })
+      const daemon = await startHarborLocalDaemon({ projectRoot, token: "test-token" })
       try {
-        const headers = {
-          authorization: `Bearer ${daemon.token}`,
-          "content-type": "application/json",
-        }
-        const body = JSON.stringify({
-          account: { accountId: "acct-1" },
-          desiredResources: [{ kind: "r2_bucket", name: "artifacts" }],
-        })
-        const plan = await fetch(`${daemon.origin}/control/cloudflare/plan`, {
+        const response = await fetch(`${daemon.origin}/control/cloudflare/plan`, {
           method: "POST",
-          headers,
-          body,
+          headers: {
+            authorization: `Bearer ${daemon.token}`,
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({ account: { accountId: "acct-1" }, desiredResources: [] }),
         })
-        await expect(plan.json()).resolves.toMatchObject({
-          account: { accountId: "acct-1" },
-          items: [{ action: "create", resource: { kind: "r2_bucket", name: "artifacts" } }],
-          requiresConfirmation: true,
-        })
-
-        const rejected = await fetch(`${daemon.origin}/control/cloudflare/apply`, {
-          method: "POST",
-          headers,
-          body,
-        })
-        expect(rejected.status).toBe(500)
-
-        const applied = await fetch(`${daemon.origin}/control/cloudflare/apply`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            account: { accountId: "acct-1" },
-            desiredResources: [{ kind: "r2_bucket", name: "artifacts" }],
-            confirmed: true,
-          }),
-        })
-        await expect(applied.json()).resolves.toMatchObject({
-          resources: [{ kind: "r2_bucket", name: "artifacts" }],
-          updatedAt: "2026-05-12T00:00:00.000Z",
-        })
-        await expect(readFile(harborLocalPaths(projectRoot).cloudflareLock, "utf8"))
-          .resolves.toContain("\"r2_bucket\"")
-
-        const status = await fetch(`${daemon.origin}/control/cloudflare/status`, {
-          headers: { authorization: `Bearer ${daemon.token}` },
-        })
-        await expect(status.json()).resolves.toMatchObject({
-          resources: [{ kind: "r2_bucket", name: "artifacts" }],
-        })
+        expect(response.status).toBe(404)
+        await expect(response.json()).resolves.toEqual({ ok: false, code: "not_found" })
       } finally {
         await daemon.close()
       }
