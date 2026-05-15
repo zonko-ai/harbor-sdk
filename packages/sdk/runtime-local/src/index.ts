@@ -214,6 +214,7 @@ export {
 
 export {
   listHarborLocalMcpToolBindings,
+  listHarborLocalMcpSources,
   putHarborLocalMcpToolBindings,
   readHarborLocalMcpSource,
   updateHarborLocalMcpSourceStatus,

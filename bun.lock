@@ -34,6 +34,19 @@
         "typescript": "catalog:",
       },
     },
+    "apps/harbor-local": {
+      "name": "@hrbr/harbor-local",
+      "dependencies": {
+        "@hrbr/registry-catalog": "workspace:*",
+        "@hrbr/sdk": "workspace:*",
+      },
+      "devDependencies": {
+        "@hrbr/source-mcp": "workspace:*",
+        "@hrbr/tsconfig": "workspace:*",
+        "@types/bun": "^1.3.12",
+        "typescript": "catalog:",
+      },
+    },
     "examples/ai-sdk-local-exec-agent": {
       "name": "ai-sdk-local-exec-agent-example",
       "dependencies": {
@@ -632,6 +645,8 @@
     "@hrbr/harbor-backend": ["@hrbr/harbor-backend@workspace:apps/harbor-backend"],
 
     "@hrbr/harbor-control": ["@hrbr/harbor-control@workspace:packages/sdk/harbor-control"],
+
+    "@hrbr/harbor-local": ["@hrbr/harbor-local@workspace:apps/harbor-local"],
 
     "@hrbr/orbit": ["@hrbr/orbit@workspace:packages/sdk/orbit"],
 

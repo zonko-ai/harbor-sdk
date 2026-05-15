@@ -4,6 +4,7 @@ import {
   createHarborLocalMcpToolRuntime,
   HarborLocalError,
   importHarborLocalCredentialsFromEnv,
+  listHarborLocalMcpSources,
   listHarborLocalSources,
   readHarborLocalMcpSource,
   readHarborLocalOAuthStatus,
@@ -172,6 +173,7 @@ export interface HarborLocalMcpEnsureSourcesResult {
 export interface HarborLocalRuntime {
   readonly sources: {
     readonly list: () => Promise<readonly HarborLocalSourceRef[]>
+    readonly listMcp: () => Promise<readonly HarborLocalMcpStoredSource[]>
     readonly getMcp: (sourceId: string) => Promise<HarborLocalMcpStoredSource | null>
     readonly oauthStatus: (sourceId: string) => Promise<HarborLocalOAuthStatus>
     readonly upsertMcp: (source: HarborLocalMcpSourceInput) => Promise<HarborLocalMcpStoredSource>
@@ -451,6 +453,7 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
   return {
     sources: {
       list: () => listHarborLocalSources(input.projectRoot),
+      listMcp: () => listHarborLocalMcpSources(input.projectRoot),
       getMcp: (sourceId) => readHarborLocalMcpSource(input.projectRoot, sourceId),
       oauthStatus: (sourceId) => readHarborLocalOAuthStatus(input.projectRoot, sourceId),
       upsertMcp: (source) => upsertHarborLocalMcpSource({

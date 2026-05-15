@@ -10,11 +10,13 @@ Progress Tracker:
 - [x] 3. Lock the local Harbor app boundary
 - [x] 4. Close SDK gaps for local MCP plugin lifecycle
 - [x] 5. Add MCP catalog seed from Harbor main
-- [ ] 6. Build local Harbor API server
+- [x] 6. Build local Harbor API server
 - [ ] 7. Build local Harbor MCP console UI
-- [ ] 8. Add local diagnostics and invocation history
-- [ ] 9. Validate fresh local project and MCP flows
-- [ ] 10. Final docs, tracker update, and GitHub push
+- [ ] 8. Manual UI validation gate
+- [ ] 9. Add local Harbor MCP server surface for agents
+- [ ] 10. Add local diagnostics and invocation history
+- [ ] 11. Validate fresh local project and MCP flows
+- [ ] 12. Final docs, tracker update, and GitHub push
 
 Tasks:
 
@@ -50,37 +52,50 @@ Tasks:
 
 6. Build local Harbor API server
    Scope: add `apps/harbor-local` with a single Bun-based local server bound to `127.0.0.1` by default. Use the current working directory for `.harbor/` state, with `HARBOR_LOCAL_PROJECT_DIR` and `HARBOR_LOCAL_OAUTH_PORT` overrides.
-   Output: local API exposes catalog, source install/status/connect/refresh, tool search/schema/invoke, and invocation history routes backed by SDK calls. This is a browser-facing product API over the existing client SDK, not a replacement for `@hrbr/sdk/local`.
-   Progress: pending
+   Output: local API exposes catalog, source install/status/connect/refresh, tool search/schema/invoke, and invocation history routes backed by SDK calls. This is the shared local backend for the browser UI and the later local Harbor MCP server, not a replacement for `@hrbr/sdk/local`.
+   Progress: completed
    Commit: after this step is complete, commit the server app slice and focused tests.
 
 7. Build local Harbor MCP console UI
    Scope: build a practical local web UI for MCP plugin management. Reuse Harbor main visual ideas/components where they fit, but avoid importing hosted-only assumptions.
-   Output: UI supports catalog browsing, custom MCP install, source status, OAuth connect/reconnect, tool search/browser, schema inspection, invocation form, and result viewing.
+   Output: UI supports catalog browsing, custom MCP install, source status, OAuth connect/reconnect, tool search/browser, schema inspection, invocation form, and result viewing. The UI is the setup, management, and debugging surface for local Harbor before exposing the agent-facing MCP surface.
    Progress: pending
    Commit: after this step is complete, commit UI changes and any app-level tests.
 
-8. Add local diagnostics and invocation history
+8. Manual UI validation gate
+   Scope: pause implementation after the local API and UI are usable so Kushagra can manually test real MCP installs, OAuth, refresh, search, schema lookup, and invocation from the browser console.
+   Output: user-tested UI behavior is confirmed or recorded as exact fixes before building the agent-facing local MCP server. This prevents building the MCP surface on top of an unvalidated setup flow.
+   Progress: pending
+   Commit: after this step is complete, commit tracker updates and any fixes found during manual UI testing.
+
+9. Add local Harbor MCP server surface for agents
+   Scope: expose local Harbor itself as an inbound local MCP server that agents can connect to after plugins are installed through the UI. This may be implemented inside `apps/harbor-local` as an MCP endpoint or a small companion command/server, but it must call the same SDK/local API backend rather than duplicating OAuth, credential storage, discovery, indexing, search, or invocation logic.
+   Output: users can connect local Harbor to Codex, Claude, or another MCP-capable agent and use tools such as catalog/source listing, source refresh, tool search, schema lookup, tool invocation, and invocation history. The MCP surface should expose registry search/invoke control-plane tools first, not generate one static MCP tool for every connected plugin tool.
+   Progress: pending
+   Commit: after this step is complete, commit MCP server code, connection docs, and focused tests.
+
+10. Add local diagnostics and invocation history
    Scope: show local runtime state without exposing token values. Persist invocation records in SQLite with normalized metadata and raw MCP output. Include source health, OAuth status, discovery status, SQLite path, credential vault status, and actionable errors.
    Output: users can understand what local Harbor is doing and debug MCP failures without reading internal files.
    Progress: pending
    Commit: after this step is complete, commit diagnostics/history changes and tests.
 
-9. Validate fresh local project and MCP flows
-   Scope: run focused typechecks, tests, and manual/local smoke flows from a fresh `.harbor/` directory. Validate no-auth fixture MCP, OAuth-capable MCP where credentials are available, automatic discovery after connect, search, schema lookup, invocation, persisted history, and restart durability.
-   Output: local Harbor MCP console works from a clean local project and failures are documented with exact blockers.
+11. Validate fresh local project and MCP flows
+   Scope: run focused typechecks, tests, and manual/local smoke flows from a fresh `.harbor/` directory. Validate no-auth fixture MCP, OAuth-capable MCP where credentials are available, automatic discovery after connect, search, schema lookup, invocation, persisted history, restart durability, and local Harbor MCP agent connection.
+   Output: local Harbor MCP console and local Harbor MCP server work from a clean local project, and failures are documented with exact blockers.
    Progress: pending
    Commit: after this step is complete, commit validation fixes and tracker updates.
 
-10. Final docs, tracker update, and GitHub push
-    Scope: update README/docs with the local Harbor v1 scope, run final validation, record completed progress, and push the branch to GitHub.
-    Output: branch `kk/local-harbor-mcp-console` is pushed with the local MCP console work and this task file accurately reflecting completed steps.
-    Progress: pending
-    Commit: after this step is complete, commit final docs/tracker updates and push.
+12. Final docs, tracker update, and GitHub push
+   Scope: update README/docs with the local Harbor v1 scope, run final validation, record completed progress, and push the branch to GitHub.
+   Output: branch `kk/local-harbor-mcp-console` is pushed with the local MCP console and local Harbor MCP server work, and this task file accurately reflects completed steps.
+   Progress: pending
+   Commit: after this step is complete, commit final docs/tracker updates and push.
 
 Scope Guards:
 
 - V1 is MCP plugins only.
+- V1 must include an inbound local Harbor MCP server so agents can actually use the MCP plugins connected through the local UI.
 - Do not add WorkOS, hosted Harbor user auth, hosted workspace requirements, or Harbor cloud dependencies.
 - Do not add Orbit, workflows, apps, jobs, chat/agents, or Cloudflare runtime in this effort.
 - Do not add STDIO MCP support in v1; support HTTP/streamable HTTP MCP URLs only.
@@ -92,6 +107,7 @@ Scope Guards:
 - Do not export workspace data, user data, OAuth grants, credentials, WorkOS IDs, install jobs, or hosted-only fields from D1 into the local seed.
 - Do not commit generated `.harbor` state, OAuth credentials, tokens, or local secrets.
 - Keep SDK-owned MCP lifecycle logic in SDK packages; keep `apps/harbor-local` as a thin local product app over those APIs.
+- Keep the inbound local Harbor MCP surface thin over the same local API/SDK backend used by the UI; do not duplicate OAuth, credential storage, discovery, indexing, search, or invocation logic there.
 
 Progress Log:
 
@@ -125,3 +141,10 @@ Progress Log:
 - 2026-05-15T15:45:24+05:30: Preserved hosted D1 availability separately from local availability; MCP entries hidden only because hosted Harbor prefers another source kind, such as `linear-mcp`, are selectable in local Harbor because v1 is MCP-only.
 - 2026-05-15T15:45:24+05:30: Added maintainer sync script `packages/sdk/registry-catalog/scripts/sync-local-mcp-catalog.ts`, wired it to `@hrbr/registry-catalog` as `sync:local-mcp-catalog`, and exported `REGISTRY_LOCAL_MCP_CATALOG` plus entry types from `@hrbr/registry-catalog`.
 - 2026-05-15T15:45:24+05:30: Validation passed with `bun test packages/sdk/registry-catalog/test/index.test.ts`, `bun run --filter @hrbr/registry-catalog typecheck`, and a deterministic regeneration check from the captured D1 rows.
+- 2026-05-15T16:05:00+05:30: Updated the plan to make the product value loop explicit: users install/connect MCP plugins in the local UI, then connect an inbound local Harbor MCP server to their agent to use the installed plugins.
+- 2026-05-15T16:05:00+05:30: Kept UI as task 7 and added task 8 as a manual UI validation gate before implementing the agent-facing local Harbor MCP server in task 9.
+- 2026-05-15T16:35:00+05:30: Completed task 6 by adding `apps/harbor-local`, a Bun local API server bound to `127.0.0.1` by default and backed by `@hrbr/sdk/local` plus the checked-in local MCP catalog seed.
+- 2026-05-15T16:35:00+05:30: Added local API routes for health, catalog listing, MCP source listing/install/connect/refresh, tool search/schema/invoke, and invocation history. The API keeps OAuth handles server-side during browser connect flows and uses structured JSON success/error responses.
+- 2026-05-15T16:35:00+05:30: Added SDK support for `sources.listMcp()` so the local app does not read SQLite tables directly, and regenerated `packages/sdk/runtime-local/dist/promise.js` for the publish-facing local runtime bundle.
+- 2026-05-15T16:35:00+05:30: Added in-process API tests covering catalog seed visibility, custom MCP install and refresh, source listing, lexical tool search, schema lookup, invocation, persisted invocation history, and structured not-found errors.
+- 2026-05-15T16:35:00+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts`, `bun run --filter @hrbr/runtime-local typecheck`, `bun run typecheck:apps`, and `bun test packages/sdk/runtime-local/test/index.test.ts packages/sdk/sdk/test/release.test.ts`.

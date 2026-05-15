@@ -354,6 +354,33 @@ export async function readHarborLocalMcpSource(
   }
 }
 
+export async function listHarborLocalMcpSources(
+  projectRoot: string
+): Promise<readonly HarborLocalMcpStoredSource[]> {
+  await ensureHarborLocalProject({ projectRoot })
+  const db = openDatabase(projectRoot)
+  let ids: string[]
+  try {
+    const rows = db.prepare(`
+      SELECT id
+      FROM mcp_sources
+      WHERE workspace_id = ?
+      ORDER BY name ASC, id ASC
+    `).all(LOCAL_WORKSPACE_ID) as Record<string, unknown>[]
+    ids = rows
+      .map((row) => row["id"])
+      .filter((id): id is string => typeof id === "string")
+  } finally {
+    db.close()
+  }
+  const sources = []
+  for (const id of ids) {
+    const source = await readHarborLocalMcpSource(projectRoot, id)
+    if (source) sources.push(source)
+  }
+  return sources
+}
+
 export async function updateHarborLocalMcpSourceStatus(input: {
   readonly projectRoot: string
   readonly sourceId: string
