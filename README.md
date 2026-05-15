@@ -1,5 +1,7 @@
 # Harbor SDK
 
+[Demo recording](docs/assets/local-harbor-demo.mov)
+
 Harbor SDK is a TypeScript toolkit for building local and hosted tool runtimes around MCP plugins, encrypted credentials, OAuth, tool discovery, schema inspection, execution, and traces.
 
 It gives you the primitives behind a Harbor-style plugin platform without requiring Harbor SaaS, WorkOS, Cloudflare, hosted workspaces, or a specific agent framework. You can use it directly from code, wire it into Flue or the Vercel AI SDK, or run the included Local Harbor app to connect real MCP accounts on your machine.
@@ -249,4 +251,3 @@ Proprietary unless a license is added by the project maintainers.
 - Publish npm package
 - Add API and GraphQL plugins
 - Add Cloudflare runtime with cloud-native features
-
