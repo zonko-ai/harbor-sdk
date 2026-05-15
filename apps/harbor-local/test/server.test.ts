@@ -336,7 +336,7 @@ describe("@hrbr/harbor-local API server", () => {
     })
   })
 
-  it("exposes local Harbor itself as an MCP control-plane server", async () => {
+  it("exposes local Harbor itself as a Reef-style MCP server", async () => {
     await withTempProject(async (projectRoot) => {
       const calls: Array<{ readonly method: string; readonly tool?: string | undefined }> = []
       const server = createHarborLocalServer({
@@ -365,53 +365,29 @@ describe("@hrbr/harbor-local API server", () => {
         allowLocalNetwork: true,
       })
       const tools = await adapter.listTools()
-      expect(tools.map((tool) => tool.name)).toEqual([
-        "harbor_catalog_list",
-        "harbor_sources_list",
-        "harbor_source_refresh",
-        "harbor_tools_search",
-        "harbor_tool_schema",
-        "harbor_tool_invoke",
-        "harbor_exec_run",
-        "harbor_exec_tool_guide",
-        "harbor_invocations_list",
-      ])
+      expect(tools.map((tool) => tool.name)).toEqual(["inspect", "exec"])
 
-      const guide = await adapter.invokeTool("harbor_exec_tool_guide", {}) as {
-        readonly structuredContent?: readonly { readonly namespace?: string; readonly method?: string }[]
-      }
-      expect(guide.structuredContent?.some((tool) => tool.namespace === "agent-visible" && tool.method === "listItems")).toBe(true)
+      const guide = await adapter.invokeTool("inspect", {
+        code: "return await hrbr.exec.toolGuide()",
+      }) as { readonly content?: readonly { readonly type?: string; readonly text?: string }[] }
+      expect(guide.content?.[0]?.text).toContain("\"namespace\": \"agent-visible\"")
+      expect(guide.content?.[0]?.text).toContain("\"method\": \"listItems\"")
 
-      const exec = await adapter.invokeTool("harbor_exec_run", {
+      const exec = await adapter.invokeTool("exec", {
         code: "const result = await agentVisible.listItems({ limit: 1 }); return result;",
-      }) as {
-        readonly structuredContent?: {
-          readonly ok?: boolean
-          readonly value?: { readonly structuredContent?: { readonly tool?: string } }
-        }
-      }
-      expect(exec.structuredContent?.ok).toBe(true)
-      expect(exec.structuredContent?.value?.structuredContent?.tool).toBe("list_items")
+      }) as { readonly content?: readonly { readonly type?: string; readonly text?: string }[] }
+      expect(exec.content?.[0]?.text).toContain("ok: true")
+      expect(exec.content?.[0]?.text).toContain("\"tool\": \"list_items\"")
 
-      const search = await adapter.invokeTool("harbor_tools_search", {
-        query: "fixture items",
-        namespace: "agent-visible",
-      }) as { readonly structuredContent?: readonly { readonly toolId: string; readonly namespace: string }[] }
-      expect(search.structuredContent?.[0]).toMatchObject({
-        toolId: "agent-visible.list_items",
-        namespace: "agent-visible",
-      })
+      const search = await adapter.invokeTool("inspect", {
+        code: "return await hrbr.tools.search({ query: 'fixture items', namespace: 'agent-visible' })",
+      }) as { readonly content?: readonly { readonly type?: string; readonly text?: string }[] }
+      expect(search.content?.[0]?.text).toContain("\"toolId\": \"agent-visible.list_items\"")
 
-      const invoked = await adapter.invokeTool("harbor_tool_invoke", {
-        toolId: "agent-visible.list_items",
-        input: { limit: 1 },
-      }) as { readonly structuredContent?: { readonly output?: { readonly structuredContent?: { readonly tool?: string } } } }
-      expect(invoked.structuredContent?.output?.structuredContent?.tool).toBe("list_items")
-
-      const history = await adapter.invokeTool("harbor_invocations_list", {
-        namespace: "agent-visible",
-      }) as { readonly structuredContent?: readonly { readonly toolId?: string }[] }
-      expect(history.structuredContent?.some((trace) => trace.toolId === "agent-visible.list_items")).toBe(true)
+      const history = await adapter.invokeTool("inspect", {
+        code: "return await hrbr.invocations.list({ namespace: 'agent-visible' })",
+      }) as { readonly content?: readonly { readonly type?: string; readonly text?: string }[] }
+      expect(history.content?.[0]?.text).toContain("\"toolId\": \"agent-visible.list_items\"")
     })
   })
 
