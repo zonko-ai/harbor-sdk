@@ -8,7 +8,7 @@ Progress Tracker:
 - [x] 1. Branch setup and baseline inspection
 - [x] 2. Lock public package boundaries
 - [x] 3. Separate local runtime from Cloudflare runtime
-- [ ] 4. Remove Cloudflare runtime from public examples and exports
+- [x] 4. Remove Cloudflare runtime from public examples and exports
 - [ ] 5. Decide Harbor Cloud platform SDK relationship
 - [ ] 6. Build publishable package infrastructure
 - [ ] 7. Create Promise-first local SDK facade
@@ -42,7 +42,7 @@ Tasks:
 4. Remove Cloudflare runtime from public examples and exports
    Scope: delete, hide, or move public examples that import `@hrbr/runtime-cloudflare`; remove `runtimeCloudflare` from the public aggregate export until the adapter is complete; keep Cloudflare as private/coming-soon.
    Output: no public example path teaches `runtime-cloudflare` as ready, and public SDK exports do not expose it as a supported runtime.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit example/export cleanup.
 
 5. Decide Harbor Cloud platform SDK relationship
@@ -112,3 +112,6 @@ Progress Log:
 - 2026-05-15T12:40:01+05:30: Removed Cloudflare provisioning routes from the local daemon, removed local Cloudflare lock path/schema table/security action, and regenerated `packages/sdk/runtime-local/dist/promise.js`.
 - 2026-05-15T12:40:01+05:30: Added a regression assertion that `/control/cloudflare/plan` is not exposed by the local daemon.
 - 2026-05-15T12:40:01+05:30: Verified task 3 with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/sdk typecheck`, and `bun test packages/sdk/runtime-local/test/index.test.ts`.
+- 2026-05-15T12:43:57+05:30: Completed task 4 by removing `runtimeCloudflare` from the `@hrbr/sdk` aggregate export and removing `@hrbr/runtime-cloudflare` from `@hrbr/sdk` dependencies.
+- 2026-05-15T12:43:57+05:30: Deleted the public `examples/sdk-platform-runtime` package and removed the root `example:platform-runtime` script so no public example imports `@hrbr/runtime-cloudflare`.
+- 2026-05-15T12:43:57+05:30: Verified task 4 with `bun run --filter @hrbr/sdk typecheck` and `bun run typecheck:examples`.

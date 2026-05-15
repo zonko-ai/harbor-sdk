@@ -19,7 +19,6 @@
     "@hrbr/orbit": "workspace:*",
     "@hrbr/plugins": "workspace:*",
     "@hrbr/runs": "workspace:*",
-    "@hrbr/runtime-cloudflare": "workspace:*",
     "@hrbr/runtime-local": "workspace:*",
     "@hrbr/source-core": "workspace:*",
     "@hrbr/source-credentials": "workspace:*",
