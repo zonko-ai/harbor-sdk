@@ -13,7 +13,7 @@ Progress Tracker:
 - [x] 8. Finish MCP lifecycle completeness
 - [x] 9. Rewrite framework examples against the public facade
 - [x] 10. Add SDK error and logging surface
-- [ ] 11. Add release-quality tests
+- [x] 11. Add release-quality tests
 - [ ] 12. Update README and coming-soon docs markers
 - [ ] 5. Decide Harbor Cloud platform SDK relationship
 - [ ] 6. Build publishable package infrastructure
@@ -72,7 +72,7 @@ Tasks:
 11. Add release-quality tests
     Scope: add tests for npm pack/import behavior, Bun and Node imports, declaration files, local runtime migration from empty project, OAuth connect/refresh/reconnect, MCP discovery/invoke, local exec namespace resolution, and write blocking.
     Output: release confidence is covered by automated tests, not only manual review checklists.
-    Progress: pending
+    Progress: completed
     Commit: after this step is complete, commit test changes.
 
 12. Update README and coming-soon docs markers
@@ -128,3 +128,6 @@ Progress Log:
 - 2026-05-15T13:32:38+05:30: Completed task 10 by adding `HarborLocalError`, stable local error codes, `HarborLocalLogger`, and `harborLocalConsoleLogger` to the public local SDK surface.
 - 2026-05-15T13:32:38+05:30: Updated MCP ensure/setup logging to emit structured SDK log events while preserving existing `onStatus` and `onAuthorizationUrl` callbacks for compatibility.
 - 2026-05-15T13:32:38+05:30: Updated AI SDK and Flue examples to use `harborLocalConsoleLogger()` instead of hardcoded SDK lifecycle log callbacks, and added tests for structured logs plus typed credential/exec errors.
+- 2026-05-15T13:52:13+05:30: Completed task 11 by adding `packages/sdk/sdk/test/release.test.ts` as a public SDK release smoke suite.
+- 2026-05-15T13:52:13+05:30: The release suite covers Bun public subpath imports, export-map shape, declaration emission, Node import of `@hrbr/runtime-local/promise`, empty-project local runtime migration, MCP probe/search/schema/invoke, exec namespace/tool guide, and write blocking.
+- 2026-05-15T13:52:13+05:30: Added an `@hrbr/sdk` package `test` script so release smoke tests can run directly with `bun run --filter @hrbr/sdk test`.

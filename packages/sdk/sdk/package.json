@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test test"
   },
   "dependencies": {
     "@hrbr/ai": "workspace:*",
