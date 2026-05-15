@@ -9,14 +9,14 @@ Progress Tracker:
 - [x] 2. Lock public package boundaries
 - [x] 3. Separate local runtime from Cloudflare runtime
 - [x] 4. Remove Cloudflare runtime from public examples and exports
-- [ ] 5. Decide Harbor Cloud platform SDK relationship
-- [ ] 6. Build publishable package infrastructure
-- [ ] 7. Create Promise-first local SDK facade
-- [ ] 8. Finish MCP lifecycle completeness
+- [x] 7. Create Promise-first local SDK facade
+- [x] 8. Finish MCP lifecycle completeness
 - [ ] 9. Rewrite framework examples against the public facade
 - [ ] 10. Add SDK error and logging surface
 - [ ] 11. Add release-quality tests
 - [ ] 12. Update README and coming-soon docs markers
+- [ ] 5. Decide Harbor Cloud platform SDK relationship
+- [ ] 6. Build publishable package infrastructure
 - [ ] 13. Final validation and GitHub push
 
 Tasks:
@@ -45,28 +45,16 @@ Tasks:
    Progress: completed
    Commit: after this step is complete, commit example/export cleanup.
 
-5. Decide Harbor Cloud platform SDK relationship
-   Scope: compare this repo's local plugin/runtime SDK with Harbor main PR `zonko-ai/harbor#364`. Keep the distinction clear between local SDK and Harbor Cloud control-plane SDK.
-   Output: documented decision on whether Harbor Cloud helpers should be `@hrbr/platform`, `@hrbr/cloud`, or a future subpath; document cautions around raw API keys and raw string routes.
-   Progress: pending
-   Commit: after this step is complete, commit the decision record.
-
-6. Build publishable package infrastructure
-   Scope: add or plan real npm packaging: package metadata, `dist` outputs, declarations, export maps, `files`, `publishConfig`, and pack/import verification. Explore the existing build tooling before choosing implementation details.
-   Output: publishable package structure exists or a committed implementation plan identifies exactly what remains.
-   Progress: pending
-   Commit: after this step is complete, commit package/build changes.
-
 7. Create Promise-first local SDK facade
    Scope: make the normal user import obvious and stable for local runtime usage. The facade should own source install/connect/refresh, OAuth, encrypted credentials, tool search/schema/invoke, local exec, and write gating.
    Output: examples can use a small public import instead of deep internal package paths.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit facade and export changes.
 
 8. Finish MCP lifecycle completeness
    Scope: close SDK-owned MCP lifecycle gaps: discovery API, endpoint probing, wrong-shape diagnostics, OAuth refresh/reconnect, durable tool bindings, invocation with just-in-time credentials, lexical/BM25 tool search, and write/approval handling. Explore implementation details as needed.
    Output: MCP lifecycle is SDK behavior, not example behavior, and has focused tests.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit MCP runtime changes and tests.
 
 9. Rewrite framework examples against the public facade
@@ -93,6 +81,18 @@ Tasks:
     Progress: pending
     Commit: after this step is complete, commit documentation changes.
 
+5. Decide Harbor Cloud platform SDK relationship
+   Scope: compare this repo's local plugin/runtime SDK with Harbor main PR `zonko-ai/harbor#364`. Keep the distinction clear between local SDK and Harbor Cloud control-plane SDK.
+   Output: documented decision on whether Harbor Cloud helpers should be `@hrbr/platform`, `@hrbr/cloud`, or a future subpath; document cautions around raw API keys and raw string routes.
+   Progress: pending
+   Commit: after this step is complete, commit the decision record.
+
+6. Build publishable package infrastructure
+   Scope: add or plan real npm packaging: package metadata, `dist` outputs, declarations, export maps, `files`, `publishConfig`, and pack/import verification. Explore the existing build tooling before choosing implementation details.
+   Output: publishable package structure exists or a committed implementation plan identifies exactly what remains.
+   Progress: pending
+   Commit: after this step is complete, commit package/build changes.
+
 13. Final validation and GitHub push
     Scope: run focused typechecks, tests, package checks, and example checks. Fix regressions. Push the branch to GitHub as `kk/refine`.
     Output: branch `kk/refine` is pushed to GitHub with all completed task progress recorded in this file.
@@ -115,3 +115,10 @@ Progress Log:
 - 2026-05-15T12:43:57+05:30: Completed task 4 by removing `runtimeCloudflare` from the `@hrbr/sdk` aggregate export and removing `@hrbr/runtime-cloudflare` from `@hrbr/sdk` dependencies.
 - 2026-05-15T12:43:57+05:30: Deleted the public `examples/sdk-platform-runtime` package and removed the root `example:platform-runtime` script so no public example imports `@hrbr/runtime-cloudflare`.
 - 2026-05-15T12:43:57+05:30: Verified task 4 with `bun run --filter @hrbr/sdk typecheck` and `bun run typecheck:examples`.
+- 2026-05-15T12:53:24+05:30: Moved tasks 5 and 6 later in the task order so local SDK facade and lifecycle work can proceed before Harbor Cloud and publish packaging decisions.
+- 2026-05-15T12:53:24+05:30: Completed task 7 by exposing `createHarbor` from `@hrbr/sdk/local`, keeping `createHarborLocalRuntime` as a compatibility export, and moving AI SDK/Flue examples plus fixtures to `@hrbr/sdk/local` and `@hrbr/sdk/testing`.
+- 2026-05-15T12:53:24+05:30: Updated example package dependencies and `bun.lock` so framework examples depend on the public `@hrbr/sdk` facade instead of direct runtime/source internals.
+- 2026-05-15T12:53:24+05:30: Verified task 7 with `bun run --filter @hrbr/sdk typecheck`, all four framework example typechecks, and the four framework e2e tests.
+- 2026-05-15T13:11:11+05:30: Completed task 8 by adding `probeMcpHttpSource` to `@hrbr/source-mcp` with ready/auth-required/blocked/wrong-shape diagnostics and by exposing `sources.probeMcp(...)` through the Promise-first local runtime facade.
+- 2026-05-15T13:11:11+05:30: Confirmed the MCP lifecycle remains SDK-owned: OAuth refresh/reconnect, durable bindings, just-in-time credential resolution, lexical/BM25 search, invocation, and write gating are covered in `runtime-local` tests.
+- 2026-05-15T13:11:11+05:30: Regenerated `packages/sdk/runtime-local/dist/promise.js` and verified task 8 with `bun run --filter @hrbr/source-mcp typecheck`, `bun test packages/sdk/source-mcp/test/index.test.ts`, `bun run --filter @hrbr/runtime-local typecheck`, `bun test packages/sdk/runtime-local/test/index.test.ts`, `bun run --filter @hrbr/sdk typecheck`, and `bun run typecheck:examples`.

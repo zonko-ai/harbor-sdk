@@ -494,6 +494,20 @@ describe("@hrbr/runtime-local MCP source store", () => {
         },
       })
 
+      const promiseRuntime = createHarborLocalRuntime({ projectRoot, fetch })
+      await expect(promiseRuntime.sources.probeMcp("linear-mcp")).resolves.toMatchObject({
+        ok: true,
+        status: "ready",
+        sourceId: "linear-mcp",
+        namespace: "linear-mcp",
+        protocolVersion: "2025-03-26",
+        serverInfo: { name: "linear" },
+      })
+      expect(seen.map((entry) => entry.method).slice(0, 2)).toEqual([
+        "initialize",
+        "notifications/initialized",
+      ])
+
       await expect(refreshHarborLocalMcpSource({
         projectRoot,
         sourceId: "linear-mcp",
@@ -553,7 +567,6 @@ describe("@hrbr/runtime-local MCP source store", () => {
           output: { structuredContent: { called: "create_issue", input: { title: "Bug" } } },
         },
       })
-      const promiseRuntime = createHarborLocalRuntime({ projectRoot, fetch })
       const promiseHits = await promiseRuntime.tools.search({
         namespace: "linear-mcp",
         query: "linear tickets",

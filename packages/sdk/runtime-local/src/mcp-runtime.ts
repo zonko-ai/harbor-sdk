@@ -1,4 +1,9 @@
-import { createMcpHttpSourceAdapter, type McpSourceFetch } from "@hrbr/source-mcp"
+import {
+  createMcpHttpSourceAdapter,
+  probeMcpHttpSource,
+  type McpHttpProbeResult,
+  type McpSourceFetch,
+} from "@hrbr/source-mcp"
 import {
   exchangeOAuthAuthorizationCode,
   registerOAuthDynamicClient,
@@ -49,6 +54,17 @@ export interface HarborLocalMcpRefreshSourceResult {
   readonly namespace: string
   readonly toolCount: number
   readonly tools: readonly HarborLocalMcpToolBinding[]
+}
+
+export interface HarborLocalMcpProbeSourceInput extends HarborLocalCredentialResolverFromEnvInput {
+  readonly projectRoot: string
+  readonly sourceId: string
+  readonly fetch?: McpSourceFetch | undefined
+  readonly allowLocalNetwork?: boolean | undefined
+}
+
+export interface HarborLocalMcpProbeSourceResult extends McpHttpProbeResult {
+  readonly sourceId: string
 }
 
 export interface HarborLocalMcpToolRuntimeInput extends HarborLocalCredentialResolverFromEnvInput {
@@ -328,6 +344,45 @@ export async function refreshHarborLocalMcpSource(
     namespace: source.namespace,
     toolCount: bindings.length,
     tools: bindings,
+  }
+}
+
+export async function probeHarborLocalMcpSource(
+  input: HarborLocalMcpProbeSourceInput
+): Promise<HarborLocalMcpProbeSourceResult> {
+  const source = await readHarborLocalMcpSource(input.projectRoot, input.sourceId)
+  if (!source) throw new Error(`Unknown local MCP source "${input.sourceId}".`)
+  if (source.transport !== "remote" || !source.endpoint) {
+    return {
+      ok: false,
+      status: "blocked",
+      endpoint: source.endpoint ?? "",
+      namespace: source.namespace,
+      sourceId: source.id,
+      message: `MCP source "${source.id}" is not a remote HTTP source.`,
+      method: "configure",
+    }
+  }
+  const credentials = await optionalCredentials({
+    projectRoot: input.projectRoot,
+    source,
+    env: input.env,
+    envName: input.envName,
+    fetch: input.fetch,
+  })
+  const probe = await probeMcpHttpSource({
+    id: source.id,
+    namespace: source.namespace,
+    displayName: source.name,
+    endpoint: source.endpoint,
+    allowLocalNetwork: input.allowLocalNetwork,
+    ...(input.fetch !== undefined ? { fetch: input.fetch } : {}),
+    ...(bearerSlot(source) !== undefined ? { bearerCredentialSlot: bearerSlot(source) } : {}),
+    ...(credentials !== undefined ? { credentials } : {}),
+  })
+  return {
+    ...probe,
+    sourceId: source.id,
   }
 }
 

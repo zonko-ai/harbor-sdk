@@ -6,6 +6,7 @@ import {
   listHarborLocalSources,
   readHarborLocalMcpSource,
   readHarborLocalOAuthStatus,
+  probeHarborLocalMcpSource,
   refreshHarborLocalMcpSource,
   runHarborLocalRegistryAction,
   upsertHarborLocalMcpSource,
@@ -15,6 +16,7 @@ import {
   type HarborLocalExecRunResult,
   type HarborLocalMcpOAuthConnectHandle,
   type HarborLocalMcpOAuthDiscovery,
+  type HarborLocalMcpProbeSourceResult,
   type HarborLocalMcpRefreshSourceResult,
   type HarborLocalMcpSourceInput,
   type HarborLocalMcpStoredSource,
@@ -44,6 +46,7 @@ export type {
   HarborLocalRegistryWriteToolMatcher,
 } from "./tool-registry-actions"
 export type { HarborLocalMcpOAuthDiscovery } from "./mcp-runtime"
+export type { HarborLocalMcpProbeSourceResult } from "./mcp-runtime"
 export type {
   HarborLocalExecBinding,
   HarborLocalExecRunOptions,
@@ -162,6 +165,7 @@ export interface HarborLocalRuntime {
       readonly discovery: HarborLocalMcpOAuthDiscovery
       readonly clientName?: string | undefined
     }) => Promise<HarborLocalMcpOAuthConnectHandle>
+    readonly probeMcp: (sourceId: string) => Promise<HarborLocalMcpProbeSourceResult>
     readonly refreshMcp: (sourceId: string) => Promise<HarborLocalMcpRefreshSourceResult>
     readonly setupMcp: (input: HarborLocalMcpSetupInput) => Promise<HarborLocalMcpSetupResult>
     readonly ensureMcpSources: (input: HarborLocalMcpEnsureSourcesInput) => Promise<HarborLocalMcpEnsureSourcesResult>
@@ -359,6 +363,7 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
           discovery,
           clientName,
         }),
+      probeMcp: (sourceId) => probeHarborLocalMcpSource({ ...base, sourceId }),
       refreshMcp,
       setupMcp: async (setup) => {
         const source = await upsertHarborLocalMcpSource({
