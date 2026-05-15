@@ -1,0 +1,107 @@
+# Goal Mode Prompt: Refine Harbor SDK For npm Productization
+
+Branch: `kk/refine`
+
+Status: in progress
+
+Progress Tracker:
+- [x] 1. Branch setup and baseline inspection
+- [ ] 2. Lock public package boundaries
+- [ ] 3. Separate local runtime from Cloudflare runtime
+- [ ] 4. Remove Cloudflare runtime from public examples and exports
+- [ ] 5. Decide Harbor Cloud platform SDK relationship
+- [ ] 6. Build publishable package infrastructure
+- [ ] 7. Create Promise-first local SDK facade
+- [ ] 8. Finish MCP lifecycle completeness
+- [ ] 9. Rewrite framework examples against the public facade
+- [ ] 10. Add SDK error and logging surface
+- [ ] 11. Add release-quality tests
+- [ ] 12. Update README and coming-soon docs markers
+- [ ] 13. Final validation and GitHub push
+
+Tasks:
+
+1. Branch setup and baseline inspection
+   Scope: create/switch to a new branch named `kk/refine`, inspect current status, preserve unrelated user changes, and establish the current package/example/test baseline.
+   Output: branch `kk/refine` exists locally, current worktree risks are understood, and this task file is updated with what was found.
+   Progress: completed
+   Commit: after this step is complete, commit the task tracker and any baseline-only documentation updates.
+
+2. Lock public package boundaries
+   Scope: decide which packages/subpaths are public for npm users and which remain workspace-internal. Use the intended surface around `@hrbr/sdk`, `@hrbr/sdk/local`, `@hrbr/sdk/core`, and `@hrbr/sdk/testing` as the starting point, but inspect the repo before finalizing names.
+   Output: package boundary documented in repo docs and reflected in package export plans.
+   Progress: pending
+   Commit: after this step is complete, commit boundary documentation/package metadata changes.
+
+3. Separate local runtime from Cloudflare runtime
+   Scope: remove the horizontal-layer violation where `@hrbr/runtime-local` imports `@hrbr/runtime-cloudflare`. Explore whether shared Cloudflare plan types should move to a neutral internal package or whether Cloudflare routes should simply leave the local daemon.
+   Output: `runtime-local` no longer depends on `runtime-cloudflare`; local runtime remains focused on local MCP/plugin/OAuth/credential/search/invoke/exec behavior.
+   Progress: pending
+   Commit: after this step is complete, commit code and package dependency changes.
+
+4. Remove Cloudflare runtime from public examples and exports
+   Scope: delete, hide, or move public examples that import `@hrbr/runtime-cloudflare`; remove `runtimeCloudflare` from the public aggregate export until the adapter is complete; keep Cloudflare as private/coming-soon.
+   Output: no public example path teaches `runtime-cloudflare` as ready, and public SDK exports do not expose it as a supported runtime.
+   Progress: pending
+   Commit: after this step is complete, commit example/export cleanup.
+
+5. Decide Harbor Cloud platform SDK relationship
+   Scope: compare this repo's local plugin/runtime SDK with Harbor main PR `zonko-ai/harbor#364`. Keep the distinction clear between local SDK and Harbor Cloud control-plane SDK.
+   Output: documented decision on whether Harbor Cloud helpers should be `@hrbr/platform`, `@hrbr/cloud`, or a future subpath; document cautions around raw API keys and raw string routes.
+   Progress: pending
+   Commit: after this step is complete, commit the decision record.
+
+6. Build publishable package infrastructure
+   Scope: add or plan real npm packaging: package metadata, `dist` outputs, declarations, export maps, `files`, `publishConfig`, and pack/import verification. Explore the existing build tooling before choosing implementation details.
+   Output: publishable package structure exists or a committed implementation plan identifies exactly what remains.
+   Progress: pending
+   Commit: after this step is complete, commit package/build changes.
+
+7. Create Promise-first local SDK facade
+   Scope: make the normal user import obvious and stable for local runtime usage. The facade should own source install/connect/refresh, OAuth, encrypted credentials, tool search/schema/invoke, local exec, and write gating.
+   Output: examples can use a small public import instead of deep internal package paths.
+   Progress: pending
+   Commit: after this step is complete, commit facade and export changes.
+
+8. Finish MCP lifecycle completeness
+   Scope: close SDK-owned MCP lifecycle gaps: discovery API, endpoint probing, wrong-shape diagnostics, OAuth refresh/reconnect, durable tool bindings, invocation with just-in-time credentials, lexical/BM25 tool search, and write/approval handling. Explore implementation details as needed.
+   Output: MCP lifecycle is SDK behavior, not example behavior, and has focused tests.
+   Progress: pending
+   Commit: after this step is complete, commit MCP runtime changes and tests.
+
+9. Rewrite framework examples against the public facade
+   Scope: keep both AI SDK and Flue as first-class framework integration examples. Each example should prove the framework owns the agent/model loop while Harbor SDK owns plugin install, OAuth, credential storage, discovery, search, invocation, and exec.
+   Output: AI SDK and Flue examples are small, readable, and use the same public Harbor SDK facade.
+   Progress: pending
+   Commit: after this step is complete, commit example rewrites and README updates.
+
+10. Add SDK error and logging surface
+    Scope: replace or wrap generic public-flow errors with stable typed errors and add logger/status hooks where examples need progress output.
+    Output: public flows expose actionable error codes and examples do not hardcode SDK-internal logging behavior.
+    Progress: pending
+    Commit: after this step is complete, commit error/logging changes.
+
+11. Add release-quality tests
+    Scope: add tests for npm pack/import behavior, Bun and Node imports, declaration files, local runtime migration from empty project, OAuth connect/refresh/reconnect, MCP discovery/invoke, local exec namespace resolution, and write blocking.
+    Output: release confidence is covered by automated tests, not only manual review checklists.
+    Progress: pending
+    Commit: after this step is complete, commit test changes.
+
+12. Update README and coming-soon docs markers
+    Scope: update root README and relevant docs to show the real public surface, framework-neutral examples, local runtime files, safe-to-commit guidance, and Cloudflare as unchecked coming soon. Do not build full Fumadocs until the public surface stabilizes.
+    Output: README/docs reflect the new product story without overclaiming Cloudflare support.
+    Progress: pending
+    Commit: after this step is complete, commit documentation changes.
+
+13. Final validation and GitHub push
+    Scope: run focused typechecks, tests, package checks, and example checks. Fix regressions. Push the branch to GitHub as `kk/refine`.
+    Output: branch `kk/refine` is pushed to GitHub with all completed task progress recorded in this file.
+    Progress: pending
+    Commit: after this step is complete, commit final tracker updates and push.
+
+Progress Log:
+
+- 2026-05-15T12:05:47+05:30: Created and switched to branch `kk/refine`.
+- 2026-05-15T12:05:47+05:30: Baseline inspection found local branch was `main...origin/main [behind 1]` before branching.
+- 2026-05-15T12:05:47+05:30: Preserved existing unstaged AI SDK example edits in `examples/ai-sdk-local-exec-agent/README.md`, `examples/ai-sdk-local-exec-agent/main.ts`, `examples/ai-sdk-tool-registry-agent/README.md`, and `examples/ai-sdk-tool-registry-agent/main.ts`; these were not staged for task 1.
+- 2026-05-15T12:05:47+05:30: Added productization review doc and this goal-mode tracker as the baseline documentation for the refine effort.
