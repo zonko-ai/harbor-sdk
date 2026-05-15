@@ -6,7 +6,7 @@ Status: in progress
 
 Progress Tracker:
 - [x] 1. Branch setup and baseline inspection
-- [ ] 2. Survey Harbor SDK and Harbor main MCP surfaces
+- [x] 2. Survey Harbor SDK and Harbor main MCP surfaces
 - [ ] 3. Lock the local Harbor app boundary
 - [ ] 4. Close SDK gaps for local MCP plugin lifecycle
 - [ ] 5. Add MCP catalog seed from Harbor main
@@ -27,7 +27,7 @@ Tasks:
 2. Survey Harbor SDK and Harbor main MCP surfaces
    Scope: inspect this repo's public SDK facade, `runtime-local`, `source-mcp`, current examples, and the MCP plugin/catalog model in `../harbor`. Use `../harbor` as reference only unless explicitly asked otherwise.
    Output: implementation-relevant MCP catalog, source, auth, discovery, search, and invocation concepts are identified before adding the local app.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit any tracker updates or short decision notes needed to preserve findings.
 
 3. Lock the local Harbor app boundary
@@ -99,3 +99,11 @@ Progress Log:
 - 2026-05-15T14:53:23+05:30: Baseline inspection found the prior `bun.lock` change matched `origin/main` exactly and was only dirty because the checkout started from stale local branch `kk/refine`; no unique `bun.lock` content was preserved or changed for this task.
 - 2026-05-15T14:53:23+05:30: Baseline package layout includes `apps/harbor-backend`, existing SDK packages under `packages/sdk/*`, and current framework/plugin examples under `examples/*`; no `apps/harbor-local` app exists yet.
 - 2026-05-15T14:53:23+05:30: Verified baseline with `bun run typecheck:packages`, `bun run typecheck:apps`, and `bun run typecheck:examples`; all passed.
+- 2026-05-15T14:57:35+05:30: Completed task 2 by surveying `@hrbr/sdk/local`, `@hrbr/runtime-local`, `@hrbr/source-mcp`, existing local MCP examples, the SDK registry catalog, and Harbor main MCP registry/API/web surfaces under `../harbor`.
+- 2026-05-15T14:57:35+05:30: Finding: the public local SDK facade already exposes source list/get/upsert/setup/ensure/probe/refresh, OAuth status/connect, credential import, tool search/schema/invoke/runAction, and exec bindings/toolGuide/run. The local app should consume this facade instead of calling deeper internals where possible.
+- 2026-05-15T14:57:35+05:30: Finding: `runtime-local` already initializes `.harbor/harbor.sqlite`, persists MCP sources, OAuth clients/pending flows/grants, encrypted credentials, tool bindings, and a lexical/BM25-style `tool_index`; it does not yet have a product-facing invocation history API/table tailored to the console.
+- 2026-05-15T14:57:35+05:30: Finding: `source-mcp` supports remote HTTP MCP handshakes, SSE/JSON response parsing, session ids, tools/list pagination, tools/call, endpoint probing, bearer credential slots, and local-network blocking unless explicitly allowed. Harbor main's API MCP client has richer protocol-version fallback, prompts/resources/resource-template discovery, bounded body reads, and redacted upstream error handling that should inform SDK gap work.
+- 2026-05-15T14:57:35+05:30: Finding: the SDK catalog currently has 142 entries, 106 MCP entries, 2 OAuth MCP entries, and 55 ready MCP entries after availability filtering. Harbor main currently has 143 entries, 106 MCP entries, 2 OAuth MCP entries, and 56 ready MCP entries.
+- 2026-05-15T14:57:35+05:30: Finding: the SDK registry catalog is not identical to `../harbor`: Harbor main adds `discord-api` and updates Slack MCP to an OAuth proxy endpoint, while the SDK copy includes Linear MCP OAuth discovery metadata that Harbor main's current registry entry does not. The local catalog step should reconcile this intentionally instead of blindly copying either side.
+- 2026-05-15T14:57:35+05:30: Finding: Harbor main install behavior maps MCP registry entries to source config with `endpoint`, `transport`, optional `oauth_discovery`, optional default headers, and `requires_oauth` status when OAuth is discovered. Custom MCP install only allows `kind`, `endpoint`, and `transport` config fields, which matches the v1 local app boundary.
+- 2026-05-15T14:57:35+05:30: Finding: Harbor main web plugin UI has portable concepts in plugin catalog cards, setup modal namespace handling, OAuth connect panels, connected account status cards, plugin detail tools accordion, and tool search. The hooks are tightly coupled to hosted workspace/auth/API routes, so local Harbor should reuse visual ideas selectively and build local-specific API hooks.
