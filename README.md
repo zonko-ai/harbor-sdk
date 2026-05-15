@@ -50,14 +50,6 @@ cd harbor-sdk
 bun install
 ```
 
-When the packages are published, application code should install the SDK package:
-
-```bash
-bun add @hrbr/sdk
-# or
-npm install @hrbr/sdk
-```
-
 Local Harbor is currently run from this repo:
 
 ```bash
@@ -305,3 +297,9 @@ Not in local v1:
 ## License
 
 Proprietary unless a license is added by the project maintainers.
+
+## Roadmap
+
+- [ ] Publish npm package
+- [ ] Add API and GraphQL plugins
+- [ ] Add Cloudflare runtime with cloud-native features
