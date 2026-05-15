@@ -6,7 +6,7 @@ Status: in progress
 
 Progress Tracker:
 - [x] 1. Branch setup and baseline inspection
-- [ ] 2. Lock public package boundaries
+- [x] 2. Lock public package boundaries
 - [ ] 3. Separate local runtime from Cloudflare runtime
 - [ ] 4. Remove Cloudflare runtime from public examples and exports
 - [ ] 5. Decide Harbor Cloud platform SDK relationship
@@ -30,7 +30,7 @@ Tasks:
 2. Lock public package boundaries
    Scope: decide which packages/subpaths are public for npm users and which remain workspace-internal. Use the intended surface around `@hrbr/sdk`, `@hrbr/sdk/local`, `@hrbr/sdk/core`, and `@hrbr/sdk/testing` as the starting point, but inspect the repo before finalizing names.
    Output: package boundary documented in repo docs and reflected in package export plans.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit boundary documentation/package metadata changes.
 
 3. Separate local runtime from Cloudflare runtime
@@ -105,3 +105,6 @@ Progress Log:
 - 2026-05-15T12:05:47+05:30: Baseline inspection found local branch was `main...origin/main [behind 1]` before branching.
 - 2026-05-15T12:05:47+05:30: Preserved existing unstaged AI SDK example edits in `examples/ai-sdk-local-exec-agent/README.md`, `examples/ai-sdk-local-exec-agent/main.ts`, `examples/ai-sdk-tool-registry-agent/README.md`, and `examples/ai-sdk-tool-registry-agent/main.ts`; these were not staged for task 1.
 - 2026-05-15T12:05:47+05:30: Added productization review doc and this goal-mode tracker as the baseline documentation for the refine effort.
+- 2026-05-15T12:09:31+05:30: Completed task 2 by adding the draft public package boundary doc and defining `@hrbr/sdk/core`, `@hrbr/sdk/local`, and `@hrbr/sdk/testing` subpath exports.
+- 2026-05-15T12:09:31+05:30: Kept the legacy `@hrbr/sdk` aggregate unchanged for now; removal of Cloudflare from public exports is tracked under tasks 3 and 4.
+- 2026-05-15T12:09:31+05:30: Verified task 2 with `bun run --filter @hrbr/sdk typecheck`.

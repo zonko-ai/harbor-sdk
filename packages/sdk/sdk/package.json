@@ -3,7 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./core": "./src/core.ts",
+    "./local": "./src/local.ts",
+    "./testing": "./src/testing.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
