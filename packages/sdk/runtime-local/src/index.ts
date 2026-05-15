@@ -134,6 +134,14 @@ export {
 } from "./tool-registry-actions"
 
 export {
+  listHarborLocalToolInvocations,
+  recordHarborLocalToolInvocation,
+  type HarborLocalToolInvocationInput,
+  type HarborLocalToolInvocationListInput,
+  type HarborLocalToolInvocationRecord,
+} from "./invocations"
+
+export {
   buildHarborLocalToolIndexFromSqlite,
   createHarborLocalCredentialResolver,
   createHarborLocalCredentialResolverFromEnv,
@@ -156,6 +164,7 @@ export {
   readHarborLocalCredentials,
   readHarborLocalCredentialsFromEnvKey,
   redactHarborSecret,
+  removeHarborLocalCredentialsForSource,
   writeHarborLocalCredentials,
   type HarborLocalCredentialEnvImportInput,
   type HarborLocalCredentialEnvImportFromKeyInput,
@@ -206,8 +215,10 @@ export {
 
 export {
   listHarborLocalMcpToolBindings,
+  listHarborLocalMcpSources,
   putHarborLocalMcpToolBindings,
   readHarborLocalMcpSource,
+  removeHarborLocalMcpSource,
   updateHarborLocalMcpSourceStatus,
   upsertHarborLocalMcpSource,
   type HarborLocalMcpAuthInput,
@@ -224,6 +235,7 @@ export {
   connectHarborLocalMcpOAuthSource,
   createHarborLocalMcpToolIndexFromBindings,
   createHarborLocalMcpToolRuntime,
+  discoverHarborLocalMcpOAuth,
   probeHarborLocalMcpSource,
   refreshHarborLocalMcpSource,
   type HarborLocalMcpOAuthConnectHandle,

@@ -1,0 +1,171 @@
+# Goal Mode Prompt: Build Local Harbor MCP Plugin Console
+
+Branch: `kk/local-harbor-mcp-console`
+
+Status: in progress
+
+Progress Tracker:
+- [x] 1. Branch setup and baseline inspection
+- [x] 2. Survey Harbor SDK and Harbor main MCP surfaces
+- [x] 3. Lock the local Harbor app boundary
+- [x] 4. Close SDK gaps for local MCP plugin lifecycle
+- [x] 5. Add MCP catalog seed from Harbor main
+- [x] 6. Build local Harbor API server
+- [x] 7. Build local Harbor MCP console UI
+- [x] 8. Manual UI validation gate
+- [x] 9. Add local Harbor MCP server surface for agents
+- [ ] 10. Add local diagnostics and invocation history
+- [ ] 11. Validate fresh local project and MCP flows
+- [ ] 12. Final docs, tracker update, and GitHub push
+
+Tasks:
+
+1. Branch setup and baseline inspection
+   Scope: create/switch to a new branch named `kk/local-harbor-mcp-console`, inspect the current worktree, preserve unrelated user changes, and establish the current package/app/test baseline.
+   Output: branch `kk/local-harbor-mcp-console` exists locally, current worktree risks are understood, and this task file is updated with what was found.
+   Progress: completed
+   Commit: after this step is complete, commit the task tracker and any baseline-only documentation updates.
+
+2. Survey Harbor SDK and Harbor main MCP surfaces
+   Scope: inspect this repo's public SDK facade, `runtime-local`, `source-mcp`, current examples, and the MCP plugin/catalog model in `../harbor`. Use `../harbor` as reference only unless explicitly asked otherwise.
+   Output: implementation-relevant MCP catalog, source, auth, discovery, search, and invocation concepts are identified before adding the local app.
+   Progress: completed
+   Commit: after this step is complete, commit any tracker updates or short decision notes needed to preserve findings.
+
+3. Lock the local Harbor app boundary
+   Scope: define `apps/harbor-local` as a fully offline local MCP plugin console built on Harbor SDK. Exclude WorkOS, hosted Harbor auth, hosted workspaces, Cloudflare runtime, Orbit, workflows, apps, jobs, chat/agents, STDIO MCP, vector search, and write confirmations from v1.
+   Output: app boundary is documented in the task tracker and any local app README/architecture note created during implementation.
+   Progress: completed
+   Commit: after this step is complete, commit boundary documentation changes.
+
+4. Close SDK gaps for local MCP plugin lifecycle
+   Scope: ensure the public SDK owns local project initialization, SQLite migrations, encrypted credential/token storage, MCP source install, OAuth connect/reconnect/refresh, no-auth MCP support, discovery, indexing, lexical/BM25 search, schema lookup, invocation, and structured status/errors. Explore implementation details as needed, but keep app-specific behavior out of SDK internals.
+   Output: local Harbor can call stable SDK APIs instead of duplicating MCP lifecycle logic in the app.
+   Progress: completed
+   Commit: after this step is complete, commit SDK code, tests, and generated outputs if required by the repo.
+
+5. Add MCP catalog seed from Harbor main
+   Scope: export local-safe MCP-only catalog metadata from Harbor main's staging Cloudflare D1 using `../harbor/.env.staging` plus the checked-in registry metadata as reference. Include Linear, Notion, and other compatible MCP entries, and support custom MCP URL installs separately from the seed. Explore the D1 table shape before deciding the exact export path.
+   Output: local Harbor can show a static generated catalog while remaining fully offline at runtime. The seed includes only local-safe fields such as slug, display name, description, category, default namespace, endpoint, transport, auth mode, OAuth discovery, availability, icon, links, and verified status.
+   Progress: completed
+   Commit: after this step is complete, commit catalog seed and any maintainer sync script or notes.
+
+6. Build local Harbor API server
+   Scope: add `apps/harbor-local` with a single Bun-based local server bound to `127.0.0.1` by default. Use the current working directory for `.harbor/` state, with `HARBOR_LOCAL_PROJECT_DIR` and `HARBOR_LOCAL_OAUTH_PORT` overrides.
+   Output: local API exposes catalog, source install/status/connect/refresh, tool search/schema/invoke, and invocation history routes backed by SDK calls. This is the shared local backend for the browser UI and the later local Harbor MCP server, not a replacement for `@hrbr/sdk/local`.
+   Progress: completed
+   Commit: after this step is complete, commit the server app slice and focused tests.
+
+7. Build local Harbor MCP console UI
+   Scope: build a practical local web UI with first-class Overview, Plugins, and Traces pages. Reuse Harbor main visual ideas/components where they fit, but avoid importing hosted-only assumptions.
+   Output: Overview shows local runtime health and key counts, Plugins supports catalog browsing, custom MCP install, source status, OAuth connect/reconnect, refresh, tool search/browser, schema inspection, invocation form, and result viewing, and Traces shows invocation history. The UI is the setup, management, and debugging surface for local Harbor before exposing the agent-facing MCP surface.
+   Progress: completed
+   Commit: after this step is complete, commit UI changes and any app-level tests.
+
+8. Manual UI validation gate
+   Scope: pause implementation after the local API and UI are usable so Kushagra can manually test real MCP installs, OAuth, refresh, search, schema lookup, and invocation from the browser console.
+   Output: user-tested UI behavior is confirmed or recorded as exact fixes before building the agent-facing local MCP server. This prevents building the MCP surface on top of an unvalidated setup flow.
+   Progress: completed
+   Commit: after this step is complete, commit tracker updates and any fixes found during manual UI testing.
+
+9. Add local Harbor MCP server surface for agents
+   Scope: expose local Harbor itself as an inbound local MCP server that agents can connect to after plugins are installed through the UI. This may be implemented inside `apps/harbor-local` as an MCP endpoint or a small companion command/server, but it must call the same SDK/local API backend rather than duplicating OAuth, credential storage, discovery, indexing, search, or invocation logic.
+   Output: users can connect local Harbor to Codex, Claude, or another MCP-capable agent and use tools such as catalog/source listing, source refresh, tool search, schema lookup, tool invocation, and invocation history. The MCP surface should expose registry search/invoke control-plane tools first, not generate one static MCP tool for every connected plugin tool.
+   Progress: completed
+   Commit: after this step is complete, commit MCP server code, connection docs, and focused tests.
+
+10. Add local diagnostics and invocation history
+   Scope: show local runtime state without exposing token values. Persist invocation records in SQLite with normalized metadata and raw MCP output. Include source health, OAuth status, discovery status, SQLite path, credential vault status, and actionable errors.
+   Output: users can understand what local Harbor is doing and debug MCP failures without reading internal files.
+   Progress: pending
+   Commit: after this step is complete, commit diagnostics/history changes and tests.
+
+11. Validate fresh local project and MCP flows
+   Scope: run focused typechecks, tests, and manual/local smoke flows from a fresh `.harbor/` directory. Validate no-auth fixture MCP, OAuth-capable MCP where credentials are available, automatic discovery after connect, search, schema lookup, invocation, persisted history, restart durability, and local Harbor MCP agent connection.
+   Output: local Harbor MCP console and local Harbor MCP server work from a clean local project, and failures are documented with exact blockers.
+   Progress: pending
+   Commit: after this step is complete, commit validation fixes and tracker updates.
+
+12. Final docs, tracker update, and GitHub push
+   Scope: update README/docs with the local Harbor v1 scope, run final validation, record completed progress, and push the branch to GitHub.
+   Output: branch `kk/local-harbor-mcp-console` is pushed with the local MCP console and local Harbor MCP server work, and this task file accurately reflects completed steps.
+   Progress: pending
+   Commit: after this step is complete, commit final docs/tracker updates and push.
+
+Scope Guards:
+
+- V1 is MCP plugins only.
+- V1 must include an inbound local Harbor MCP server so agents can actually use the MCP plugins connected through the local UI.
+- Do not add WorkOS, hosted Harbor user auth, hosted workspace requirements, or Harbor cloud dependencies.
+- Do not add Orbit, workflows, apps, jobs, chat/agents, or Cloudflare runtime in this effort.
+- Do not add STDIO MCP support in v1; support HTTP/streamable HTTP MCP URLs only.
+- Do not require embeddings or external AI/model keys; use lexical/BM25 search only.
+- Do not require write confirmations in v1; write-capable MCP tools can be invoked directly.
+- Do not expose OAuth access tokens, refresh tokens, or encrypted secret values in UI or logs.
+- Do not make runtime depend on `../harbor`; only use it as a source for the checked-in catalog seed/reference.
+- Do not make local Harbor depend on staging D1 at runtime. D1 access is maintainer-only for generating the checked-in local catalog seed.
+- Do not export workspace data, user data, OAuth grants, credentials, WorkOS IDs, install jobs, or hosted-only fields from D1 into the local seed.
+- Do not commit generated `.harbor` state, OAuth credentials, tokens, or local secrets.
+- Keep SDK-owned MCP lifecycle logic in SDK packages; keep `apps/harbor-local` as a thin local product app over those APIs.
+- Keep the inbound local Harbor MCP surface thin over the same local API/SDK backend used by the UI; do not duplicate OAuth, credential storage, discovery, indexing, search, or invocation logic there.
+
+Progress Log:
+
+- 2026-05-15T14:15:00+05:30: Created this tracker from the agreed v1 scope: a fully offline local Harbor MCP plugin console inside this repo, using SQLite/local runtime backend and MCP OAuth, with no WorkOS, Orbit, workflows, apps, jobs, chat/agents, Cloudflare runtime, STDIO MCP, vector search, or write confirmations.
+- 2026-05-15T14:15:00+05:30: Locked initial product decisions: single local app/server, bind to `127.0.0.1`, use project-local `.harbor/` by default with env overrides, seed MCP catalog from Harbor main while supporting custom MCP URLs, auto-discover after OAuth, persist invocation history, and show OAuth status without token values.
+- 2026-05-15T14:53:23+05:30: Completed task 1 by creating branch `kk/local-harbor-mcp-console` from `origin/main` at `45a02de`.
+- 2026-05-15T14:53:23+05:30: Baseline inspection found the prior `bun.lock` change matched `origin/main` exactly and was only dirty because the checkout started from stale local branch `kk/refine`; no unique `bun.lock` content was preserved or changed for this task.
+- 2026-05-15T14:53:23+05:30: Baseline package layout includes `apps/harbor-backend`, existing SDK packages under `packages/sdk/*`, and current framework/plugin examples under `examples/*`; no `apps/harbor-local` app exists yet.
+- 2026-05-15T14:53:23+05:30: Verified baseline with `bun run typecheck:packages`, `bun run typecheck:apps`, and `bun run typecheck:examples`; all passed.
+- 2026-05-15T14:57:35+05:30: Completed task 2 by surveying `@hrbr/sdk/local`, `@hrbr/runtime-local`, `@hrbr/source-mcp`, existing local MCP examples, the SDK registry catalog, and Harbor main MCP registry/API/web surfaces under `../harbor`.
+- 2026-05-15T14:57:35+05:30: Finding: the public local SDK facade already exposes source list/get/upsert/setup/ensure/probe/refresh, OAuth status/connect, credential import, tool search/schema/invoke/runAction, and exec bindings/toolGuide/run. The local app should consume this facade instead of calling deeper internals where possible.
+- 2026-05-15T14:57:35+05:30: Finding: `runtime-local` already initializes `.harbor/harbor.sqlite`, persists MCP sources, OAuth clients/pending flows/grants, encrypted credentials, tool bindings, and a lexical/BM25-style `tool_index`; it does not yet have a product-facing invocation history API/table tailored to the console.
+- 2026-05-15T14:57:35+05:30: Finding: `source-mcp` supports remote HTTP MCP handshakes, SSE/JSON response parsing, session ids, tools/list pagination, tools/call, endpoint probing, bearer credential slots, and local-network blocking unless explicitly allowed. Harbor main's API MCP client has richer protocol-version fallback, prompts/resources/resource-template discovery, bounded body reads, and redacted upstream error handling that should inform SDK gap work.
+- 2026-05-15T14:57:35+05:30: Finding: the SDK catalog currently has 142 entries, 106 MCP entries, 2 OAuth MCP entries, and 55 ready MCP entries after availability filtering. Harbor main currently has 143 entries, 106 MCP entries, 2 OAuth MCP entries, and 56 ready MCP entries.
+- 2026-05-15T14:57:35+05:30: Finding: the SDK registry catalog is not identical to `../harbor`: Harbor main adds `discord-api` and updates Slack MCP to an OAuth proxy endpoint, while the SDK copy includes Linear MCP OAuth discovery metadata that Harbor main's current registry entry does not. The local catalog step should reconcile this intentionally instead of blindly copying either side.
+- 2026-05-15T14:57:35+05:30: Finding: Harbor main install behavior maps MCP registry entries to source config with `endpoint`, `transport`, optional `oauth_discovery`, optional default headers, and `requires_oauth` status when OAuth is discovered. Custom MCP install only allows `kind`, `endpoint`, and `transport` config fields, which matches the v1 local app boundary.
+- 2026-05-15T14:57:35+05:30: Finding: Harbor main web plugin UI has portable concepts in plugin catalog cards, setup modal namespace handling, OAuth connect panels, connected account status cards, plugin detail tools accordion, and tool search. The hooks are tightly coupled to hosted workspace/auth/API routes, so local Harbor should reuse visual ideas selectively and build local-specific API hooks.
+- 2026-05-15T15:06:39+05:30: Updated the catalog plan to use Harbor main's staging Cloudflare D1, configured from `../harbor/.env.staging`, as the source to inspect/export real MCP plugin metadata. Runtime local Harbor must still consume a checked-in static seed and remain fully offline.
+- 2026-05-15T15:06:39+05:30: Clarified that the client SDK already exists as `@hrbr/sdk/local` and `createHarbor(...)`; the missing piece is a browser-facing local Harbor product API/server plus invocation history surface for the console UI.
+- 2026-05-15T15:08:28+05:30: Completed task 3 by adding `docs/architecture/local-harbor-mcp-console.md` to lock the v1 app boundary before implementation.
+- 2026-05-15T15:08:28+05:30: Documented Local Harbor MCP Console as a repo-local product app over `@hrbr/sdk/local`, not a new SDK promise or hosted Harbor clone.
+- 2026-05-15T15:08:28+05:30: Documented the split between SDK responsibilities, local API/server responsibilities, UI responsibilities, staging-D1 catalog generation, runtime offline guarantees, local state files, and explicit v1 non-goals.
+- 2026-05-15T15:36:56+05:30: Completed task 4 by moving the remaining local MCP lifecycle gaps into SDK surfaces instead of leaving them for the future local app.
+- 2026-05-15T15:36:56+05:30: Added MCP protocol-version fallback and prompt/resource/resource-template discovery to `@hrbr/source-mcp`, so MCP servers can expose more than `tools/list` while still being indexed as callable local registry entries.
+- 2026-05-15T15:36:56+05:30: Added fixed local OAuth callback port support through `HARBOR_LOCAL_OAUTH_PORT`, `oauthPort`, and per-call `port`, allowing the local app to run deterministic OAuth callbacks when needed.
+- 2026-05-15T15:36:56+05:30: Added SDK-owned invocation history persistence in SQLite with `tool_invocations`, automatic registry invocation recording, and `createHarborLocalRuntime(...).invocations.list(...)` for the future diagnostics/history UI.
+- 2026-05-15T15:36:56+05:30: Regenerated `packages/sdk/runtime-local/dist/promise.js` so the publish-facing `@hrbr/runtime-local/promise` bundle includes the new SDK API.
+- 2026-05-15T15:36:56+05:30: Validation passed with `bun test packages/sdk/source-mcp/test/index.test.ts packages/sdk/runtime-local/test/index.test.ts`, `bun test packages/sdk/sdk/test/release.test.ts`, and `bun run typecheck:packages`.
+- 2026-05-15T15:45:24+05:30: Completed task 5 by querying Harbor main staging D1 `plugin_registry_entries` with `kind = 'mcp'` and generating a checked-in local MCP catalog seed for offline local Harbor.
+- 2026-05-15T15:45:24+05:30: Added `packages/sdk/registry-catalog/data/v1/local-mcp-catalog.json` with 106 MCP entries projected to local-safe fields only: slug, display name, description, category, namespace, endpoint, transport, auth mode, required secret env names, OAuth discovery metadata, hosted availability, local MCP-only availability, icon URL, links, and verified status.
+- 2026-05-15T15:45:24+05:30: Preserved hosted D1 availability separately from local availability; MCP entries hidden only because hosted Harbor prefers another source kind, such as `linear-mcp`, are selectable in local Harbor because v1 is MCP-only.
+- 2026-05-15T15:45:24+05:30: Added maintainer sync script `packages/sdk/registry-catalog/scripts/sync-local-mcp-catalog.ts`, wired it to `@hrbr/registry-catalog` as `sync:local-mcp-catalog`, and exported `REGISTRY_LOCAL_MCP_CATALOG` plus entry types from `@hrbr/registry-catalog`.
+- 2026-05-15T15:45:24+05:30: Validation passed with `bun test packages/sdk/registry-catalog/test/index.test.ts`, `bun run --filter @hrbr/registry-catalog typecheck`, and a deterministic regeneration check from the captured D1 rows.
+- 2026-05-15T16:05:00+05:30: Updated the plan to make the product value loop explicit: users install/connect MCP plugins in the local UI, then connect an inbound local Harbor MCP server to their agent to use the installed plugins.
+- 2026-05-15T16:05:00+05:30: Kept UI as task 7 and added task 8 as a manual UI validation gate before implementing the agent-facing local Harbor MCP server in task 9.
+- 2026-05-15T16:35:00+05:30: Completed task 6 by adding `apps/harbor-local`, a Bun local API server bound to `127.0.0.1` by default and backed by `@hrbr/sdk/local` plus the checked-in local MCP catalog seed.
+- 2026-05-15T16:35:00+05:30: Added local API routes for health, catalog listing, MCP source listing/install/connect/refresh, tool search/schema/invoke, and invocation history. The API keeps OAuth handles server-side during browser connect flows and uses structured JSON success/error responses.
+- 2026-05-15T16:35:00+05:30: Added SDK support for `sources.listMcp()` so the local app does not read SQLite tables directly, and regenerated `packages/sdk/runtime-local/dist/promise.js` for the publish-facing local runtime bundle.
+- 2026-05-15T16:35:00+05:30: Added in-process API tests covering catalog seed visibility, custom MCP install and refresh, source listing, lexical tool search, schema lookup, invocation, persisted invocation history, and structured not-found errors.
+- 2026-05-15T16:35:00+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts`, `bun run --filter @hrbr/runtime-local typecheck`, `bun run typecheck:apps`, and `bun test packages/sdk/runtime-local/test/index.test.ts packages/sdk/sdk/test/release.test.ts`.
+- 2026-05-15T17:10:00+05:30: Updated task 7 scope to make Overview, Plugins, and Traces first-class v1 pages.
+- 2026-05-15T17:10:00+05:30: Completed task 7 by adding a same-origin static UI served from `apps/harbor-local`: Overview for runtime health/counts/recent traces, Plugins for catalog/custom install, OAuth connect, source refresh, tool search, schema inspection, and tool invocation, and Traces for invocation history/detail.
+- 2026-05-15T17:10:00+05:30: Kept the UI intentionally local-only and dependency-light: no hosted Harbor auth/workspace imports, no framework-specific runtime, and all data access flows through the local API from task 6.
+- 2026-05-15T17:10:00+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck` and `bun test apps/harbor-local/test/server.test.ts`.
+- 2026-05-15T17:22:00+05:30: Completed task 8 after manual browser validation surfaced three concrete UI/backend fixes before building the inbound local Harbor MCP server.
+- 2026-05-15T17:22:00+05:30: Fix from validation: plugin detail tool browsing is now namespace-scoped like Harbor main's plugin detail page; the UI passes namespace as the search scope and the API regression test verifies cross-source tools do not leak into a plugin page.
+- 2026-05-15T17:22:00+05:30: Fix from validation: connected MCP account cards now expose OAuth reconnect and disconnect controls; disconnect calls `POST /api/sources/remove`, removes source/tool/OAuth/credential rows, and clears encrypted credentials for that source when the local vault key is available.
+- 2026-05-15T17:22:00+05:30: Operational note from validation: `No route for POST /api/sources/remove` means the browser is talking to an older `apps/harbor-local` backend process; restart the local server after backend route changes.
+- 2026-05-15T17:22:00+05:30: Validation passed with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts packages/sdk/runtime-local/test/index.test.ts`, and `bun run --cwd apps/harbor-local build:web`.
+- 2026-05-15T17:38:00+05:30: Completed task 9 by adding an inbound local Harbor MCP endpoint at `POST /mcp` on the same `apps/harbor-local` server.
+- 2026-05-15T17:38:00+05:30: The MCP surface exposes control-plane tools: `harbor_catalog_list`, `harbor_sources_list`, `harbor_source_refresh`, `harbor_tools_search`, `harbor_tool_schema`, `harbor_tool_invoke`, and `harbor_invocations_list`.
+- 2026-05-15T17:38:00+05:30: The MCP endpoint calls the same `@hrbr/sdk/local` runtime as the browser API and does not duplicate OAuth, credentials, discovery, indexing, search, invocation, or history logic.
+- 2026-05-15T17:38:00+05:30: Added an MCP client integration test that installs a fixture MCP source through the API, connects to `http://local.harbor/mcp`, searches scoped tools, invokes an indexed plugin tool, and reads invocation history through local Harbor MCP tools.
+- 2026-05-15T17:38:00+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts`, and `bun run --filter @hrbr/runtime-local typecheck`.
+- 2026-05-15T17:25:32+05:30: Refined task 9 for agent harness usage by adding `harbor_exec_run` and `harbor_exec_tool_guide` to the inbound local Harbor MCP endpoint, so an MCP-capable harness can ask Harbor Local to run generated JavaScript through the SDK's QuickJS exec runtime while backend-resolved plugin calls are still traced.
+- 2026-05-15T17:25:32+05:30: Added MCP integration coverage for `harbor_exec_tool_guide` and `harbor_exec_run` against a fixture plugin namespace, verifying generated code can call `agentVisible.listItems(...)` through QuickJS and produce invocation history.
+- 2026-05-15T17:25:32+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts`, and `bun run --filter @hrbr/runtime-local typecheck`.
+- 2026-05-15T17:29:13+05:30: Fixed the SDK exec host-call path to record nested QuickJS plugin calls in `tool_invocations`, regenerated the published `@hrbr/runtime-local/promise` bundle, and verified the live MCP endpoint can run `linearMcp.listIssues(...)` through QuickJS while the trace appears in the local Traces API.
+- 2026-05-15T17:29:13+05:30: Validation passed with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/harbor-local typecheck`, and `bun test apps/harbor-local/test/server.test.ts packages/sdk/runtime-local/test/index.test.ts packages/sdk/sdk/test/release.test.ts`.
+- 2026-05-15T17:50:20+05:30: Corrected the inbound local agent MCP surface to follow the Reef model: `tools/list` now exposes exactly `inspect` and `exec`. `inspect` provides local Harbor discovery/status/schema/history over the `hrbr.*` planning surface, and `exec` runs code through local QuickJS with SDK-resolved MCP plugin namespaces and traced nested plugin calls.
+- 2026-05-15T17:50:20+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck` and `bun test apps/harbor-local/test/server.test.ts`.

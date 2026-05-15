@@ -40,6 +40,7 @@ export interface McpSourceAdapterInput {
     | undefined
   readonly bearerCredentialSlot?: string | undefined
   readonly protocolVersion?: string | undefined
+  readonly protocolVersions?: readonly string[] | undefined
   readonly clientInfo?:
     | {
         readonly name: string
@@ -112,11 +113,61 @@ interface McpToolsListResult {
   readonly nextCursor?: string | undefined
 }
 
+interface McpPromptArgument {
+  readonly name: string
+  readonly description?: string | undefined
+  readonly required?: boolean | undefined
+}
+
+interface McpPrompt {
+  readonly name: string
+  readonly description?: string | undefined
+  readonly arguments?: readonly McpPromptArgument[] | undefined
+}
+
+interface McpPromptsListResult {
+  readonly prompts?: readonly McpPrompt[] | undefined
+  readonly nextCursor?: string | undefined
+}
+
+interface McpResource {
+  readonly uri: string
+  readonly name?: string | undefined
+  readonly description?: string | undefined
+  readonly mimeType?: string | undefined
+}
+
+interface McpResourcesListResult {
+  readonly resources?: readonly McpResource[] | undefined
+  readonly nextCursor?: string | undefined
+}
+
+interface McpResourceTemplate {
+  readonly uriTemplate: string
+  readonly name?: string | undefined
+  readonly description?: string | undefined
+  readonly mimeType?: string | undefined
+}
+
+interface McpResourceTemplatesListResult {
+  readonly resourceTemplates?: readonly McpResourceTemplate[] | undefined
+  readonly nextCursor?: string | undefined
+}
+
 interface McpInitializeResult {
   readonly protocolVersion?: string | undefined
   readonly serverInfo?: unknown
   readonly capabilities?: unknown
   readonly instructions?: string | undefined
+}
+
+interface McpListedDefinition {
+  readonly definition: SourceToolDefinition
+  readonly invoke:
+    | { readonly kind: 'tool'; readonly name: string }
+    | { readonly kind: 'prompt'; readonly name: string }
+    | { readonly kind: 'resource'; readonly uri: string }
+    | { readonly kind: 'resource_template'; readonly uriTemplate: string }
 }
 
 interface McpHttpSessionState {
@@ -147,6 +198,13 @@ export class McpSourceError extends Error {
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
+const DEFAULT_PROTOCOL_VERSIONS = [
+  '2025-11-25',
+  '2025-06-18',
+  '2025-03-26',
+  '2024-11-05',
+  '2024-10-07',
+] as const
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -424,10 +482,134 @@ function toolDefinition(tool: McpTool): SourceToolDefinition {
   }
 }
 
+function sanitizeName(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_.-]/g, '_') || 'mcp'
+}
+
+function humanize(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+    .trim()
+}
+
+function promptDefinition(prompt: McpPrompt): McpListedDefinition {
+  const properties: Record<string, unknown> = {}
+  const required: string[] = []
+  for (const arg of prompt.arguments ?? []) {
+    properties[arg.name] = {
+      type: 'string',
+      ...(arg.description !== undefined ? { description: arg.description } : {}),
+    }
+    if (arg.required) required.push(arg.name)
+  }
+  return {
+    definition: {
+      name: `prompt_${sanitizeName(prompt.name)}`,
+      displayName: prompt.description ?? humanize(prompt.name),
+      ...(prompt.description !== undefined ? { description: prompt.description } : {}),
+      inputSchema: {
+        type: 'object',
+        properties,
+        ...(required.length > 0 ? { required } : {}),
+      },
+      annotations: { readOnlyHint: true, harborMcpBinding: { kind: 'prompt', name: prompt.name } },
+      tags: ['prompt', 'read_only'],
+      kind: 'mcp',
+    },
+    invoke: { kind: 'prompt', name: prompt.name },
+  }
+}
+
+function resourceDefinition(resource: McpResource): McpListedDefinition {
+  const label = resource.name ?? resource.uri
+  return {
+    definition: {
+      name: `resource_${sanitizeName(resource.name ?? resource.uri.split('/').pop() ?? 'read')}`,
+      displayName: label,
+      description: resource.description ?? `Read MCP resource: ${resource.uri}`,
+      inputSchema: {
+        type: 'object',
+        properties: {
+          uri: { type: 'string', const: resource.uri },
+        },
+      },
+      annotations: { readOnlyHint: true, harborMcpBinding: { kind: 'resource', uri: resource.uri } },
+      tags: ['resource', 'read_only'],
+      kind: 'mcp',
+    },
+    invoke: { kind: 'resource', uri: resource.uri },
+  }
+}
+
+function resourceTemplateDefinition(template: McpResourceTemplate): McpListedDefinition {
+  const params = (template.uriTemplate.match(/\{([^}]+)\}/g) ?? []).map((param) => param.slice(1, -1))
+  const properties: Record<string, unknown> = {}
+  for (const param of params) {
+    properties[param] = { type: 'string', description: `Template parameter: ${param}` }
+  }
+  return {
+    definition: {
+      name: `resource_template_${sanitizeName(template.name ?? template.uriTemplate.split('/').pop() ?? 'read')}`,
+      displayName: template.name ?? template.uriTemplate,
+      description: template.description ?? `Read MCP resource template: ${template.uriTemplate}`,
+      inputSchema: {
+        type: 'object',
+        properties,
+        ...(params.length > 0 ? { required: params } : {}),
+      },
+      annotations: {
+        readOnlyHint: true,
+        harborMcpBinding: { kind: 'resource_template', uriTemplate: template.uriTemplate },
+      },
+      tags: ['resource', 'template', 'read_only'],
+      kind: 'mcp',
+    },
+    invoke: { kind: 'resource_template', uriTemplate: template.uriTemplate },
+  }
+}
+
+function protocolVersions(input: McpSourceAdapterInput): readonly string[] {
+  if (input.protocolVersions?.length) return [...input.protocolVersions]
+  if (input.protocolVersion) return [input.protocolVersion]
+  return DEFAULT_PROTOCOL_VERSIONS
+}
+
+async function initializeSession(input: McpSourceAdapterInput, send: <T>(
+  method: string,
+  params: unknown,
+  ctx: McpSourceHeaderContext,
+  options?: { readonly notification?: boolean | undefined; readonly signal?: AbortSignal | undefined }
+) => Promise<T>, ctx: McpSourceHeaderContext & { readonly signal?: AbortSignal | undefined }): Promise<McpInitializeResult> {
+  let lastError: unknown
+  for (const version of protocolVersions(input)) {
+    try {
+      const result = await send<McpInitializeResult>(
+        'initialize',
+        {
+          protocolVersion: version,
+          capabilities: {},
+          clientInfo: input.clientInfo ?? { name: '@hrbr/source-mcp', version: '0.0.0' },
+        },
+        ctx,
+        { signal: ctx.signal }
+      )
+      await send('notifications/initialized', undefined, ctx, { notification: true, signal: ctx.signal })
+      return result
+    } catch (error) {
+      lastError = error
+      if (input.protocolVersion || (error instanceof McpSourceError && error.status !== undefined)) break
+    }
+  }
+  throw lastError
+}
+
 export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): SourceAdapter {
   validateEndpointUrl(input)
   validateTimeoutMs(input)
   let initialized = false
+  let listedDefinitions: readonly McpListedDefinition[] | null = null
   const state: McpHttpSessionState = { nextId: 1, sessionId: undefined }
 
   async function send<T>(
@@ -441,25 +623,38 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
 
   async function initialize(ctx: McpSourceHeaderContext & { readonly signal?: AbortSignal | undefined }): Promise<void> {
     if (initialized) return
-    await send(
-      'initialize',
-      {
-        protocolVersion: input.protocolVersion ?? '2025-03-26',
-        capabilities: {},
-        clientInfo: input.clientInfo ?? { name: '@hrbr/source-mcp', version: '0.0.0' },
-      },
-      ctx,
-      { signal: ctx.signal }
-    )
-    await send('notifications/initialized', undefined, ctx, { notification: true, signal: ctx.signal })
+    await initializeSession(input, send, ctx)
     initialized = true
   }
 
-  async function listTools(
+  async function listOptional<T>(
+    method: string,
+    key: string,
+    ctx: SourceAdapterListContext | undefined,
+    mapItem: (item: T) => McpListedDefinition
+  ): Promise<readonly McpListedDefinition[]> {
+    const items: McpListedDefinition[] = []
+    let cursor: string | undefined
+    do {
+      const result = await send<Record<string, unknown>>(
+        method,
+        cursor === undefined ? {} : { cursor },
+        { credentials: ctx?.credentials },
+        { signal: ctx?.signal }
+      )
+      const page = result[key]
+      if (Array.isArray(page)) items.push(...(page as T[]).map(mapItem))
+      cursor = typeof result.nextCursor === 'string' ? result.nextCursor : undefined
+    } while (cursor !== undefined)
+    return items
+  }
+
+  async function listDefinitions(
     ctx?: SourceAdapterListContext
-  ): Promise<readonly SourceToolDefinition[]> {
+  ): Promise<readonly McpListedDefinition[]> {
     await initialize({ credentials: ctx?.credentials, signal: ctx?.signal })
-    const tools: SourceToolDefinition[] = []
+    if (listedDefinitions) return listedDefinitions
+    const definitions: McpListedDefinition[] = []
     let cursor: string | undefined
     do {
       const result = await send<McpToolsListResult>(
@@ -468,10 +663,27 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
         { credentials: ctx?.credentials },
         { signal: ctx?.signal }
       )
-      tools.push(...(result.tools ?? []).map(toolDefinition))
+      definitions.push(...(result.tools ?? []).map((tool) => ({
+        definition: toolDefinition(tool),
+        invoke: { kind: 'tool', name: tool.name } as const,
+      })))
       cursor = result.nextCursor
     } while (cursor !== undefined)
-    return tools
+
+    const optional = await Promise.all([
+      listOptional<McpPrompt>('prompts/list', 'prompts', ctx, promptDefinition).catch(() => []),
+      listOptional<McpResource>('resources/list', 'resources', ctx, resourceDefinition).catch(() => []),
+      listOptional<McpResourceTemplate>('resources/templates/list', 'resourceTemplates', ctx, resourceTemplateDefinition).catch(() => []),
+    ])
+    definitions.push(...optional.flat())
+    listedDefinitions = definitions
+    return definitions
+  }
+
+  async function listTools(
+    ctx?: SourceAdapterListContext
+  ): Promise<readonly SourceToolDefinition[]> {
+    return (await listDefinitions(ctx)).map((item) => item.definition)
   }
 
   return defineSourceAdapter({
@@ -486,10 +698,40 @@ export function createMcpHttpSourceAdapter(input: McpSourceAdapterInput): Source
     },
     invokeTool: async (name, toolInput, ctx?: SourceAdapterInvokeContext) => {
       await initialize({ credentials: ctx?.credentials, signal: ctx?.signal })
+      const binding = (await listDefinitions(ctx)).find((item) => item.definition.name === name)?.invoke ?? { kind: 'tool' as const, name }
+      if (binding.kind === 'prompt') {
+        return send(
+          'prompts/get',
+          { name: binding.name, arguments: toolInput },
+          { credentials: ctx?.credentials },
+          { signal: ctx?.signal }
+        )
+      }
+      if (binding.kind === 'resource') {
+        return send(
+          'resources/read',
+          { uri: binding.uri },
+          { credentials: ctx?.credentials },
+          { signal: ctx?.signal }
+        )
+      }
+      if (binding.kind === 'resource_template') {
+        let uri = binding.uriTemplate
+        const templateInput = isRecord(toolInput) ? toolInput : {}
+        for (const [key, value] of Object.entries(templateInput)) {
+          uri = uri.replace(`{${key}}`, encodeURIComponent(String(value)))
+        }
+        return send(
+          'resources/read',
+          { uri },
+          { credentials: ctx?.credentials },
+          { signal: ctx?.signal }
+        )
+      }
       return send(
         'tools/call',
         {
-          name,
+          name: binding.name,
           arguments: toolInput,
         },
         { credentials: ctx?.credentials },
@@ -504,18 +746,11 @@ export async function probeMcpHttpSource(input: McpHttpProbeInput): Promise<McpH
     validateEndpointUrl(input)
     validateTimeoutMs(input)
     const state: McpHttpSessionState = { nextId: 1, sessionId: undefined }
-    const result = await sendRpc<unknown>(
-      input,
-      state,
-      'initialize',
-      {
-        protocolVersion: input.protocolVersion ?? '2025-03-26',
-        capabilities: {},
-        clientInfo: input.clientInfo ?? { name: '@hrbr/source-mcp', version: '0.0.0' },
-      },
-      { credentials: input.credentials },
-      { signal: input.signal }
-    )
+    const result = await initializeSession(input, (method, params, ctx, options) =>
+      sendRpc(input, state, method, params, ctx, options), {
+        credentials: input.credentials,
+        signal: input.signal,
+      })
     if (!isRecord(result)) {
       return {
         ok: false,
@@ -528,10 +763,6 @@ export async function probeMcpHttpSource(input: McpHttpProbeInput): Promise<McpH
         ...(state.sessionId !== undefined ? { sessionId: state.sessionId } : {}),
       }
     }
-    await sendRpc(input, state, 'notifications/initialized', undefined, { credentials: input.credentials }, {
-      notification: true,
-      signal: input.signal,
-    })
     const initialize = result as McpInitializeResult
     return {
       ok: true,

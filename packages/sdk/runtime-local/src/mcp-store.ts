@@ -354,6 +354,69 @@ export async function readHarborLocalMcpSource(
   }
 }
 
+export async function listHarborLocalMcpSources(
+  projectRoot: string
+): Promise<readonly HarborLocalMcpStoredSource[]> {
+  await ensureHarborLocalProject({ projectRoot })
+  const db = openDatabase(projectRoot)
+  let ids: string[]
+  try {
+    const rows = db.prepare(`
+      SELECT id
+      FROM mcp_sources
+      WHERE workspace_id = ?
+      ORDER BY name ASC, id ASC
+    `).all(LOCAL_WORKSPACE_ID) as Record<string, unknown>[]
+    ids = rows
+      .map((row) => row["id"])
+      .filter((id): id is string => typeof id === "string")
+  } finally {
+    db.close()
+  }
+  const sources = []
+  for (const id of ids) {
+    const source = await readHarborLocalMcpSource(projectRoot, id)
+    if (source) sources.push(source)
+  }
+  return sources
+}
+
+export async function removeHarborLocalMcpSource(input: {
+  readonly projectRoot: string
+  readonly sourceId: string
+}): Promise<{ readonly sourceId: string; readonly removed: boolean }> {
+  await ensureHarborLocalProject({ projectRoot: input.projectRoot })
+  const db = openDatabase(input.projectRoot)
+  try {
+    const existing = db.prepare("SELECT id FROM mcp_sources WHERE workspace_id = ? AND id = ?")
+      .all(LOCAL_WORKSPACE_ID, input.sourceId)[0]
+    if (!existing) return { sourceId: input.sourceId, removed: false }
+
+    db.prepare("DELETE FROM mcp_source_headers WHERE workspace_id = ? AND source_id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+    db.prepare("DELETE FROM mcp_source_query_params WHERE workspace_id = ? AND source_id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+    db.prepare("DELETE FROM mcp_tool_bindings WHERE workspace_id = ? AND source_id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+    db.prepare("DELETE FROM tool_index WHERE workspace_id = ? AND source_ref_id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+    db.prepare("DELETE FROM oauth_pending_flows WHERE workspace_id = ? AND source_ref_id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+    db.prepare("DELETE FROM oauth_grants WHERE workspace_id = ? AND source_ref_id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+    db.prepare("DELETE FROM oauth_clients WHERE workspace_id = ? AND source_ref_id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+    db.prepare("DELETE FROM credential_metadata WHERE workspace_id = ? AND source_ref_id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+    db.prepare("DELETE FROM mcp_sources WHERE workspace_id = ? AND id = ?")
+      .run(LOCAL_WORKSPACE_ID, input.sourceId)
+
+    return { sourceId: input.sourceId, removed: true }
+  } finally {
+    db.close()
+  }
+}
+
 export async function updateHarborLocalMcpSourceStatus(input: {
   readonly projectRoot: string
   readonly sourceId: string

@@ -103,6 +103,7 @@ var init_sqlite = __esm(() => {
     "oauth_clients",
     "oauth_pending_flows",
     "oauth_grants",
+    "tool_invocations",
     "mcp_sources",
     "mcp_source_headers",
     "mcp_source_query_params",
@@ -302,6 +303,20 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tool_invocations (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_ref_id TEXT,
+  namespace TEXT NOT NULL,
+  tool_id TEXT NOT NULL,
+  input_json TEXT,
+  output_json TEXT,
+  error_json TEXT,
+  ok INTEGER NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mcp_sources (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -369,6 +384,8 @@ CREATE INDEX IF NOT EXISTS idx_spans_run_started ON spans(run_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_artifact_metadata_workspace_key ON artifact_metadata(workspace_id, key);
 CREATE INDEX IF NOT EXISTS idx_oauth_grants_source_status ON oauth_grants(workspace_id, source_ref_id, status);
 CREATE INDEX IF NOT EXISTS idx_oauth_pending_source_status ON oauth_pending_flows(workspace_id, source_ref_id, status);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_workspace_created ON tool_invocations(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_tool ON tool_invocations(workspace_id, tool_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_mcp_sources_workspace_namespace ON mcp_sources(workspace_id, namespace);
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_bindings_source ON mcp_tool_bindings(workspace_id, source_id);
 `.trim()
@@ -26160,10 +26177,117 @@ function toolDefinition(tool) {
     kind: "mcp"
   };
 }
+function sanitizeName(value3) {
+  return value3.replace(/[^a-zA-Z0-9_.-]/g, "_") || "mcp";
+}
+function humanize(value3) {
+  return value3.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").replace(/\b\w/g, (char) => char.toUpperCase()).trim();
+}
+function promptDefinition(prompt) {
+  const properties = {};
+  const required2 = [];
+  for (const arg of prompt.arguments ?? []) {
+    properties[arg.name] = {
+      type: "string",
+      ...arg.description !== undefined ? { description: arg.description } : {}
+    };
+    if (arg.required)
+      required2.push(arg.name);
+  }
+  return {
+    definition: {
+      name: `prompt_${sanitizeName(prompt.name)}`,
+      displayName: prompt.description ?? humanize(prompt.name),
+      ...prompt.description !== undefined ? { description: prompt.description } : {},
+      inputSchema: {
+        type: "object",
+        properties,
+        ...required2.length > 0 ? { required: required2 } : {}
+      },
+      annotations: { readOnlyHint: true, harborMcpBinding: { kind: "prompt", name: prompt.name } },
+      tags: ["prompt", "read_only"],
+      kind: "mcp"
+    },
+    invoke: { kind: "prompt", name: prompt.name }
+  };
+}
+function resourceDefinition(resource) {
+  const label = resource.name ?? resource.uri;
+  return {
+    definition: {
+      name: `resource_${sanitizeName(resource.name ?? resource.uri.split("/").pop() ?? "read")}`,
+      displayName: label,
+      description: resource.description ?? `Read MCP resource: ${resource.uri}`,
+      inputSchema: {
+        type: "object",
+        properties: {
+          uri: { type: "string", const: resource.uri }
+        }
+      },
+      annotations: { readOnlyHint: true, harborMcpBinding: { kind: "resource", uri: resource.uri } },
+      tags: ["resource", "read_only"],
+      kind: "mcp"
+    },
+    invoke: { kind: "resource", uri: resource.uri }
+  };
+}
+function resourceTemplateDefinition(template) {
+  const params = (template.uriTemplate.match(/\{([^}]+)\}/g) ?? []).map((param) => param.slice(1, -1));
+  const properties = {};
+  for (const param of params) {
+    properties[param] = { type: "string", description: `Template parameter: ${param}` };
+  }
+  return {
+    definition: {
+      name: `resource_template_${sanitizeName(template.name ?? template.uriTemplate.split("/").pop() ?? "read")}`,
+      displayName: template.name ?? template.uriTemplate,
+      description: template.description ?? `Read MCP resource template: ${template.uriTemplate}`,
+      inputSchema: {
+        type: "object",
+        properties,
+        ...params.length > 0 ? { required: params } : {}
+      },
+      annotations: {
+        readOnlyHint: true,
+        harborMcpBinding: { kind: "resource_template", uriTemplate: template.uriTemplate }
+      },
+      tags: ["resource", "template", "read_only"],
+      kind: "mcp"
+    },
+    invoke: { kind: "resource_template", uriTemplate: template.uriTemplate }
+  };
+}
+function protocolVersions(input) {
+  if (input.protocolVersions?.length)
+    return [...input.protocolVersions];
+  if (input.protocolVersion)
+    return [input.protocolVersion];
+  return DEFAULT_PROTOCOL_VERSIONS;
+}
+async function initializeSession(input, send, ctx) {
+  let lastError;
+  for (const version2 of protocolVersions(input)) {
+    try {
+      const result2 = await send("initialize", {
+        protocolVersion: version2,
+        capabilities: {},
+        clientInfo: input.clientInfo ?? { name: "@hrbr/source-mcp", version: "0.0.0" }
+      }, ctx, { signal: ctx.signal });
+      await send("notifications/initialized", undefined, ctx, { notification: true, signal: ctx.signal });
+      return result2;
+    } catch (error) {
+      lastError = error;
+      if (input.protocolVersion || error instanceof McpSourceError && error.status !== undefined)
+        break;
+    }
+  }
+  throw lastError;
+}
 function createMcpHttpSourceAdapter(input) {
   validateEndpointUrl(input);
   validateTimeoutMs(input);
   let initialized = false;
+  let listedDefinitions = null;
   const state = { nextId: 1, sessionId: undefined };
   async function send(method, params, ctx, options) {
     return sendRpc(input, state, method, params, ctx, options);
@@ -26171,24 +26295,46 @@ function createMcpHttpSourceAdapter(input) {
   async function initialize(ctx) {
     if (initialized)
       return;
-    await send("initialize", {
-      protocolVersion: input.protocolVersion ?? "2025-03-26",
-      capabilities: {},
-      clientInfo: input.clientInfo ?? { name: "@hrbr/source-mcp", version: "0.0.0" }
-    }, ctx, { signal: ctx.signal });
-    await send("notifications/initialized", undefined, ctx, { notification: true, signal: ctx.signal });
+    await initializeSession(input, send, ctx);
     initialized = true;
   }
-  async function listTools(ctx) {
+  async function listOptional(method, key, ctx, mapItem) {
+    const items2 = [];
+    let cursor;
+    do {
+      const result2 = await send(method, cursor === undefined ? {} : { cursor }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
+      const page = result2[key];
+      if (Array.isArray(page))
+        items2.push(...page.map(mapItem));
+      cursor = typeof result2.nextCursor === "string" ? result2.nextCursor : undefined;
+    } while (cursor !== undefined);
+    return items2;
+  }
+  async function listDefinitions(ctx) {
     await initialize({ credentials: ctx?.credentials, signal: ctx?.signal });
-    const tools = [];
+    if (listedDefinitions)
+      return listedDefinitions;
+    const definitions = [];
     let cursor;
     do {
       const result2 = await send("tools/list", cursor === undefined ? {} : { cursor }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
-      tools.push(...(result2.tools ?? []).map(toolDefinition));
+      definitions.push(...(result2.tools ?? []).map((tool) => ({
+        definition: toolDefinition(tool),
+        invoke: { kind: "tool", name: tool.name }
+      })));
       cursor = result2.nextCursor;
     } while (cursor !== undefined);
-    return tools;
+    const optional2 = await Promise.all([
+      listOptional("prompts/list", "prompts", ctx, promptDefinition).catch(() => []),
+      listOptional("resources/list", "resources", ctx, resourceDefinition).catch(() => []),
+      listOptional("resources/templates/list", "resourceTemplates", ctx, resourceTemplateDefinition).catch(() => [])
+    ]);
+    definitions.push(...optional2.flat());
+    listedDefinitions = definitions;
+    return definitions;
+  }
+  async function listTools(ctx) {
+    return (await listDefinitions(ctx)).map((item) => item.definition);
   }
   return defineSourceAdapter({
     id: input.id,
@@ -26202,8 +26348,23 @@ function createMcpHttpSourceAdapter(input) {
     },
     invokeTool: async (name, toolInput, ctx) => {
       await initialize({ credentials: ctx?.credentials, signal: ctx?.signal });
+      const binding = (await listDefinitions(ctx)).find((item) => item.definition.name === name)?.invoke ?? { kind: "tool", name };
+      if (binding.kind === "prompt") {
+        return send("prompts/get", { name: binding.name, arguments: toolInput }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
+      }
+      if (binding.kind === "resource") {
+        return send("resources/read", { uri: binding.uri }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
+      }
+      if (binding.kind === "resource_template") {
+        let uri = binding.uriTemplate;
+        const templateInput = isRecord(toolInput) ? toolInput : {};
+        for (const [key, value3] of Object.entries(templateInput)) {
+          uri = uri.replace(`{${key}}`, encodeURIComponent(String(value3)));
+        }
+        return send("resources/read", { uri }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
+      }
       return send("tools/call", {
-        name,
+        name: binding.name,
         arguments: toolInput
       }, { credentials: ctx?.credentials }, { signal: ctx?.signal });
     }
@@ -26214,11 +26375,10 @@ async function probeMcpHttpSource(input) {
     validateEndpointUrl(input);
     validateTimeoutMs(input);
     const state = { nextId: 1, sessionId: undefined };
-    const result2 = await sendRpc(input, state, "initialize", {
-      protocolVersion: input.protocolVersion ?? "2025-03-26",
-      capabilities: {},
-      clientInfo: input.clientInfo ?? { name: "@hrbr/source-mcp", version: "0.0.0" }
-    }, { credentials: input.credentials }, { signal: input.signal });
+    const result2 = await initializeSession(input, (method, params, ctx, options) => sendRpc(input, state, method, params, ctx, options), {
+      credentials: input.credentials,
+      signal: input.signal
+    });
     if (!isRecord(result2)) {
       return {
         ok: false,
@@ -26231,10 +26391,6 @@ async function probeMcpHttpSource(input) {
         ...state.sessionId !== undefined ? { sessionId: state.sessionId } : {}
       };
     }
-    await sendRpc(input, state, "notifications/initialized", undefined, { credentials: input.credentials }, {
-      notification: true,
-      signal: input.signal
-    });
     const initialize = result2;
     return {
       ok: true,
@@ -26253,7 +26409,7 @@ async function probeMcpHttpSource(input) {
     return probeError(input, error);
   }
 }
-var McpSourceError, DEFAULT_TIMEOUT_MS2 = 30000;
+var McpSourceError, DEFAULT_TIMEOUT_MS2 = 30000, DEFAULT_PROTOCOL_VERSIONS;
 var init_src2 = __esm(() => {
   init_src();
   McpSourceError = class McpSourceError extends Error {
@@ -26270,6 +26426,13 @@ var init_src2 = __esm(() => {
       this.data = input.data;
     }
   };
+  DEFAULT_PROTOCOL_VERSIONS = [
+    "2025-11-25",
+    "2025-06-18",
+    "2025-03-26",
+    "2024-11-05",
+    "2024-10-07"
+  ];
 });
 
 // packages/sdk/source-auth/src/index.ts
@@ -26540,6 +26703,16 @@ async function importHarborLocalCredentialsFromEnv(projectRoot, input) {
 async function importHarborLocalCredentialsFromEnvKey(projectRoot, input) {
   const key = readHarborLocalCredentialKeyFromEnv(input);
   return importHarborLocalCredentialsFromEnv(projectRoot, { ...input, key });
+}
+async function removeHarborLocalCredentialsForSource(projectRoot, input) {
+  const current = await readHarborLocalCredentials(projectRoot, input.key);
+  const next = {
+    version: 1,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    credentials: current.credentials.filter((credential) => credential.sourceRefId !== input.sourceRefId).sort((a, b) => a.id.localeCompare(b.id))
+  };
+  await writeHarborLocalCredentials(projectRoot, next, input.key);
+  return next;
 }
 var HARBOR_LOCAL_CREDENTIAL_KEY_ENV = "HARBOR_LOCAL_CREDENTIAL_KEY";
 var init_credentials = __esm(() => {
@@ -27040,6 +27213,50 @@ async function readHarborLocalMcpSource(projectRoot, sourceId) {
       createdAt: String(row["created_at"]),
       updatedAt: String(row["updated_at"])
     };
+  } finally {
+    db.close();
+  }
+}
+async function listHarborLocalMcpSources(projectRoot) {
+  await ensureHarborLocalProject({ projectRoot });
+  const db = openDatabase2(projectRoot);
+  let ids;
+  try {
+    const rows = db.prepare(`
+      SELECT id
+      FROM mcp_sources
+      WHERE workspace_id = ?
+      ORDER BY name ASC, id ASC
+    `).all(LOCAL_WORKSPACE_ID);
+    ids = rows.map((row) => row["id"]).filter((id2) => typeof id2 === "string");
+  } finally {
+    db.close();
+  }
+  const sources = [];
+  for (const id2 of ids) {
+    const source = await readHarborLocalMcpSource(projectRoot, id2);
+    if (source)
+      sources.push(source);
+  }
+  return sources;
+}
+async function removeHarborLocalMcpSource(input) {
+  await ensureHarborLocalProject({ projectRoot: input.projectRoot });
+  const db = openDatabase2(input.projectRoot);
+  try {
+    const existing = db.prepare("SELECT id FROM mcp_sources WHERE workspace_id = ? AND id = ?").all(LOCAL_WORKSPACE_ID, input.sourceId)[0];
+    if (!existing)
+      return { sourceId: input.sourceId, removed: false };
+    db.prepare("DELETE FROM mcp_source_headers WHERE workspace_id = ? AND source_id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    db.prepare("DELETE FROM mcp_source_query_params WHERE workspace_id = ? AND source_id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    db.prepare("DELETE FROM mcp_tool_bindings WHERE workspace_id = ? AND source_id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    db.prepare("DELETE FROM tool_index WHERE workspace_id = ? AND source_ref_id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    db.prepare("DELETE FROM oauth_pending_flows WHERE workspace_id = ? AND source_ref_id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    db.prepare("DELETE FROM oauth_grants WHERE workspace_id = ? AND source_ref_id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    db.prepare("DELETE FROM oauth_clients WHERE workspace_id = ? AND source_ref_id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    db.prepare("DELETE FROM credential_metadata WHERE workspace_id = ? AND source_ref_id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    db.prepare("DELETE FROM mcp_sources WHERE workspace_id = ? AND id = ?").run(LOCAL_WORKSPACE_ID, input.sourceId);
+    return { sourceId: input.sourceId, removed: true };
   } finally {
     db.close();
   }
@@ -27546,10 +27763,18 @@ function hashHarborLocalToken(token) {
 function createHarborLocalToken() {
   return randomBytes3(32).toString("base64url");
 }
-async function listen(server) {
+function validatePort(port) {
+  if (port === undefined)
+    return 0;
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error("Harbor local daemon port must be an integer between 1 and 65535.");
+  }
+  return port;
+}
+async function listen(server, port) {
   return await new Promise((resolve2, reject) => {
     server.once("error", reject);
-    server.listen(0, "127.0.0.1", () => {
+    server.listen(validatePort(port), "127.0.0.1", () => {
       server.off("error", reject);
       const address = server.address();
       resolve2(address.port);
@@ -27689,7 +27914,7 @@ async function startHarborLocalDaemon(input) {
       json3(res, 500, { ok: false, code: "runtime_error", message: error.message });
     });
   });
-  const port = await listen(server);
+  const port = await listen(server, input.port);
   info = {
     projectRoot: input.projectRoot,
     workspaceId: LOCAL_WORKSPACE_ID,
@@ -27730,6 +27955,83 @@ var init_daemon = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/mcp-runtime.ts
+function validHttpUrl(value3) {
+  if (!value3)
+    return;
+  try {
+    const url = new URL(value3);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString().replace(/\/$/, "") : undefined;
+  } catch {
+    return;
+  }
+}
+function wellKnownUrl(base2, name, preserveQuery = false) {
+  const input = new URL(base2);
+  const pathSuffix = input.pathname === "/" ? "" : input.pathname.replace(/\/$/, "");
+  const url = new URL(input.origin);
+  url.pathname = name === "openid-configuration" ? `${pathSuffix}/.well-known/openid-configuration` : `/.well-known/${name}${pathSuffix}`;
+  url.search = preserveQuery ? input.search : "";
+  url.hash = "";
+  return url.toString();
+}
+async function fetchDiscoveryJson(url, fetchImpl) {
+  const controller = new AbortController;
+  const timer = setTimeout(() => controller.abort(), OAUTH_DISCOVERY_TIMEOUT_MS);
+  try {
+    const res = await (fetchImpl ?? fetch)(url, {
+      headers: {
+        accept: "application/json",
+        "mcp-protocol-version": "2025-03-26"
+      },
+      signal: controller.signal
+    });
+    if (!res.ok)
+      return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType && !contentType.toLowerCase().includes("json"))
+      return null;
+    return await res.json();
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+async function discoverHarborLocalMcpOAuth(input) {
+  const endpoint = validHttpUrl(input.endpoint);
+  if (!endpoint)
+    return null;
+  const endpointUrl = new URL(endpoint);
+  const resourceCandidates = [
+    wellKnownUrl(endpoint, "oauth-protected-resource", true),
+    ...endpointUrl.pathname !== "/" ? [wellKnownUrl(endpointUrl.origin, "oauth-protected-resource")] : []
+  ];
+  let resourceMeta = null;
+  for (const candidate of resourceCandidates) {
+    resourceMeta = await fetchDiscoveryJson(candidate, input.fetch);
+    if (resourceMeta)
+      break;
+  }
+  const authorizationServer = validHttpUrl(resourceMeta?.authorization_servers?.[0]) ?? endpointUrl.origin;
+  const authMeta = await fetchDiscoveryJson(wellKnownUrl(authorizationServer, "oauth-authorization-server"), input.fetch) ?? await fetchDiscoveryJson(wellKnownUrl(authorizationServer, "openid-configuration"), input.fetch);
+  const authorizationEndpoint = validHttpUrl(authMeta?.authorization_endpoint);
+  const tokenEndpoint = validHttpUrl(authMeta?.token_endpoint);
+  if (!authorizationEndpoint || !tokenEndpoint)
+    return null;
+  const registrationEndpoint = validHttpUrl(authMeta?.registration_endpoint);
+  const scopes = resourceMeta?.scopes_supported?.length ? resourceMeta.scopes_supported : authMeta?.scopes_supported ?? [];
+  return {
+    authorizationServer,
+    authorizationEndpoint,
+    tokenEndpoint,
+    ...registrationEndpoint ? { registrationEndpoint } : {},
+    scopes: [...scopes],
+    ...resourceMeta?.resource ? { resource: resourceMeta.resource } : {},
+    hasDynamicRegistration: !!registrationEndpoint,
+    ...authMeta?.token_endpoint_auth_methods_supported ? { tokenEndpointAuthMethods: [...authMeta.token_endpoint_auth_methods_supported] } : {},
+    ...authMeta?.revocation_endpoint ? { revocationEndpoint: authMeta.revocation_endpoint } : {}
+  };
+}
 function titleFromToolName(name) {
   return name.split(/[_-]+/g).filter(Boolean).map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`).join(" ");
 }
@@ -27859,6 +28161,7 @@ async function connectHarborLocalMcpOAuthSource(input) {
   };
   const daemon = await startHarborLocalDaemon({
     projectRoot: input.projectRoot,
+    port: input.port,
     now: input.now,
     oauth: {
       env: input.env,
@@ -28072,6 +28375,7 @@ async function createHarborLocalMcpToolIndexFromBindings(projectRoot, sourceId) 
     });
   return createHarborLocalToolIndex(await searchableRecordsForSource(projectRoot, source));
 }
+var OAUTH_DISCOVERY_TIMEOUT_MS = 8000;
 var init_mcp_runtime = __esm(() => {
   init_src2();
   init_src3();
@@ -28080,6 +28384,138 @@ var init_mcp_runtime = __esm(() => {
   init_oauth();
   init_daemon();
   init_errors();
+});
+
+// packages/sdk/runtime-local/src/invocations.ts
+import { createRequire as createRequire6 } from "node:module";
+function loadDatabase4() {
+  const req = createRequire6(import.meta.url);
+  try {
+    return req("bun:sqlite").Database;
+  } catch {
+    try {
+      return req("node:sqlite").DatabaseSync;
+    } catch {
+      throw new Error("Local invocation store requires bun:sqlite or node:sqlite");
+    }
+  }
+}
+function openDatabase4(projectRoot) {
+  const Database = loadDatabase4();
+  return new Database(harborLocalPaths(projectRoot).sqlite);
+}
+function ensureInvocationTable(db) {
+  db.exec(`
+CREATE TABLE IF NOT EXISTS tool_invocations (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_ref_id TEXT,
+  namespace TEXT NOT NULL,
+  tool_id TEXT NOT NULL,
+  input_json TEXT,
+  output_json TEXT,
+  error_json TEXT,
+  ok INTEGER NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_workspace_created ON tool_invocations(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_tool ON tool_invocations(workspace_id, tool_id, created_at DESC);
+`.trim());
+}
+function json4(value3) {
+  return value3 === undefined ? null : JSON.stringify(value3);
+}
+function parseJson5(value3) {
+  if (typeof value3 !== "string" || value3.length === 0)
+    return;
+  return JSON.parse(value3);
+}
+function timestamp4(now2) {
+  return (now2 ?? (() => new Date))().toISOString();
+}
+function randomId() {
+  return globalThis.crypto?.randomUUID?.() ?? `invocation_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+}
+function rowToInvocation(row) {
+  return {
+    id: String(row["id"]),
+    workspaceId: LOCAL_WORKSPACE_ID,
+    ...typeof row["source_ref_id"] === "string" ? { sourceRefId: row["source_ref_id"] } : {},
+    namespace: String(row["namespace"]),
+    toolId: String(row["tool_id"]),
+    ...parseJson5(row["input_json"]) !== undefined ? { input: parseJson5(row["input_json"]) } : {},
+    ...parseJson5(row["output_json"]) !== undefined ? { output: parseJson5(row["output_json"]) } : {},
+    ...parseJson5(row["error_json"]) !== undefined ? { error: parseJson5(row["error_json"]) } : {},
+    ok: Number(row["ok"]) === 1,
+    durationMs: Number(row["duration_ms"] ?? 0),
+    createdAt: String(row["created_at"])
+  };
+}
+async function recordHarborLocalToolInvocation(input) {
+  await ensureHarborLocalProject({ projectRoot: input.projectRoot });
+  const db = openDatabase4(input.projectRoot);
+  const id2 = randomId();
+  const createdAt = timestamp4(input.invocation.now);
+  try {
+    ensureInvocationTable(db);
+    db.prepare(`
+      INSERT INTO tool_invocations (
+        id, workspace_id, source_ref_id, namespace, tool_id, input_json,
+        output_json, error_json, ok, duration_ms, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(id2, LOCAL_WORKSPACE_ID, input.invocation.sourceRefId ?? null, input.invocation.namespace, input.invocation.toolId, json4(input.invocation.input), json4(input.invocation.output), json4(input.invocation.error), input.invocation.ok ? 1 : 0, Math.max(0, Math.round(input.invocation.durationMs)), createdAt);
+  } finally {
+    db.close();
+  }
+  return {
+    id: id2,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    ...input.invocation.sourceRefId !== undefined ? { sourceRefId: input.invocation.sourceRefId } : {},
+    namespace: input.invocation.namespace,
+    toolId: input.invocation.toolId,
+    ...input.invocation.input !== undefined ? { input: input.invocation.input } : {},
+    ...input.invocation.output !== undefined ? { output: input.invocation.output } : {},
+    ...input.invocation.error !== undefined ? { error: input.invocation.error } : {},
+    ok: input.invocation.ok,
+    durationMs: Math.max(0, Math.round(input.invocation.durationMs)),
+    createdAt
+  };
+}
+async function listHarborLocalToolInvocations(projectRoot, input = {}) {
+  await ensureHarborLocalProject({ projectRoot });
+  const db = openDatabase4(projectRoot);
+  try {
+    ensureInvocationTable(db);
+    const clauses = ["workspace_id = ?"];
+    const args2 = [LOCAL_WORKSPACE_ID];
+    if (input.namespace !== undefined) {
+      clauses.push("namespace = ?");
+      args2.push(input.namespace);
+    }
+    if (input.toolId !== undefined) {
+      clauses.push("tool_id = ?");
+      args2.push(input.toolId);
+    }
+    if (input.sourceRefId !== undefined) {
+      clauses.push("source_ref_id = ?");
+      args2.push(input.sourceRefId);
+    }
+    const limit = Math.max(1, Math.min(input.limit ?? 50, 500));
+    const rows = db.prepare(`
+      SELECT *
+        FROM tool_invocations
+       WHERE ${clauses.join(" AND ")}
+       ORDER BY created_at DESC, id DESC
+       LIMIT ?
+    `).all(...args2, limit);
+    return rows.map(rowToInvocation);
+  } finally {
+    db.close();
+  }
+}
+var init_invocations = __esm(() => {
+  init_src4();
 });
 
 // node_modules/.bun/valibot@1.4.0+1fb4c65d43e298b9/node_modules/valibot/dist/index.mjs
@@ -28505,6 +28941,36 @@ function normalizeInvokeInput(input) {
     return input;
   }
 }
+function namespaceFromToolId(toolId2) {
+  const index2 = toolId2.indexOf(".");
+  return index2 === -1 ? toolId2 : toolId2.slice(0, index2);
+}
+function errorPayload(error) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ..."code" in error ? { code: error.code } : {},
+      ..."details" in error ? { details: error.details } : {}
+    };
+  }
+  return error;
+}
+async function recordInvocation(input, invocation) {
+  await recordHarborLocalToolInvocation({
+    projectRoot: input.projectRoot,
+    invocation: {
+      sourceRefId: namespaceFromToolId(invocation.toolId),
+      namespace: namespaceFromToolId(invocation.toolId),
+      toolId: invocation.toolId,
+      input: invocation.input,
+      ...invocation.output !== undefined ? { output: invocation.output } : {},
+      ...invocation.error !== undefined ? { error: invocation.error } : {},
+      ok: invocation.ok,
+      durationMs: invocation.durationMs
+    }
+  });
+}
 async function runHarborLocalRegistryAction(input) {
   const runtime = await createHarborLocalMcpToolRuntime({
     projectRoot: input.projectRoot,
@@ -28531,22 +28997,51 @@ async function runHarborLocalRegistryAction(input) {
   }
   const tool = runtime.describe(input.action.toolId);
   const isWriteTool = input.isWriteTool ?? harborLocalDefaultWriteToolMatcher;
+  const invokeInput = normalizeInvokeInput(input.action.input);
+  const startedAt = Date.now();
   if (isWriteTool({ toolId: input.action.toolId, tool }) && input.confirmWrites !== true) {
+    const reason = input.writeBlockedReason ?? "Write tool blocked. Pass confirmWrites: true to allow this local tool invocation.";
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      error: { code: "local_write_confirmation_required", message: reason },
+      ok: false,
+      durationMs: Date.now() - startedAt
+    });
     return {
       kind: "invoke",
       blocked: true,
       toolId: input.action.toolId,
-      reason: input.writeBlockedReason ?? "Write tool blocked. Pass confirmWrites: true to allow this local tool invocation."
+      reason
     };
   }
-  return {
-    kind: "invoke",
-    blocked: false,
-    result: await runtime.call({
+  try {
+    const result2 = await runtime.call({
       toolId: input.action.toolId,
-      input: normalizeInvokeInput(input.action.input)
-    })
-  };
+      input: invokeInput
+    });
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      output: result2.output,
+      ok: true,
+      durationMs: Date.now() - startedAt
+    });
+    return {
+      kind: "invoke",
+      blocked: false,
+      result: result2
+    };
+  } catch (error) {
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      error: errorPayload(error),
+      ok: false,
+      durationMs: Date.now() - startedAt
+    });
+    throw error;
+  }
 }
 var harborLocalRegistryActionSchema, harborLocalRegistryAgentStepSchema, WRITE_TOOL_PATTERN, harborLocalDefaultWriteToolMatcher = ({
   toolId: toolId2,
@@ -28555,6 +29050,7 @@ var harborLocalRegistryActionSchema, harborLocalRegistryAgentStepSchema, WRITE_T
 var init_tool_registry_actions = __esm(() => {
   init_mcp_runtime();
   init_errors();
+  init_invocations();
   init_dist5();
   harborLocalRegistryActionSchema = variant2("kind", [
     object2({
@@ -28588,9 +29084,9 @@ var init_tool_registry_actions = __esm(() => {
 });
 
 // packages/sdk/runtime-local/src/exec.ts
-import { createRequire as createRequire6 } from "node:module";
-function loadDatabase4() {
-  const req = createRequire6(import.meta.url);
+import { createRequire as createRequire7 } from "node:module";
+function loadDatabase5() {
+  const req = createRequire7(import.meta.url);
   try {
     return req("bun:sqlite").Database;
   } catch {
@@ -28652,7 +29148,7 @@ function referencedIdentifiers(code) {
   return refs;
 }
 async function listExecBindings(input) {
-  const Database = loadDatabase4();
+  const Database = loadDatabase5();
   const db = new Database(harborLocalPaths(input.projectRoot).sqlite);
   try {
     const rows = db.prepare(`
@@ -28804,8 +29300,38 @@ ${code}
                 details: { toolId: toolId2 }
               });
             }
-            const result2 = await toolRuntime.call({ toolId: toolId2, input: request.input ?? {} });
-            return result2.output;
+            const toolInput = request.input ?? {};
+            const toolStarted = Date.now();
+            try {
+              const result2 = await toolRuntime.call({ toolId: toolId2, input: toolInput });
+              await recordHarborLocalToolInvocation({
+                projectRoot: input.projectRoot,
+                invocation: {
+                  sourceRefId: namespace,
+                  namespace,
+                  toolId: toolId2,
+                  input: toolInput,
+                  output: result2.output,
+                  ok: true,
+                  durationMs: Date.now() - toolStarted
+                }
+              });
+              return result2.output;
+            } catch (error) {
+              await recordHarborLocalToolInvocation({
+                projectRoot: input.projectRoot,
+                invocation: {
+                  sourceRefId: namespace,
+                  namespace,
+                  toolId: toolId2,
+                  input: toolInput,
+                  error: error instanceof Error ? { name: error.name, message: error.message } : error,
+                  ok: false,
+                  durationMs: Date.now() - toolStarted
+                }
+              });
+              throw error;
+            }
           }
         });
         return {
@@ -28836,6 +29362,7 @@ var init_exec = __esm(() => {
   init_mcp_runtime();
   init_src4();
   init_errors();
+  init_invocations();
 });
 
 // packages/sdk/runtime-local/src/registry.ts
@@ -29091,9 +29618,12 @@ __export(exports_src, {
   runHarborLocalAppRoute: () => runHarborLocalAppRoute,
   requireHarborLocalConfirmation: () => requireHarborLocalConfirmation,
   removeHarborRegistryDevRef: () => removeHarborRegistryDevRef,
+  removeHarborLocalMcpSource: () => removeHarborLocalMcpSource,
+  removeHarborLocalCredentialsForSource: () => removeHarborLocalCredentialsForSource,
   refreshHarborLocalOAuthGrant: () => refreshHarborLocalOAuthGrant,
   refreshHarborLocalMcpSource: () => refreshHarborLocalMcpSource,
   redactHarborSecret: () => redactHarborSecret,
+  recordHarborLocalToolInvocation: () => recordHarborLocalToolInvocation,
   readHarborRegistryDevRefs: () => readHarborRegistryDevRefs,
   readHarborLocalRuntimeManifest: () => readHarborLocalRuntimeManifest,
   readHarborLocalOAuthStatus: () => readHarborLocalOAuthStatus,
@@ -29105,8 +29635,10 @@ __export(exports_src, {
   putHarborLocalMcpToolBindings: () => putHarborLocalMcpToolBindings,
   probeHarborLocalMcpSource: () => probeHarborLocalMcpSource,
   matchHarborLocalAppRoute: () => matchHarborLocalAppRoute,
+  listHarborLocalToolInvocations: () => listHarborLocalToolInvocations,
   listHarborLocalSources: () => listHarborLocalSources,
   listHarborLocalMcpToolBindings: () => listHarborLocalMcpToolBindings,
+  listHarborLocalMcpSources: () => listHarborLocalMcpSources,
   isHarborLocalError: () => isHarborLocalError,
   installHarborLocalPluginManifest: () => installHarborLocalPluginManifest,
   installHarborLocalMcpPlugin: () => installHarborLocalMcpPlugin,
@@ -29131,6 +29663,7 @@ __export(exports_src, {
   ensureHarborLocalProject: () => ensureHarborLocalProject,
   ensureHarborLocalDaemonConnection: () => ensureHarborLocalDaemonConnection,
   ensureHarborGitignore: () => ensureHarborGitignore,
+  discoverHarborLocalMcpOAuth: () => discoverHarborLocalMcpOAuth,
   createHarborLocalWorkflowReplayFixture: () => createHarborLocalWorkflowReplayFixture,
   createHarborLocalToolIndex: () => createHarborLocalToolIndex,
   createHarborLocalToken: () => createHarborLocalToken,
@@ -29249,6 +29782,7 @@ var init_src4 = __esm(() => {
   init_quickjs();
   init_exec();
   init_tool_registry_actions();
+  init_invocations();
   init_plugin_store();
   init_credentials();
   init_registry();
@@ -29423,6 +29957,3571 @@ var catalog_default = {
     "xero-mcp",
     "pinterest-mcp",
     "whoop-api"
+  ]
+};
+// packages/sdk/registry-catalog/data/v1/local-mcp-catalog.json
+var local_mcp_catalog_default = {
+  version: 1,
+  source: {
+    kind: "harbor-main-staging-d1",
+    table: "plugin_registry_entries + plugin_registry_entry_admin_overrides",
+    rowFilter: "effective kind = 'mcp' and is_active = 1"
+  },
+  entries: [
+    {
+      slug: "ahrefs-mcp",
+      displayName: "Ahrefs MCP",
+      description: "SEO, keyword, backlink, and site data via MCP",
+      category: "analytics",
+      defaultNamespace: "ahrefs-mcp",
+      endpoint: "https://api.ahrefs.com/mcp/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/ahrefs-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.ahrefs.com/docs/mcp/introduction"
+        }
+      ]
+    },
+    {
+      slug: "airtable-mcp",
+      displayName: "Airtable MCP",
+      description: "Bases, tables, records, and schema management",
+      category: "data",
+      defaultNamespace: "airtable-mcp",
+      endpoint: "https://mcp.airtable.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/airtable-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://support.airtable.com/docs/using-the-airtable-mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "amplitude-mcp",
+      displayName: "Amplitude MCP",
+      description: "Product analytics, user behavior data, and cohorts",
+      category: "analytics",
+      defaultNamespace: "amplitude-mcp",
+      endpoint: "https://mcp.amplitude.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/amplitude-mcp.png",
+      links: []
+    },
+    {
+      slug: "apify-mcp",
+      displayName: "Apify MCP",
+      description: "Web scraping, automation, and data extraction actors",
+      category: "web",
+      defaultNamespace: "apify-mcp",
+      endpoint: "https://mcp.apify.com",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/apify-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.apify.com/platform/integrations/mcp"
+        }
+      ]
+    },
+    {
+      slug: "apollo-mcp",
+      displayName: "Apollo.io MCP",
+      description: "Prospect search, contact enrichment, and outbound campaigns",
+      category: "data",
+      defaultNamespace: "apollo-mcp",
+      endpoint: "https://mcp.apollo.io/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/apollo-mcp.svg",
+      links: []
+    },
+    {
+      slug: "asana-mcp",
+      displayName: "Asana MCP",
+      description: "Task management, projects, and workspace operations",
+      category: "dev",
+      defaultNamespace: "asana-mcp",
+      endpoint: "https://mcp.asana.com/v2/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/asana-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.asana.com/docs/mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "atlassian-mcp",
+      displayName: "Atlassian MCP",
+      description: "Jira issues, Confluence pages, and Bitbucket repositories",
+      category: "dev",
+      defaultNamespace: "atlassian-mcp",
+      endpoint: "https://mcp.atlassian.com/v1/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/atlassian-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developer.atlassian.com/cloud/mcp"
+        }
+      ]
+    },
+    {
+      slug: "attio-mcp",
+      displayName: "Attio MCP",
+      description: "CRM search, records, and workspace operations via MCP",
+      category: "data",
+      defaultNamespace: "attio-mcp",
+      endpoint: "https://mcp.attio.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/attio-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.attio.com/mcp/overview"
+        }
+      ]
+    },
+    {
+      slug: "axiom-mcp",
+      displayName: "Axiom MCP",
+      description: "Query, stream, and analyze logs, traces, and event data via MCP",
+      category: "observability",
+      defaultNamespace: "axiom-mcp",
+      endpoint: "https://mcp.axiom.co/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/axiom-mcp.svg",
+      links: []
+    },
+    {
+      slug: "azure-devops-mcp",
+      displayName: "Azure DevOps MCP",
+      description: "Boards, repositories, pipelines, and work items",
+      category: "dev",
+      defaultNamespace: "azure-devops-mcp",
+      endpoint: "https://mcp.dev.azure.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/azure-devops-mcp.svg",
+      links: []
+    },
+    {
+      slug: "betterstack-mcp",
+      displayName: "Better Stack MCP",
+      description: "Uptime monitoring, telemetry, and incident management",
+      category: "observability",
+      defaultNamespace: "betterstack-mcp",
+      endpoint: "https://mcp.betterstack.com",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/betterstack-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://betterstack.com/docs/mcp"
+        }
+      ]
+    },
+    {
+      slug: "bitly-mcp",
+      displayName: "Bitly MCP",
+      description: "Short links, QR codes, and click analytics via MCP",
+      category: "web",
+      defaultNamespace: "bitly-mcp",
+      endpoint: "https://api-ssl.bitly.com/v4/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/bitly-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://dev.bitly.com/bitly-mcp/"
+        }
+      ]
+    },
+    {
+      slug: "box-mcp",
+      displayName: "Box MCP",
+      description: "Cloud content management, files, folders, and collaboration",
+      category: "storage",
+      defaultNamespace: "box-mcp",
+      endpoint: "https://mcp.box.com",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/box-mcp.svg",
+      links: []
+    },
+    {
+      slug: "brevo-mcp",
+      displayName: "Brevo MCP",
+      description: "Email campaigns, contacts, transactional email, and SMS",
+      category: "comms",
+      defaultNamespace: "brevo-mcp",
+      endpoint: "https://mcp.brevo.com/v1/brevo/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/brevo-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.brevo.com/docs/mcp-protocol"
+        }
+      ]
+    },
+    {
+      slug: "brightdata-mcp",
+      displayName: "Bright Data MCP",
+      description: "Web scraping, data collection, and proxy infrastructure",
+      category: "web",
+      defaultNamespace: "brightdata-mcp",
+      endpoint: "https://mcp.brightdata.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/brightdata-mcp.svg",
+      links: []
+    },
+    {
+      slug: "browserbase-mcp",
+      displayName: "Browserbase MCP",
+      description: "Cloud browser automation via MCP",
+      category: "web",
+      defaultNamespace: "browserbase-mcp",
+      endpoint: "https://mcp.browserbase.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "query",
+        requiredSecrets: [
+          "BROWSERBASE_API_KEY"
+        ],
+        queryParam: "browserbaseApiKey"
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/browserbase-mcp.svg",
+      links: []
+    },
+    {
+      slug: "buffer-mcp",
+      displayName: "Buffer MCP",
+      description: "Social media scheduling, publishing, and analytics",
+      category: "comms",
+      defaultNamespace: "buffer-mcp",
+      endpoint: "https://mcp.buffer.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/buffer-mcp.svg",
+      links: []
+    },
+    {
+      slug: "buildkite-mcp",
+      displayName: "Buildkite MCP",
+      description: "Pipelines, builds, jobs, and test analytics",
+      category: "dev",
+      defaultNamespace: "buildkite-mcp",
+      endpoint: "https://mcp.buildkite.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/buildkite-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://buildkite.com/docs/apis/mcp"
+        }
+      ]
+    },
+    {
+      slug: "calendly-mcp",
+      displayName: "Calendly MCP",
+      description: "Availability, scheduling, and event type workflows via MCP",
+      category: "comms",
+      defaultNamespace: "calendly-mcp",
+      endpoint: "https://mcp.calendly.com",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/calendly-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developer.calendly.com/calendly-mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "canva-mcp",
+      displayName: "Canva MCP",
+      description: "Create designs, autofill templates, and design manipulation",
+      category: "media",
+      defaultNamespace: "canva-mcp",
+      endpoint: "https://mcp.canva.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/canva-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://canva.dev/docs/mcp/"
+        }
+      ]
+    },
+    {
+      slug: "clerk-mcp",
+      displayName: "Clerk Docs",
+      description: "Clerk SDK snippets, documentation, and developer guides",
+      category: "dev",
+      defaultNamespace: "clerk-mcp",
+      endpoint: "https://mcp.clerk.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/clerk-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://clerk.com/docs/guides/development/mcp/clerk-mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "clickup-mcp",
+      displayName: "ClickUp MCP",
+      description: "Tasks, projects, and workspace management",
+      category: "dev",
+      defaultNamespace: "clickup-mcp",
+      endpoint: "https://mcp.clickup.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/clickup-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developer.clickup.com/docs"
+        }
+      ]
+    },
+    {
+      slug: "close-mcp",
+      displayName: "Close MCP",
+      description: "CRM leads, contacts, and opportunity management",
+      category: "data",
+      defaultNamespace: "close-mcp",
+      endpoint: "https://mcp.close.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/close-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://help.close.com/docs/mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "cloudflare-mcp",
+      displayName: "Cloudflare MCP",
+      description: "Workers, KV, R2, and edge infrastructure via MCP",
+      category: "infra",
+      defaultNamespace: "cloudflare-mcp",
+      endpoint: "https://mcp.cloudflare.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/cloudflare-mcp.svg",
+      links: []
+    },
+    {
+      slug: "cloudinary-mcp",
+      displayName: "Cloudinary MCP",
+      description: "Upload, manage, transform, and analyze media assets",
+      category: "media",
+      defaultNamespace: "cloudinary-mcp",
+      endpoint: "https://asset-management.mcp.cloudinary.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/cloudinary-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://console.cloudinary.com/documentation/cloudinary_llm_mcp"
+        }
+      ]
+    },
+    {
+      slug: "coingecko-mcp",
+      displayName: "CoinGecko MCP",
+      description: "Cryptocurrency market data, prices, and exchange information",
+      category: "data",
+      defaultNamespace: "coingecko-mcp",
+      endpoint: "https://mcp.api.coingecko.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/coingecko-mcp.png",
+      links: []
+    },
+    {
+      slug: "context7-mcp",
+      displayName: "Context7 Docs",
+      description: "Up-to-date library and framework documentation",
+      category: "dev",
+      defaultNamespace: "context7",
+      endpoint: "https://mcp.context7.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/context7-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://context7.com"
+        }
+      ]
+    },
+    {
+      slug: "customerio-mcp",
+      displayName: "Customer.io MCP",
+      description: "Customer engagement, user profiles, segments, and campaigns",
+      category: "comms",
+      defaultNamespace: "customerio-mcp",
+      endpoint: "https://mcp.customer.io/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/customerio-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.customer.io/ai/mcp-server/"
+        }
+      ]
+    },
+    {
+      slug: "cypress-mcp",
+      displayName: "Cypress Cloud MCP",
+      description: "Test results, debugging, and CI/CD test analytics",
+      category: "dev",
+      defaultNamespace: "cypress-mcp",
+      endpoint: "https://mcp.cypress.io/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/cypress-mcp.svg",
+      links: []
+    },
+    {
+      slug: "datadog-mcp",
+      displayName: "Datadog MCP",
+      description: "Logs, metrics, traces, dashboards, monitors, and incidents",
+      category: "observability",
+      defaultNamespace: "datadog-mcp",
+      endpoint: "https://mcp.datadoghq.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/datadog-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.datadoghq.com/bits_ai/mcp_server/"
+        }
+      ]
+    },
+    {
+      slug: "deepwiki-mcp",
+      displayName: "DeepWiki Docs",
+      description: "Read GitHub repository wikis and knowledge graphs",
+      category: "dev",
+      defaultNamespace: "deepwiki",
+      endpoint: "https://mcp.deepwiki.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/deepwiki-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://deepwiki.com"
+        }
+      ]
+    },
+    {
+      slug: "devrev-mcp",
+      displayName: "DevRev MCP",
+      description: "Product development platform with issues, tickets, and knowledge",
+      category: "dev",
+      defaultNamespace: "devrev-mcp",
+      endpoint: "https://api.devrev.ai/mcp/v1",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/devrev-mcp.png",
+      links: []
+    },
+    {
+      slug: "digitalocean-mcp",
+      displayName: "DigitalOcean MCP",
+      description: "App Platform, Kubernetes, networking, and infrastructure",
+      category: "infra",
+      defaultNamespace: "digitalocean-mcp",
+      endpoint: "https://apps.mcp.digitalocean.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/digitalocean-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.digitalocean.com/products/mcp"
+        }
+      ]
+    },
+    {
+      slug: "dodo-payments-mcp",
+      displayName: "Dodo Payments MCP",
+      description: "Payment processing and merchant tools via code generation",
+      category: "data",
+      defaultNamespace: "dodo-payments-mcp",
+      endpoint: "https://mcp.dodopayments.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/dodo-payments-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.dodopayments.com/developer-resources/mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "dropbox-mcp",
+      displayName: "Dropbox MCP",
+      description: "File storage, sharing, and search across Dropbox and Dash",
+      category: "storage",
+      defaultNamespace: "dropbox-mcp",
+      endpoint: "https://mcp.dropbox.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/dropbox-mcp.svg",
+      links: []
+    },
+    {
+      slug: "exa-mcp",
+      displayName: "Exa MCP",
+      description: "AI-native web search, code context retrieval, and content extraction",
+      category: "search",
+      defaultNamespace: "exa-mcp",
+      endpoint: "https://mcp.exa.ai/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/exa-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://exa.ai/docs/reference/exa-mcp"
+        }
+      ]
+    },
+    {
+      slug: "fal-mcp",
+      displayName: "fal.ai MCP",
+      description: "Access 1,000+ AI models for image, video, and audio generation",
+      category: "ai",
+      defaultNamespace: "fal-mcp",
+      endpoint: "https://mcp.fal.ai/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/fal-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://blog.fal.ai/connect-your-ai-to-1-000-models-with-the-fal-mcp-server/"
+        }
+      ]
+    },
+    {
+      slug: "figma-mcp",
+      displayName: "Figma MCP",
+      description: "Design context, component data, and canvas edits via MCP",
+      category: "dev",
+      defaultNamespace: "figma-mcp",
+      endpoint: "https://mcp.figma.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/figma-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.figma.com/docs/figma-mcp-server/"
+        }
+      ]
+    },
+    {
+      slug: "firecrawl-mcp",
+      displayName: "Firecrawl MCP",
+      description: "Web scraping and crawling via MCP",
+      category: "web",
+      defaultNamespace: "firecrawl-mcp",
+      endpoint: "https://mcp.firecrawl.dev/v2/mcp",
+      transport: "http",
+      auth: {
+        mode: "bearer",
+        requiredSecrets: [
+          "FIRECRAWL_API_KEY"
+        ]
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/firecrawl-mcp.svg",
+      links: []
+    },
+    {
+      slug: "freshdesk-mcp",
+      displayName: "Freshdesk MCP",
+      description: "Customer support tickets, contacts, and knowledge base",
+      category: "comms",
+      defaultNamespace: "freshdesk-mcp",
+      endpoint: "https://mcp.freshdesk.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/freshdesk-mcp.svg",
+      links: []
+    },
+    {
+      slug: "github-mcp",
+      displayName: "GitHub MCP",
+      description: "Repositories, issues, PRs, code search, and CI/CD workflows",
+      category: "dev",
+      defaultNamespace: "github-mcp",
+      endpoint: "https://api.githubcopilot.com/mcp/",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: true,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/github-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.github.com/en/copilot/tutorials/using-github-mcp"
+        }
+      ]
+    },
+    {
+      slug: "globalping-mcp",
+      displayName: "Globalping MCP",
+      description: "Network diagnostics — ping, traceroute, DNS, and HTTP from global probes",
+      category: "dev",
+      defaultNamespace: "globalping-mcp",
+      endpoint: "https://mcp.globalping.dev/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/globalping-mcp.svg",
+      links: []
+    },
+    {
+      slug: "gmail-mcp",
+      displayName: "Gmail",
+      description: "Read, search, draft, send, label, and triage Gmail messages on behalf of the connected user",
+      category: "comms",
+      defaultNamespace: "gmail",
+      endpoint: "https://backend.composio.dev/v3/mcp/49d5a85a-a4ff-4842-a0ea-e545b3a1d7c3/mcp?user_id={user_id}",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://logos.composio.dev/api/gmail",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.google.com/gmail/api"
+        }
+      ]
+    },
+    {
+      slug: "google-calendar-mcp",
+      displayName: "Google Calendar",
+      description: "List, create, and update calendar events; read free/busy across calendars",
+      category: "comms",
+      defaultNamespace: "google-calendar",
+      endpoint: "https://backend.composio.dev/v3/mcp/5dea3930-4d0b-4f5a-9441-a015d54747cc/mcp?user_id={user_id}",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://logos.composio.dev/api/googlecalendar",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.google.com/calendar/api"
+        }
+      ]
+    },
+    {
+      slug: "google-docs-mcp",
+      displayName: "Google Docs",
+      description: "Read and append content to Google Docs as markdown",
+      category: "data",
+      defaultNamespace: "google-docs",
+      endpoint: "https://backend.composio.dev/v3/mcp/587d655f-9574-454a-80ce-04a3d3d4c8e0/mcp?user_id={user_id}",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://logos.composio.dev/api/googledocs",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.google.com/docs/api"
+        }
+      ]
+    },
+    {
+      slug: "google-drive-mcp",
+      displayName: "Google Drive",
+      description: "Search and read files in the connected user's Google Drive",
+      category: "storage",
+      defaultNamespace: "google-drive",
+      endpoint: "https://backend.composio.dev/v3/mcp/fc1c078c-7248-4437-8cf5-57acd0c2bdd7/mcp?user_id={user_id}",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://logos.composio.dev/api/googledrive",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.google.com/drive/api"
+        }
+      ]
+    },
+    {
+      slug: "google-maps-mcp",
+      displayName: "Google Maps MCP",
+      description: "Place search, geocoding, routing, and weather via Maps Grounding Lite",
+      category: "data",
+      defaultNamespace: "google-maps-mcp",
+      endpoint: "https://mapstools.googleapis.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/google-maps-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.google.com/maps/ai/grounding-lite/reference"
+        }
+      ]
+    },
+    {
+      slug: "google-sheets-mcp",
+      displayName: "Google Sheets",
+      description: "Read and write Google Sheets ranges, append rows, and create tabs",
+      category: "data",
+      defaultNamespace: "google-sheets",
+      endpoint: "https://backend.composio.dev/v3/mcp/ab99f337-9071-4b5f-be19-5d7a65e72638/mcp?user_id={user_id}",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://logos.composio.dev/api/googlesheets",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.google.com/sheets/api"
+        }
+      ]
+    },
+    {
+      slug: "granola-mcp",
+      displayName: "Granola MCP",
+      description: "Meeting notes, transcripts, and insights via MCP",
+      category: "comms",
+      defaultNamespace: "granola-mcp",
+      endpoint: "https://mcp.granola.ai/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/granola-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.granola.ai/help-center/sharing/integrations/mcp"
+        }
+      ]
+    },
+    {
+      slug: "heroku-mcp",
+      displayName: "Heroku MCP",
+      description: "Create and manage apps, dynos, add-ons, and deployments",
+      category: "infra",
+      defaultNamespace: "heroku-mcp",
+      endpoint: "https://mcp.heroku.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/heroku-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://heroku.com/blog/heroku-remote-mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "hex-mcp",
+      displayName: "Hex MCP",
+      description: "Search projects and run data threads in Hex via MCP",
+      category: "data",
+      defaultNamespace: "hex-mcp",
+      endpoint: "https://app.hex.tech/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/hex-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://learn.hex.tech/docs/api-integrations/mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "hubspot-mcp",
+      displayName: "HubSpot MCP",
+      description: "CRM contacts, deals, companies, tickets, and automation",
+      category: "data",
+      defaultNamespace: "hubspot-mcp",
+      endpoint: "https://mcp.hubspot.com",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/hubspot-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.hubspot.com/docs/apps/developer-platform/build-apps/integrate-with-hubspot-mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "huggingface-mcp",
+      displayName: "Hugging Face MCP",
+      description: "Models, datasets, spaces, and ML resources",
+      category: "ai",
+      defaultNamespace: "huggingface-mcp",
+      endpoint: "https://huggingface.co/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/huggingface-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://huggingface.co/docs/hub/mcp"
+        }
+      ]
+    },
+    {
+      slug: "incidentio-mcp",
+      displayName: "incident.io MCP",
+      description: "Incidents, alerts, on-call, and operational analysis via MCP",
+      category: "observability",
+      defaultNamespace: "incidentio-mcp",
+      endpoint: "https://mcp.incident.io/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/incidentio-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.incident.io/ai/remote-mcp"
+        }
+      ]
+    },
+    {
+      slug: "instacart-mcp",
+      displayName: "Instacart MCP",
+      description: "Product search, ordering, and cart management",
+      category: "data",
+      defaultNamespace: "instacart-mcp",
+      endpoint: "https://mcp.instacart.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/instacart-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.instacart.com/developer_platform_api/guide/tutorials/mcp/"
+        }
+      ]
+    },
+    {
+      slug: "intercom-mcp",
+      displayName: "Intercom MCP",
+      description: "Conversations, contacts, and ticket management",
+      category: "comms",
+      defaultNamespace: "intercom-mcp",
+      endpoint: "https://mcp.intercom.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/intercom-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://mcp.intercom.com"
+        }
+      ]
+    },
+    {
+      slug: "jina-mcp",
+      displayName: "Jina AI MCP",
+      description: "Web reading, search, and content extraction",
+      category: "web",
+      defaultNamespace: "jina-mcp",
+      endpoint: "https://mcp.jina.ai/v1",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/jina-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://mcp.jina.ai"
+        }
+      ]
+    },
+    {
+      slug: "lambdatest-mcp",
+      displayName: "LambdaTest MCP",
+      description: "Cross-browser testing, automation, and test analytics",
+      category: "dev",
+      defaultNamespace: "lambdatest-mcp",
+      endpoint: "https://mcp.lambdatest.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/lambdatest-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://www.lambdatest.com/support/docs/mcp-server/"
+        }
+      ]
+    },
+    {
+      slug: "linear-mcp",
+      displayName: "Linear MCP",
+      description: "Issue tracking and project management via MCP",
+      category: "dev",
+      defaultNamespace: "linear-mcp",
+      endpoint: "https://mcp.linear.app/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/linear-mcp.svg",
+      links: []
+    },
+    {
+      slug: "make-mcp",
+      displayName: "Make MCP",
+      description: "Run scenarios and manage automations via MCP",
+      category: "dev",
+      defaultNamespace: "make-mcp",
+      endpoint: "https://mcp.make.com",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/make-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.make.com/mcp-server/"
+        }
+      ]
+    },
+    {
+      slug: "mapbox-mcp",
+      displayName: "Mapbox MCP",
+      description: "Geocoding, directions, isochrones, and static maps",
+      category: "data",
+      defaultNamespace: "mapbox-mcp",
+      endpoint: "https://mcp.mapbox.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/mapbox-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.mapbox.com/api/guides/mcp-server/"
+        }
+      ]
+    },
+    {
+      slug: "mercury-mcp",
+      displayName: "Mercury MCP",
+      description: "Business banking accounts, balances, and transactions",
+      category: "data",
+      defaultNamespace: "mercury-mcp",
+      endpoint: "https://mcp.mercury.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/mercury-mcp.svg",
+      links: []
+    },
+    {
+      slug: "miro-mcp",
+      displayName: "Miro MCP",
+      description: "Board context, diagrams, and prototyping workflows via MCP",
+      category: "dev",
+      defaultNamespace: "miro-mcp",
+      endpoint: "https://mcp.miro.com/",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/miro-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.miro.com/docs/miro-mcp"
+        }
+      ]
+    },
+    {
+      slug: "mixpanel-mcp",
+      displayName: "Mixpanel MCP",
+      description: "Event analytics, funnels, retention, and user insights",
+      category: "analytics",
+      defaultNamespace: "mixpanel-mcp",
+      endpoint: "https://mcp.mixpanel.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/mixpanel-mcp.svg",
+      links: []
+    },
+    {
+      slug: "mollie-mcp",
+      displayName: "Mollie MCP",
+      description: "Payment processing, refunds, and subscription management",
+      category: "data",
+      defaultNamespace: "mollie-mcp",
+      endpoint: "https://mcp.mollie.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/mollie-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.mollie.com"
+        }
+      ]
+    },
+    {
+      slug: "monday-mcp",
+      displayName: "Monday.com MCP",
+      description: "Boards, items, users, and work OS automation via MCP",
+      category: "dev",
+      defaultNamespace: "monday-mcp",
+      endpoint: "https://mcp.monday.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/monday-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developer.monday.com/api-reference/docs/mondaycom-mcp-integration"
+        }
+      ]
+    },
+    {
+      slug: "neon-mcp",
+      displayName: "Neon MCP",
+      description: "Manage Postgres databases, branches, and queries via MCP",
+      category: "data",
+      defaultNamespace: "neon-mcp",
+      endpoint: "https://mcp.neon.tech/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/neon-mcp.svg",
+      links: []
+    },
+    {
+      slug: "newrelic-mcp",
+      displayName: "New Relic MCP",
+      description: "NRQL queries, entity management, metrics, logs, and alerts",
+      category: "observability",
+      defaultNamespace: "newrelic-mcp",
+      endpoint: "https://mcp.newrelic.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/newrelic-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.newrelic.com/docs/agentic-ai/mcp"
+        }
+      ]
+    },
+    {
+      slug: "notion-mcp",
+      displayName: "Notion MCP",
+      description: "Search, read, and update workspace pages and docs via MCP",
+      category: "dev",
+      defaultNamespace: "notion-mcp",
+      endpoint: "https://mcp.notion.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "oauth2",
+        requiredSecrets: []
+      },
+      oauthDiscovery: {
+        authorizationServer: "https://mcp.notion.com",
+        authorizationEndpoint: "https://mcp.notion.com/authorize",
+        tokenEndpoint: "https://mcp.notion.com/token",
+        registrationEndpoint: "https://mcp.notion.com/register",
+        scopes: [],
+        resource: "https://mcp.notion.com/mcp",
+        hasDynamicRegistration: true,
+        tokenEndpointAuthMethods: [
+          "client_secret_basic",
+          "client_secret_post",
+          "none"
+        ],
+        revocationEndpoint: "https://mcp.notion.com/token"
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/notion-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.notion.com/guides/mcp/mcp"
+        }
+      ]
+    },
+    {
+      slug: "openai-mcp",
+      displayName: "OpenAI Docs",
+      description: "OpenAI platform documentation and OpenAPI spec lookup",
+      category: "ai",
+      defaultNamespace: "openai-mcp",
+      endpoint: "https://developers.openai.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "coming_soon",
+        selectable: false,
+        hiddenInOnboarding: true,
+        overridden: false,
+        label: "Coming soon",
+        reason: "This provider is exposed via another source kind. Policy: REST API > GraphQL API > MCP > CLI. Use `openai-api` instead.",
+        code: "superseded_by_kind"
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        reason: "Enabled for local Harbor because v1 is MCP-only.",
+        code: "local_mcp_only"
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/openai-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://platform.openai.com/docs/guides/mcp"
+        }
+      ]
+    },
+    {
+      slug: "pagerduty-mcp",
+      displayName: "PagerDuty MCP",
+      description: "Incidents, on-call schedules, services, and team management",
+      category: "observability",
+      defaultNamespace: "pagerduty-mcp",
+      endpoint: "https://mcp.pagerduty.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/pagerduty-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.pagerduty.com/main/docs/pagerduty-mcp-server-integration-guide"
+        }
+      ]
+    },
+    {
+      slug: "parallel-search-mcp",
+      displayName: "Parallel Search MCP",
+      description: "Real-time web search and markdown content extraction (web_search + web_fetch). Free tier requires no API key; Bearer token unlocks higher rate limits.",
+      category: "search",
+      defaultNamespace: "parallel-search-mcp",
+      endpoint: "https://search.parallel.ai/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/parallel-search-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.parallel.ai/mcp"
+        },
+        {
+          kind: "dashboard",
+          label: "Platform",
+          url: "https://platform.parallel.ai"
+        }
+      ]
+    },
+    {
+      slug: "paypal-mcp",
+      displayName: "PayPal MCP",
+      description: "Payment processing and merchant tools",
+      category: "data",
+      defaultNamespace: "paypal-mcp",
+      endpoint: "https://mcp.paypal.com/sse",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/paypal-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.paypal.ai/developer/tools/ai/mcp-quickstart"
+        }
+      ]
+    },
+    {
+      slug: "pinterest-mcp",
+      displayName: "Pinterest MCP",
+      description: "Pin management, boards, and advertising campaigns",
+      category: "comms",
+      defaultNamespace: "pinterest-mcp",
+      endpoint: "https://mcp.pinterest.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/pinterest-mcp.svg",
+      links: []
+    },
+    {
+      slug: "plaid-mcp",
+      displayName: "Plaid MCP",
+      description: "Banking data access, account verification, and financial connections",
+      category: "data",
+      defaultNamespace: "plaid-mcp",
+      endpoint: "https://api.dashboard.plaid.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/plaid-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://plaid.com/docs/resources/mcp"
+        }
+      ]
+    },
+    {
+      slug: "plane-mcp",
+      displayName: "Plane MCP",
+      description: "Open-source project management with issues, epics, and cycles",
+      category: "dev",
+      defaultNamespace: "plane-mcp",
+      endpoint: "https://mcp.plane.so/http/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/plane-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.plane.so/dev-tools/mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "planetscale-mcp",
+      displayName: "PlanetScale MCP",
+      description: "Database management, branches, schemas, and query insights",
+      category: "data",
+      defaultNamespace: "planetscale-mcp",
+      endpoint: "https://mcp.pscale.dev/mcp/planetscale",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/planetscale-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://planetscale.com/docs/concepts/mcp"
+        }
+      ]
+    },
+    {
+      slug: "posthog-mcp",
+      displayName: "PostHog MCP",
+      description: "Analytics, feature flags, session replay, and errors via MCP",
+      category: "analytics",
+      defaultNamespace: "posthog-mcp",
+      endpoint: "https://mcp.posthog.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/posthog-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://posthog.com/docs/model-context-protocol"
+        }
+      ]
+    },
+    {
+      slug: "prisma-mcp",
+      displayName: "Prisma MCP",
+      description: "Database schema management, migrations, and Prisma Postgres",
+      category: "data",
+      defaultNamespace: "prisma-mcp",
+      endpoint: "https://mcp.prisma.io/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/prisma-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://www.prisma.io/docs/orm/prisma-schema/mcp"
+        }
+      ]
+    },
+    {
+      slug: "pylon-mcp",
+      displayName: "Pylon MCP",
+      description: "Customer support issues, accounts, and contacts via MCP",
+      category: "comms",
+      defaultNamespace: "pylon-mcp",
+      endpoint: "https://mcp.usepylon.com/",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/pylon-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.usepylon.com/pylon-docs/integrations/mcp"
+        }
+      ]
+    },
+    {
+      slug: "ramp-mcp",
+      displayName: "Ramp MCP",
+      description: "Corporate expense management, cards, and reimbursements",
+      category: "data",
+      defaultNamespace: "ramp-mcp",
+      endpoint: "https://mcp.ramp.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/ramp-mcp.svg",
+      links: []
+    },
+    {
+      slug: "render-mcp",
+      displayName: "Render MCP",
+      description: "Manage web services, databases, metrics, and deployments",
+      category: "infra",
+      defaultNamespace: "render-mcp",
+      endpoint: "https://mcp.render.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/render-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://render.com/docs/mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "replicate-mcp",
+      displayName: "Replicate MCP",
+      description: "Discover, compare, and run AI models via MCP (requires OAuth sign-in)",
+      category: "media",
+      defaultNamespace: "replicate-mcp",
+      endpoint: "https://mcp.replicate.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/replicate-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://replicate.com/docs/reference/mcp"
+        }
+      ]
+    },
+    {
+      slug: "sanity-mcp",
+      displayName: "Sanity MCP",
+      description: "Schemas, documents, datasets, and content operations via MCP",
+      category: "storage",
+      defaultNamespace: "sanity-mcp",
+      endpoint: "https://mcp.sanity.io",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/sanity-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://www.sanity.io/docs/ai/mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "scraperapi-mcp",
+      displayName: "ScraperAPI MCP",
+      description: "Web scraping with proxy rotation and JS rendering",
+      category: "web",
+      defaultNamespace: "scraperapi-mcp",
+      endpoint: "https://mcp.scraperapi.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/scraperapi-mcp.svg",
+      links: []
+    },
+    {
+      slug: "scrapingbee-mcp",
+      displayName: "ScrapingBee MCP",
+      description: "Web scraping with JS rendering and proxy rotation",
+      category: "web",
+      defaultNamespace: "scrapingbee-mcp",
+      endpoint: "https://mcp.scrapingbee.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/scrapingbee-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://mcp.scrapingbee.com"
+        }
+      ]
+    },
+    {
+      slug: "semgrep-mcp",
+      displayName: "Semgrep MCP",
+      description: "Code security scanning for vulnerabilities, supply chain, and secrets",
+      category: "dev",
+      defaultNamespace: "semgrep-mcp",
+      endpoint: "https://mcp.semgrep.ai/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/semgrep-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://semgrep.dev/docs/mcp"
+        }
+      ]
+    },
+    {
+      slug: "sentry-mcp",
+      displayName: "Sentry MCP",
+      description: "Error tracking, traces, and issue management via MCP",
+      category: "observability",
+      defaultNamespace: "sentry-mcp",
+      endpoint: "https://mcp.sentry.dev/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/sentry-mcp.svg",
+      links: []
+    },
+    {
+      slug: "shortcut-mcp",
+      displayName: "Shortcut MCP",
+      description: "Project management stories, epics, and workflows",
+      category: "dev",
+      defaultNamespace: "shortcut-mcp",
+      endpoint: "https://mcp.shortcut.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/shortcut-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://help.shortcut.com/hc/en-us/articles/36443434285844-MCP-Server"
+        }
+      ]
+    },
+    {
+      slug: "slack-mcp",
+      displayName: "Slack MCP",
+      description: "OAuth-based Slack messages, channels, search, files, reminders, and workspace actions",
+      category: "comms",
+      defaultNamespace: "slack-mcp",
+      endpoint: "https://slack-mcp.zonko-ai.workers.dev/mcp",
+      transport: "http",
+      auth: {
+        mode: "oauth2",
+        requiredSecrets: []
+      },
+      oauthDiscovery: {
+        authorizationServer: "https://slack-mcp.zonko-ai.workers.dev",
+        authorizationEndpoint: "https://slack-mcp.zonko-ai.workers.dev/authorize",
+        tokenEndpoint: "https://slack-mcp.zonko-ai.workers.dev/token",
+        registrationEndpoint: "https://slack-mcp.zonko-ai.workers.dev/register",
+        scopes: [
+          "slack"
+        ],
+        resource: "https://slack-mcp.zonko-ai.workers.dev",
+        hasDynamicRegistration: true,
+        tokenEndpointAuthMethods: [
+          "client_secret_basic",
+          "client_secret_post",
+          "none"
+        ],
+        revocationEndpoint: "https://slack-mcp.zonko-ai.workers.dev/token"
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://logos.composio.dev/api/slack",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://github.com/zonko-ai/slack-mcp"
+        }
+      ]
+    },
+    {
+      slug: "square-mcp",
+      displayName: "Square MCP",
+      description: "Payments, catalog, orders, and customer management",
+      category: "data",
+      defaultNamespace: "square-mcp",
+      endpoint: "https://mcp.squareup.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/square-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://github.com/square/square-mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "stackoverflow-mcp",
+      displayName: "Stack Overflow MCP",
+      description: "Search questions, answers, and developer knowledge",
+      category: "dev",
+      defaultNamespace: "stackoverflow-mcp",
+      endpoint: "https://mcp.stackoverflow.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://www.svgrepo.com/show/510239/stack-overflow.svg",
+      links: []
+    },
+    {
+      slug: "stripe-mcp",
+      displayName: "Stripe MCP",
+      description: "Payments and billing management via MCP",
+      category: "data",
+      defaultNamespace: "stripe-mcp",
+      endpoint: "https://mcp.stripe.com",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/stripe-mcp.svg",
+      links: []
+    },
+    {
+      slug: "stytch-mcp",
+      displayName: "Stytch MCP",
+      description: "Authentication, user management, and identity APIs",
+      category: "dev",
+      defaultNamespace: "stytch-mcp",
+      endpoint: "https://mcp.stytch.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/stytch-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://stytch.com/docs/guides/mcp"
+        }
+      ]
+    },
+    {
+      slug: "supabase-mcp",
+      displayName: "Supabase MCP",
+      description: "Projects, database, auth, storage, and logs via MCP",
+      category: "data",
+      defaultNamespace: "supabase-mcp",
+      endpoint: "https://mcp.supabase.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/supabase-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://supabase.com/docs/guides/getting-started/mcp"
+        }
+      ]
+    },
+    {
+      slug: "tally-mcp",
+      displayName: "Tally MCP",
+      description: "Build and manage forms using natural language",
+      category: "data",
+      defaultNamespace: "tally-mcp",
+      endpoint: "https://api.tally.so/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/tally-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://tally.so/help/mcp-server"
+        }
+      ]
+    },
+    {
+      slug: "tavily-mcp",
+      displayName: "Tavily MCP",
+      description: "Search, extract, map, and crawl the web via MCP",
+      category: "search",
+      defaultNamespace: "tavily-mcp",
+      endpoint: "https://mcp.tavily.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/tavily-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://docs.tavily.com/documentation/mcp"
+        }
+      ]
+    },
+    {
+      slug: "tigris-mcp",
+      displayName: "Tigris MCP",
+      description: "S3-compatible object storage for buckets and objects",
+      category: "storage",
+      defaultNamespace: "tigris-mcp",
+      endpoint: "https://mcp.storage.dev/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/tigris-mcp.png",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://www.tigrisdata.com/docs/mcp/remote/"
+        }
+      ]
+    },
+    {
+      slug: "typeform-mcp",
+      displayName: "Typeform MCP",
+      description: "Create and manage forms, retrieve submissions",
+      category: "data",
+      defaultNamespace: "typeform-mcp",
+      endpoint: "https://api.typeform.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/typeform-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://typeform.com/developers/get-started/mcp/"
+        }
+      ]
+    },
+    {
+      slug: "vercel-mcp",
+      displayName: "Vercel MCP",
+      description: "Deployments, projects, domains, and environment variables",
+      category: "infra",
+      defaultNamespace: "vercel-mcp",
+      endpoint: "https://mcp.vercel.com",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/vercel-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://vercel.com/docs/mcp"
+        }
+      ]
+    },
+    {
+      slug: "webflow-mcp",
+      displayName: "Webflow MCP",
+      description: "Manage sites, pages, CMS collections, and design elements",
+      category: "web",
+      defaultNamespace: "webflow-mcp",
+      endpoint: "https://mcp.webflow.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/webflow-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://mcp.webflow.com/"
+        }
+      ]
+    },
+    {
+      slug: "wix-mcp",
+      displayName: "Wix MCP",
+      description: "Build and manage Wix sites, collections, and business tools",
+      category: "web",
+      defaultNamespace: "wix-mcp",
+      endpoint: "https://mcp.wix.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: false
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://stag.tryharbor.ai/plugin-icons/wix-mcp.svg",
+      links: []
+    },
+    {
+      slug: "xero-mcp",
+      displayName: "Xero MCP",
+      description: "Accounting, invoicing, and financial reporting",
+      category: "data",
+      defaultNamespace: "xero-mcp",
+      endpoint: "https://mcp.xero.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/xero-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developer.xero.com"
+        }
+      ]
+    },
+    {
+      slug: "you-mcp",
+      displayName: "You.com MCP",
+      description: "Real-time web search, AI answers, and content extraction",
+      category: "search",
+      defaultNamespace: "you-mcp",
+      endpoint: "https://api.you.com/mcp",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: false,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/you-mcp.png",
+      links: []
+    },
+    {
+      slug: "zoom-mcp",
+      displayName: "Zoom MCP",
+      description: "Meetings, Team Chat, and Zoom Docs",
+      category: "comms",
+      defaultNamespace: "zoom-mcp",
+      endpoint: "https://mcp.zoom.us/mcp/zoom/streamable",
+      transport: "http",
+      auth: {
+        mode: "none",
+        requiredSecrets: []
+      },
+      availability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false,
+        overridden: true
+      },
+      localAvailability: {
+        status: "active",
+        selectable: true,
+        hiddenInOnboarding: false
+      },
+      requiresGlobalOAuthClient: true,
+      globalOAuthEligible: false,
+      verified: true,
+      iconUrl: "https://tryharbor.ai/plugin-icons/zoom-mcp.svg",
+      links: [
+        {
+          kind: "docs",
+          label: "Docs",
+          url: "https://developers.zoom.us/docs/mcp/"
+        }
+      ]
+    }
   ]
 };
 // packages/sdk/registry-catalog/data/v1/entries/git-cli.json
@@ -41052,11 +45151,30 @@ var REGISTRY_CATALOG_ENTRIES = REGISTRY_CATALOG_SLUGS.map((slug) => {
     throw new Error(`Missing registry catalog JSON for slug: ${slug}`);
   return entry;
 });
+var REGISTRY_LOCAL_MCP_CATALOG_ENTRIES = local_mcp_catalog_default.entries;
 // packages/sdk/runtime-local/src/promise.ts
+init_credentials();
+init_invocations();
 init_credentials();
 init_src4();
 init_tool_registry_actions();
+var HARBOR_LOCAL_OAUTH_PORT_ENV = "HARBOR_LOCAL_OAUTH_PORT";
+function parseOauthPort(env) {
+  const value3 = env?.[HARBOR_LOCAL_OAUTH_PORT_ENV];
+  if (value3 === undefined || value3.trim().length === 0)
+    return;
+  const port = Number(value3);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new HarborLocalError({
+      code: "local_runtime_error",
+      message: `${HARBOR_LOCAL_OAUTH_PORT_ENV} must be an integer port between 1 and 65535.`,
+      details: { envName: HARBOR_LOCAL_OAUTH_PORT_ENV }
+    });
+  }
+  return port;
+}
 function createHarborLocalRuntime(input) {
+  const oauthPort = input.oauthPort ?? parseOauthPort(input.env);
   const base2 = {
     projectRoot: input.projectRoot,
     env: input.env,
@@ -41071,7 +45189,10 @@ function createHarborLocalRuntime(input) {
   };
   const ensureOne = async (ensureInput, sourceInput) => {
     const catalog = catalogEntryForEndpoint(sourceInput.endpoint);
-    const discovery = sourceInput.discovery ?? catalogDiscovery(catalog);
+    const discovery = sourceInput.discovery ?? catalogDiscovery(catalog) ?? (sourceInput.auth === "none" ? null : await discoverHarborLocalMcpOAuth({
+      endpoint: sourceInput.endpoint,
+      fetch: input.fetch
+    }));
     const authKind = sourceInput.auth === "none" ? "none" : sourceInput.auth === "oauth2" || discovery ? "oauth2" : "none";
     const sourceId = sourceInput.namespace ?? catalog?.default_namespace ?? nameFromEndpoint(sourceInput.endpoint);
     const installMessage = `Installing or updating MCP source "${sourceId}" from ${sourceInput.endpoint}.`;
@@ -41141,7 +45262,8 @@ function createHarborLocalRuntime(input) {
           ...base2,
           sourceId: source.id,
           discovery,
-          clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`
+          clientName: sourceInput.clientName ?? `Harbor SDK Local ${source.name}`,
+          port: oauthPort
         });
         try {
           const pendingMessage = `Waiting for OAuth callback for MCP source "${source.id}".`;
@@ -41249,20 +45371,39 @@ function createHarborLocalRuntime(input) {
   return {
     sources: {
       list: () => listHarborLocalSources(input.projectRoot),
+      listMcp: () => listHarborLocalMcpSources(input.projectRoot),
       getMcp: (sourceId) => readHarborLocalMcpSource(input.projectRoot, sourceId),
       oauthStatus: (sourceId) => readHarborLocalOAuthStatus(input.projectRoot, sourceId),
       upsertMcp: (source) => upsertHarborLocalMcpSource({
         projectRoot: input.projectRoot,
         source
       }),
-      connectMcpOAuth: ({ sourceId, discovery, clientName }) => connectHarborLocalMcpOAuthSource({
+      connectMcpOAuth: ({ sourceId, discovery, clientName, port }) => connectHarborLocalMcpOAuthSource({
         ...base2,
         sourceId,
         discovery,
-        clientName
+        clientName,
+        port: port ?? oauthPort
       }),
       probeMcp: (sourceId) => probeHarborLocalMcpSource({ ...base2, sourceId }),
+      discoverMcpOAuth: (endpoint) => discoverHarborLocalMcpOAuth({
+        endpoint,
+        fetch: input.fetch
+      }),
       refreshMcp,
+      removeMcp: async (sourceId) => {
+        const result2 = await removeHarborLocalMcpSource({ projectRoot: input.projectRoot, sourceId });
+        if (result2.removed) {
+          const key = input.env?.[HARBOR_LOCAL_CREDENTIAL_KEY_ENV]?.trim();
+          if (key) {
+            await removeHarborLocalCredentialsForSource(input.projectRoot, {
+              sourceRefId: sourceId,
+              key
+            });
+          }
+        }
+        return result2;
+      },
       setupMcp: async (setup) => {
         const source = await upsertHarborLocalMcpSource({
           projectRoot: input.projectRoot,
@@ -41272,7 +45413,8 @@ function createHarborLocalRuntime(input) {
           ...base2,
           sourceId: source.id,
           discovery: setup.discovery,
-          clientName: setup.clientName
+          clientName: setup.clientName,
+          port: oauthPort
         }) : undefined;
         const refresh = setup.refresh === true ? await refreshMcp(source.id) : undefined;
         return {
@@ -41310,6 +45452,9 @@ function createHarborLocalRuntime(input) {
       run: async (code, options) => createHarborLocalExecRuntime(base2).run(code, options),
       bindings: async () => createHarborLocalExecRuntime(base2).bindings(),
       toolGuide: async () => createHarborLocalExecRuntime(base2).toolGuide()
+    },
+    invocations: {
+      list: (listInput = {}) => listHarborLocalToolInvocations(input.projectRoot, listInput)
     }
   };
 }
@@ -41343,5 +45488,6 @@ export {
   harborLocalConsoleLogger,
   createHarborLocalRuntime,
   HarborLocalError,
+  HARBOR_LOCAL_OAUTH_PORT_ENV,
   HARBOR_LOCAL_CREDENTIAL_KEY_ENV
 };

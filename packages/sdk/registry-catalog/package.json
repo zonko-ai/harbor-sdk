@@ -3,7 +3,11 @@
   "private": true,
   "type": "module",
   "exports": { ".": "./src/index.ts" },
-  "scripts": { "build": "tsc --noEmit", "typecheck": "tsc --noEmit" },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "sync:local-mcp-catalog": "bun run scripts/sync-local-mcp-catalog.ts --from-staging-d1 --harbor-root ../../../../harbor"
+  },
   "dependencies": {},
   "devDependencies": { "@hrbr/tsconfig": "workspace:*", "typescript": "catalog:" }
 }

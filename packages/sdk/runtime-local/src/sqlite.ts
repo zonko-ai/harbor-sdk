@@ -20,6 +20,7 @@ export const HARBOR_LOCAL_TABLES = [
   "oauth_clients",
   "oauth_pending_flows",
   "oauth_grants",
+  "tool_invocations",
   "mcp_sources",
   "mcp_source_headers",
   "mcp_source_query_params",
@@ -232,6 +233,20 @@ CREATE TABLE IF NOT EXISTS oauth_grants (
   updated_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS tool_invocations (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  source_ref_id TEXT,
+  namespace TEXT NOT NULL,
+  tool_id TEXT NOT NULL,
+  input_json TEXT,
+  output_json TEXT,
+  error_json TEXT,
+  ok INTEGER NOT NULL,
+  duration_ms INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS mcp_sources (
   id TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -299,6 +314,8 @@ CREATE INDEX IF NOT EXISTS idx_spans_run_started ON spans(run_id, started_at);
 CREATE INDEX IF NOT EXISTS idx_artifact_metadata_workspace_key ON artifact_metadata(workspace_id, key);
 CREATE INDEX IF NOT EXISTS idx_oauth_grants_source_status ON oauth_grants(workspace_id, source_ref_id, status);
 CREATE INDEX IF NOT EXISTS idx_oauth_pending_source_status ON oauth_pending_flows(workspace_id, source_ref_id, status);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_workspace_created ON tool_invocations(workspace_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tool_invocations_tool ON tool_invocations(workspace_id, tool_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_mcp_sources_workspace_namespace ON mcp_sources(workspace_id, namespace);
 CREATE INDEX IF NOT EXISTS idx_mcp_tool_bindings_source ON mcp_tool_bindings(workspace_id, source_id);
 `.trim(),

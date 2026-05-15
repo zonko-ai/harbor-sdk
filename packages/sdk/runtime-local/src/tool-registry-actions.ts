@@ -3,6 +3,7 @@ import {
   type HarborLocalMcpToolRuntimeInput,
 } from "./mcp-runtime"
 import { HarborLocalError } from "./errors"
+import { recordHarborLocalToolInvocation } from "./invocations"
 import * as v from "valibot"
 import type {
   HarborLocalToolCallResult,
@@ -136,6 +137,46 @@ function normalizeInvokeInput(input: unknown): unknown {
   }
 }
 
+function namespaceFromToolId(toolId: string): string {
+  const index = toolId.indexOf(".")
+  return index === -1 ? toolId : toolId.slice(0, index)
+}
+
+function errorPayload(error: unknown): unknown {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      ...("code" in error ? { code: (error as { readonly code?: unknown }).code } : {}),
+      ...("details" in error ? { details: (error as { readonly details?: unknown }).details } : {}),
+    }
+  }
+  return error
+}
+
+async function recordInvocation(input: HarborLocalRegistryActionInput, invocation: {
+  readonly toolId: string
+  readonly input: unknown
+  readonly output?: unknown
+  readonly error?: unknown
+  readonly ok: boolean
+  readonly durationMs: number
+}): Promise<void> {
+  await recordHarborLocalToolInvocation({
+    projectRoot: input.projectRoot,
+    invocation: {
+      sourceRefId: namespaceFromToolId(invocation.toolId),
+      namespace: namespaceFromToolId(invocation.toolId),
+      toolId: invocation.toolId,
+      input: invocation.input,
+      ...(invocation.output !== undefined ? { output: invocation.output } : {}),
+      ...(invocation.error !== undefined ? { error: invocation.error } : {}),
+      ok: invocation.ok,
+      durationMs: invocation.durationMs,
+    },
+  })
+}
+
 export async function runHarborLocalRegistryAction(
   input: HarborLocalRegistryActionInput
 ): Promise<HarborLocalRegistryActionResult> {
@@ -167,26 +208,55 @@ export async function runHarborLocalRegistryAction(
 
   const tool = runtime.describe(input.action.toolId)
   const isWriteTool = input.isWriteTool ?? harborLocalDefaultWriteToolMatcher
+  const invokeInput = normalizeInvokeInput(input.action.input)
+  const startedAt = Date.now()
   if (
     isWriteTool({ toolId: input.action.toolId, tool }) &&
     input.confirmWrites !== true
   ) {
+    const reason =
+      input.writeBlockedReason ??
+      "Write tool blocked. Pass confirmWrites: true to allow this local tool invocation."
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      error: { code: "local_write_confirmation_required", message: reason },
+      ok: false,
+      durationMs: Date.now() - startedAt,
+    })
     return {
       kind: "invoke",
       blocked: true,
       toolId: input.action.toolId,
-      reason:
-        input.writeBlockedReason ??
-        "Write tool blocked. Pass confirmWrites: true to allow this local tool invocation.",
+      reason,
     }
   }
 
-  return {
-    kind: "invoke",
-    blocked: false,
-    result: await runtime.call({
+  try {
+    const result = await runtime.call({
       toolId: input.action.toolId,
-      input: normalizeInvokeInput(input.action.input),
-    }),
+      input: invokeInput,
+    })
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      output: result.output,
+      ok: true,
+      durationMs: Date.now() - startedAt,
+    })
+    return {
+      kind: "invoke",
+      blocked: false,
+      result,
+    }
+  } catch (error) {
+    await recordInvocation(input, {
+      toolId: input.action.toolId,
+      input: invokeInput,
+      error: errorPayload(error),
+      ok: false,
+      durationMs: Date.now() - startedAt,
+    })
+    throw error
   }
 }

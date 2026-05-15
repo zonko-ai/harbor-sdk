@@ -6,6 +6,7 @@ import localIcons from '../data/v1/local-icons.json'
 import iconHostOverrides from '../data/v1/icon-host-overrides.json'
 import popularity from '../data/v1/popularity.json'
 import availability from '../data/v1/availability.json'
+import localMcpCatalog from '../data/v1/local-mcp-catalog.json'
 import git_cli from '../data/v1/entries/git-cli.json'
 import echo_cli from '../data/v1/entries/echo-cli.json'
 import gh_cli from '../data/v1/entries/gh-cli.json'
@@ -151,6 +152,8 @@ import whoop_api from '../data/v1/entries/whoop-api.json'
 
 export type RegistryCatalogJson = typeof catalog
 export type RegistryCatalogEntryJson = unknown
+export type LocalMcpCatalogJson = typeof localMcpCatalog
+export type LocalMcpCatalogEntryJson = (typeof localMcpCatalog.entries)[number]
 
 export const REGISTRY_CATALOG_VERSION = catalog.version
 export const REGISTRY_CATALOG_SLUGS = catalog.entries as readonly string[]
@@ -310,3 +313,5 @@ export const REGISTRY_CATALOG_LOCAL_ICONS = localIcons
 export const REGISTRY_CATALOG_ICON_HOST_OVERRIDES = iconHostOverrides
 export const REGISTRY_CATALOG_POPULARITY = popularity
 export const REGISTRY_CATALOG_AVAILABILITY = availability
+export const REGISTRY_LOCAL_MCP_CATALOG = localMcpCatalog
+export const REGISTRY_LOCAL_MCP_CATALOG_ENTRIES = localMcpCatalog.entries

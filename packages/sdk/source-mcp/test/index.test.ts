@@ -115,6 +115,9 @@ describe('@hrbr/source-mcp', () => {
       'initialize',
       'notifications/initialized',
       'tools/list',
+      'prompts/list',
+      'resources/list',
+      'resources/templates/list',
       'tools/call',
     ])
     expect(initializeParams[0]).toMatchObject({
@@ -142,6 +145,131 @@ describe('@hrbr/source-mcp', () => {
       method: 'initialize',
       code: -32601,
     } satisfies Partial<McpSourceError>)
+  })
+
+  it('falls back across supported MCP protocol versions during initialize', async () => {
+    const versions: string[] = []
+    const source = createMcpHttpSourceAdapter({
+      namespace: 'fallback',
+      displayName: 'Fallback MCP',
+      endpoint: 'https://fallback.example.com/mcp',
+      protocolVersions: ['2025-11-25', '2025-06-18'],
+      fetch: async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as { id?: number; method: string; params?: { protocolVersion?: string } }
+        if (body.method === 'initialize') {
+          versions.push(body.params?.protocolVersion ?? '')
+          if (body.params?.protocolVersion === '2025-11-25') {
+            return json({
+              jsonrpc: '2.0',
+              id: body.id,
+              error: { code: -32602, message: 'Unsupported protocol version' },
+            })
+          }
+          return json({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: {
+              protocolVersion: body.params?.protocolVersion,
+              capabilities: {},
+              serverInfo: { name: 'fallback' },
+            },
+          })
+        }
+        if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
+        if (body.method === 'tools/list') {
+          return json({ jsonrpc: '2.0', id: body.id, result: { tools: [] } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      },
+    })
+
+    await expect(source.listTools()).resolves.toEqual([])
+    expect(versions).toEqual(['2025-11-25', '2025-06-18'])
+  })
+
+  it('discovers MCP prompts, resources, and resource templates as invocable registry entries', async () => {
+    const calls: Array<{ method: string; params?: unknown }> = []
+    const source = createMcpHttpSourceAdapter({
+      namespace: 'docs',
+      displayName: 'Docs MCP',
+      endpoint: 'https://docs.example.com/mcp',
+      protocolVersion: '2025-03-26',
+      fetch: async (_url, init) => {
+        const body = JSON.parse(String(init?.body)) as { id?: number; method: string; params?: unknown }
+        calls.push({ method: body.method, params: body.params })
+        if (body.method === 'initialize') {
+          return json({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: {
+              protocolVersion: '2025-03-26',
+              capabilities: { tools: {}, prompts: {}, resources: {} },
+              serverInfo: { name: 'docs' },
+            },
+          })
+        }
+        if (body.method === 'notifications/initialized') return new Response(null, { status: 202 })
+        if (body.method === 'tools/list') {
+          return json({ jsonrpc: '2.0', id: body.id, result: { tools: [] } })
+        }
+        if (body.method === 'prompts/list') {
+          return json({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: {
+              prompts: [{
+                name: 'summarize_page',
+                description: 'Summarize a page',
+                arguments: [{ name: 'url', required: true }],
+              }],
+            },
+          })
+        }
+        if (body.method === 'resources/list') {
+          return json({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: {
+              resources: [{ uri: 'notion://page/abc', name: 'Alpha page', description: 'Read Alpha page' }],
+            },
+          })
+        }
+        if (body.method === 'resources/templates/list') {
+          return json({
+            jsonrpc: '2.0',
+            id: body.id,
+            result: {
+              resourceTemplates: [{ uriTemplate: 'notion://page/{pageId}', name: 'Page by id' }],
+            },
+          })
+        }
+        if (body.method === 'prompts/get') {
+          return json({ jsonrpc: '2.0', id: body.id, result: { messages: [{ role: 'user', content: { type: 'text', text: 'summary' } }] } })
+        }
+        if (body.method === 'resources/read') {
+          return json({ jsonrpc: '2.0', id: body.id, result: { contents: [{ uri: (body.params as { uri: string }).uri, text: 'content' }] } })
+        }
+        throw new Error(`Unexpected method ${body.method}`)
+      },
+    })
+
+    await expect(source.listTools()).resolves.toMatchObject([
+      { name: 'prompt_summarize_page', tags: ['prompt', 'read_only'] },
+      { name: 'resource_Alpha_page', tags: ['resource', 'read_only'] },
+      { name: 'resource_template_Page_by_id', tags: ['resource', 'template', 'read_only'] },
+    ])
+    await expect(source.invokeTool('prompt_summarize_page', { url: 'https://example.com' })).resolves.toMatchObject({
+      messages: [{ role: 'user' }],
+    })
+    await expect(source.invokeTool('resource_Alpha_page', {})).resolves.toMatchObject({
+      contents: [{ uri: 'notion://page/abc' }],
+    })
+    await expect(source.invokeTool('resource_template_Page_by_id', { pageId: 'a b' })).resolves.toMatchObject({
+      contents: [{ uri: 'notion://page/a%20b' }],
+    })
+    expect(calls.map((call) => call.method)).toContain('prompts/list')
+    expect(calls.map((call) => call.method)).toContain('resources/list')
+    expect(calls.map((call) => call.method)).toContain('resources/templates/list')
   })
 
   it('fails before network I/O when a configured bearer credential is missing', async () => {

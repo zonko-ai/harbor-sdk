@@ -3,6 +3,7 @@ import { harborLocalDefaultWriteToolMatcher } from "./tool-registry-actions"
 import { createHarborLocalMcpToolRuntime, type HarborLocalMcpToolRuntimeInput } from "./mcp-runtime"
 import { harborLocalPaths, LOCAL_WORKSPACE_ID, runHarborLocalQuickJS } from "./index"
 import { HarborLocalError } from "./errors"
+import { recordHarborLocalToolInvocation } from "./invocations"
 import type { HarborLocalToolDescription } from "./tool-search"
 
 interface Statement {
@@ -324,8 +325,38 @@ export function createHarborLocalExecRuntime(input: HarborLocalExecRuntimeInput)
                 details: { toolId },
               })
             }
-            const result = await toolRuntime.call({ toolId, input: request.input ?? {} })
-            return result.output
+            const toolInput = request.input ?? {}
+            const toolStarted = Date.now()
+            try {
+              const result = await toolRuntime.call({ toolId, input: toolInput })
+              await recordHarborLocalToolInvocation({
+                projectRoot: input.projectRoot,
+                invocation: {
+                  sourceRefId: namespace,
+                  namespace,
+                  toolId,
+                  input: toolInput,
+                  output: result.output,
+                  ok: true,
+                  durationMs: Date.now() - toolStarted,
+                },
+              })
+              return result.output
+            } catch (error) {
+              await recordHarborLocalToolInvocation({
+                projectRoot: input.projectRoot,
+                invocation: {
+                  sourceRefId: namespace,
+                  namespace,
+                  toolId,
+                  input: toolInput,
+                  error: error instanceof Error ? { name: error.name, message: error.message } : error,
+                  ok: false,
+                  durationMs: Date.now() - toolStarted,
+                },
+              })
+              throw error
+            }
           },
         })
         return {
