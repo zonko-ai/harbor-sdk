@@ -2,12 +2,15 @@ import {
   connectHarborLocalMcpOAuthSource,
   createHarborLocalExecRuntime,
   createHarborLocalMcpToolRuntime,
+  discoverHarborLocalMcpOAuth,
   HarborLocalError,
   importHarborLocalCredentialsFromEnv,
   listHarborLocalMcpSources,
   listHarborLocalSources,
   readHarborLocalMcpSource,
   readHarborLocalOAuthStatus,
+  removeHarborLocalCredentialsForSource,
+  removeHarborLocalMcpSource,
   probeHarborLocalMcpSource,
   refreshHarborLocalMcpSource,
   runHarborLocalRegistryAction,
@@ -37,6 +40,7 @@ import {
 } from "./index"
 import { REGISTRY_CATALOG_ENTRIES } from "@hrbr/registry-catalog"
 import type { McpSourceFetch } from "@hrbr/source-mcp"
+import { HARBOR_LOCAL_CREDENTIAL_KEY_ENV } from "./credentials"
 import {
   listHarborLocalToolInvocations,
   type HarborLocalToolInvocationListInput,
@@ -184,7 +188,9 @@ export interface HarborLocalRuntime {
       readonly port?: number | undefined
     }) => Promise<HarborLocalMcpOAuthConnectHandle>
     readonly probeMcp: (sourceId: string) => Promise<HarborLocalMcpProbeSourceResult>
+    readonly discoverMcpOAuth: (endpoint: string) => Promise<HarborLocalMcpOAuthDiscovery | null>
     readonly refreshMcp: (sourceId: string) => Promise<HarborLocalMcpRefreshSourceResult>
+    readonly removeMcp: (sourceId: string) => Promise<{ readonly sourceId: string; readonly removed: boolean }>
     readonly setupMcp: (input: HarborLocalMcpSetupInput) => Promise<HarborLocalMcpSetupResult>
     readonly ensureMcpSources: (input: HarborLocalMcpEnsureSourcesInput) => Promise<HarborLocalMcpEnsureSourcesResult>
   }
@@ -262,7 +268,12 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
     sourceInput: HarborLocalMcpUrlSourceInput
   ): Promise<HarborLocalMcpEnsureSourceResult> => {
     const catalog = catalogEntryForEndpoint(sourceInput.endpoint)
-    const discovery = sourceInput.discovery ?? catalogDiscovery(catalog)
+    const discovery = sourceInput.discovery
+      ?? catalogDiscovery(catalog)
+      ?? (sourceInput.auth === "none" ? null : await discoverHarborLocalMcpOAuth({
+        endpoint: sourceInput.endpoint,
+        fetch: input.fetch,
+      }))
     const authKind = sourceInput.auth === "none"
       ? "none"
       : sourceInput.auth === "oauth2" || discovery
@@ -469,7 +480,24 @@ export function createHarborLocalRuntime(input: HarborLocalRuntimeInput): Harbor
           port: port ?? oauthPort,
         }),
       probeMcp: (sourceId) => probeHarborLocalMcpSource({ ...base, sourceId }),
+      discoverMcpOAuth: (endpoint) => discoverHarborLocalMcpOAuth({
+        endpoint,
+        fetch: input.fetch,
+      }),
       refreshMcp,
+      removeMcp: async (sourceId) => {
+        const result = await removeHarborLocalMcpSource({ projectRoot: input.projectRoot, sourceId })
+        if (result.removed) {
+          const key = input.env?.[HARBOR_LOCAL_CREDENTIAL_KEY_ENV]?.trim()
+          if (key) {
+            await removeHarborLocalCredentialsForSource(input.projectRoot, {
+              sourceRefId: sourceId,
+              key,
+            })
+          }
+        }
+        return result
+      },
       setupMcp: async (setup) => {
         const source = await upsertHarborLocalMcpSource({
           projectRoot: input.projectRoot,

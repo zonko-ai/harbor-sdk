@@ -12,7 +12,7 @@ Progress Tracker:
 - [x] 5. Add MCP catalog seed from Harbor main
 - [x] 6. Build local Harbor API server
 - [x] 7. Build local Harbor MCP console UI
-- [ ] 8. Manual UI validation gate
+- [x] 8. Manual UI validation gate
 - [ ] 9. Add local Harbor MCP server surface for agents
 - [ ] 10. Add local diagnostics and invocation history
 - [ ] 11. Validate fresh local project and MCP flows
@@ -65,7 +65,7 @@ Tasks:
 8. Manual UI validation gate
    Scope: pause implementation after the local API and UI are usable so Kushagra can manually test real MCP installs, OAuth, refresh, search, schema lookup, and invocation from the browser console.
    Output: user-tested UI behavior is confirmed or recorded as exact fixes before building the agent-facing local MCP server. This prevents building the MCP surface on top of an unvalidated setup flow.
-   Progress: pending
+   Progress: completed
    Commit: after this step is complete, commit tracker updates and any fixes found during manual UI testing.
 
 9. Add local Harbor MCP server surface for agents
@@ -152,3 +152,8 @@ Progress Log:
 - 2026-05-15T17:10:00+05:30: Completed task 7 by adding a same-origin static UI served from `apps/harbor-local`: Overview for runtime health/counts/recent traces, Plugins for catalog/custom install, OAuth connect, source refresh, tool search, schema inspection, and tool invocation, and Traces for invocation history/detail.
 - 2026-05-15T17:10:00+05:30: Kept the UI intentionally local-only and dependency-light: no hosted Harbor auth/workspace imports, no framework-specific runtime, and all data access flows through the local API from task 6.
 - 2026-05-15T17:10:00+05:30: Validation passed with `bun run --filter @hrbr/harbor-local typecheck` and `bun test apps/harbor-local/test/server.test.ts`.
+- 2026-05-15T17:22:00+05:30: Completed task 8 after manual browser validation surfaced three concrete UI/backend fixes before building the inbound local Harbor MCP server.
+- 2026-05-15T17:22:00+05:30: Fix from validation: plugin detail tool browsing is now namespace-scoped like Harbor main's plugin detail page; the UI passes namespace as the search scope and the API regression test verifies cross-source tools do not leak into a plugin page.
+- 2026-05-15T17:22:00+05:30: Fix from validation: connected MCP account cards now expose OAuth reconnect and disconnect controls; disconnect calls `POST /api/sources/remove`, removes source/tool/OAuth/credential rows, and clears encrypted credentials for that source when the local vault key is available.
+- 2026-05-15T17:22:00+05:30: Operational note from validation: `No route for POST /api/sources/remove` means the browser is talking to an older `apps/harbor-local` backend process; restart the local server after backend route changes.
+- 2026-05-15T17:22:00+05:30: Validation passed with `bun run --filter @hrbr/runtime-local typecheck`, `bun run --filter @hrbr/harbor-local typecheck`, `bun test apps/harbor-local/test/server.test.ts packages/sdk/runtime-local/test/index.test.ts`, and `bun run --cwd apps/harbor-local build:web`.

@@ -180,3 +180,22 @@ export async function importHarborLocalCredentialsFromEnvKey(
   const key = readHarborLocalCredentialKeyFromEnv(input)
   return importHarborLocalCredentialsFromEnv(projectRoot, { ...input, key })
 }
+
+export async function removeHarborLocalCredentialsForSource(
+  projectRoot: string,
+  input: {
+    readonly sourceRefId: string
+    readonly key: string
+  }
+): Promise<HarborLocalCredentialsFile> {
+  const current = await readHarborLocalCredentials(projectRoot, input.key)
+  const next: HarborLocalCredentialsFile = {
+    version: 1,
+    workspaceId: LOCAL_WORKSPACE_ID,
+    credentials: current.credentials
+      .filter((credential) => credential.sourceRefId !== input.sourceRefId)
+      .sort((a, b) => a.id.localeCompare(b.id)),
+  }
+  await writeHarborLocalCredentials(projectRoot, next, input.key)
+  return next
+}

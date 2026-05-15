@@ -41,17 +41,31 @@ function json(payload: unknown, init: ResponseInit = {}): Response {
   })
 }
 
-function staticResponse(pathname: string): Response | null {
-  const staticFiles: Record<string, { readonly path: string; readonly contentType: string }> = {
-    "/": { path: "../public/index.html", contentType: "text/html; charset=utf-8" },
-    "/index.html": { path: "../public/index.html", contentType: "text/html; charset=utf-8" },
-    "/app.js": { path: "../public/app.js", contentType: "text/javascript; charset=utf-8" },
-    "/styles.css": { path: "../public/styles.css", contentType: "text/css; charset=utf-8" },
-  }
-  const file = staticFiles[pathname]
-  if (!file) return null
-  return new Response(Bun.file(new URL(file.path, import.meta.url)), {
-    headers: { "content-type": file.contentType },
+function contentTypeFor(pathname: string): string {
+  if (pathname.endsWith(".html")) return "text/html; charset=utf-8"
+  if (pathname.endsWith(".js") || pathname.endsWith(".mjs")) return "text/javascript; charset=utf-8"
+  if (pathname.endsWith(".css")) return "text/css; charset=utf-8"
+  if (pathname.endsWith(".svg")) return "image/svg+xml"
+  if (pathname.endsWith(".png")) return "image/png"
+  if (pathname.endsWith(".ico")) return "image/x-icon"
+  if (pathname.endsWith(".json")) return "application/json"
+  if (pathname.endsWith(".woff2")) return "font/woff2"
+  if (pathname.endsWith(".woff")) return "font/woff"
+  if (pathname.endsWith(".map")) return "application/json"
+  return "application/octet-stream"
+}
+
+async function staticResponse(pathname: string): Promise<Response | null> {
+  const rel = pathname === "/" || pathname === "/index.html"
+    ? "../public/dist/index.html"
+    : `../public/dist${pathname}`
+  const file = Bun.file(new URL(rel, import.meta.url))
+  if (!(await file.exists())) return null
+  return new Response(file, {
+    headers: {
+      "content-type": contentTypeFor(pathname === "/" ? "/index.html" : pathname),
+      "cache-control": pathname.startsWith("/assets/") ? "public, max-age=31536000, immutable" : "no-cache",
+    },
   })
 }
 
@@ -200,8 +214,12 @@ async function installSource(input: HarborLocalServerInput, body: JsonBody): Pro
   const slug = stringField(body, "slug")
   const entry = slug ? catalogEntry(slug) : undefined
   if (slug && !entry) return json({ ok: false, code: "catalog_entry_not_found", message: `Unknown MCP catalog slug "${slug}".` }, { status: 404 })
-  const discovery = entry ? oauthDiscovery(entry) : undefined
-  const source = entry ? sourceFromCatalog(entry, body) : customSource(body)
+  let discovery = entry ? oauthDiscovery(entry) : undefined
+  let source = entry ? sourceFromCatalog(entry, body) : customSource(body)
+  if (!discovery && source.transport === "remote" && source.auth?.kind === "none") {
+    discovery = await harbor.sources.discoverMcpOAuth(source.endpoint) ?? undefined
+    if (discovery) source = { ...source, auth: { kind: "oauth2" } }
+  }
   const setup = await harbor.sources.setupMcp({
     source,
     discovery,
@@ -234,11 +252,18 @@ async function connectSource(input: HarborLocalServerInput, body: JsonBody): Pro
   if (!sourceId) throw new SyntaxError("sourceId is required.")
   const slug = stringField(body, "slug")
   const entry = slug ? catalogEntry(slug) : undefined
-  const discovery = entry ? oauthDiscovery(entry) : objectField(body, "discovery") as unknown as HarborLocalMcpOAuthDiscovery
+  let discovery = entry ? oauthDiscovery(entry) : objectField(body, "discovery") as unknown as HarborLocalMcpOAuthDiscovery
+  const harbor = runtime(input)
+  if (!discovery?.authorizationEndpoint || !discovery.tokenEndpoint) {
+    const source = await harbor.sources.getMcp(sourceId)
+    if (source?.endpoint) {
+      discovery = await harbor.sources.discoverMcpOAuth(source.endpoint) ?? discovery
+    }
+  }
   if (!discovery?.authorizationEndpoint || !discovery.tokenEndpoint) {
     throw new SyntaxError("OAuth discovery is required to connect this MCP source.")
   }
-  const connect = await runtime(input).sources.connectMcpOAuth({
+  const connect = await harbor.sources.connectMcpOAuth({
     sourceId,
     discovery,
     clientName: stringField(body, "clientName"),
@@ -259,7 +284,7 @@ async function route(input: HarborLocalServerInput, request: Request): Promise<R
   const url = new URL(request.url)
   if (request.method === "OPTIONS") return new Response(null, { status: 204 })
   if (request.method === "GET") {
-    const staticFile = staticResponse(url.pathname)
+    const staticFile = await staticResponse(url.pathname)
     if (staticFile) return staticFile
     if (url.pathname === "/favicon.ico") return new Response(null, { status: 204 })
   }
@@ -294,6 +319,15 @@ async function route(input: HarborLocalServerInput, request: Request): Promise<R
     const sourceId = stringField(body, "sourceId")
     if (!sourceId) throw new SyntaxError("sourceId is required.")
     return ok(await runtime(input).sources.refreshMcp(sourceId))
+  }
+  if (request.method === "POST" && url.pathname === "/api/sources/remove") {
+    const body = await readJson(request)
+    const sourceId = stringField(body, "sourceId")
+    if (!sourceId) throw new SyntaxError("sourceId is required.")
+    const prior = pendingOAuth.get(sourceId)
+    await prior?.close()
+    pendingOAuth.delete(sourceId)
+    return ok(await runtime(input).sources.removeMcp(sourceId))
   }
   if (request.method === "POST" && url.pathname === "/api/tools/search") {
     const body = await readJson(request)
