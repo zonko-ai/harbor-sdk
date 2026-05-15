@@ -43,14 +43,14 @@ Tasks:
    Commit: after this step is complete, commit SDK code, tests, and generated outputs if required by the repo.
 
 5. Add MCP catalog seed from Harbor main
-   Scope: generate or hand-curate a static local catalog seed from MCP-only entries in `../harbor`, including Linear, Notion, and other compatible MCP entries. Support custom MCP URL installs separately from the seed.
-   Output: local Harbor can show a catalog while remaining fully offline at runtime, with verified/recommended metadata where available.
+   Scope: export local-safe MCP-only catalog metadata from Harbor main's staging Cloudflare D1 using `../harbor/.env.staging` plus the checked-in registry metadata as reference. Include Linear, Notion, and other compatible MCP entries, and support custom MCP URL installs separately from the seed. Explore the D1 table shape before deciding the exact export path.
+   Output: local Harbor can show a static generated catalog while remaining fully offline at runtime. The seed includes only local-safe fields such as slug, display name, description, category, default namespace, endpoint, transport, auth mode, OAuth discovery, availability, icon, links, and verified status.
    Progress: pending
    Commit: after this step is complete, commit catalog seed and any maintainer sync script or notes.
 
 6. Build local Harbor API server
    Scope: add `apps/harbor-local` with a single Bun-based local server bound to `127.0.0.1` by default. Use the current working directory for `.harbor/` state, with `HARBOR_LOCAL_PROJECT_DIR` and `HARBOR_LOCAL_OAUTH_PORT` overrides.
-   Output: local API exposes catalog, source install/status/connect/refresh, tool search/schema/invoke, and invocation history routes backed by SDK calls.
+   Output: local API exposes catalog, source install/status/connect/refresh, tool search/schema/invoke, and invocation history routes backed by SDK calls. This is a browser-facing product API over the existing client SDK, not a replacement for `@hrbr/sdk/local`.
    Progress: pending
    Commit: after this step is complete, commit the server app slice and focused tests.
 
@@ -88,6 +88,8 @@ Scope Guards:
 - Do not require write confirmations in v1; write-capable MCP tools can be invoked directly.
 - Do not expose OAuth access tokens, refresh tokens, or encrypted secret values in UI or logs.
 - Do not make runtime depend on `../harbor`; only use it as a source for the checked-in catalog seed/reference.
+- Do not make local Harbor depend on staging D1 at runtime. D1 access is maintainer-only for generating the checked-in local catalog seed.
+- Do not export workspace data, user data, OAuth grants, credentials, WorkOS IDs, install jobs, or hosted-only fields from D1 into the local seed.
 - Do not commit generated `.harbor` state, OAuth credentials, tokens, or local secrets.
 - Keep SDK-owned MCP lifecycle logic in SDK packages; keep `apps/harbor-local` as a thin local product app over those APIs.
 
@@ -107,3 +109,5 @@ Progress Log:
 - 2026-05-15T14:57:35+05:30: Finding: the SDK registry catalog is not identical to `../harbor`: Harbor main adds `discord-api` and updates Slack MCP to an OAuth proxy endpoint, while the SDK copy includes Linear MCP OAuth discovery metadata that Harbor main's current registry entry does not. The local catalog step should reconcile this intentionally instead of blindly copying either side.
 - 2026-05-15T14:57:35+05:30: Finding: Harbor main install behavior maps MCP registry entries to source config with `endpoint`, `transport`, optional `oauth_discovery`, optional default headers, and `requires_oauth` status when OAuth is discovered. Custom MCP install only allows `kind`, `endpoint`, and `transport` config fields, which matches the v1 local app boundary.
 - 2026-05-15T14:57:35+05:30: Finding: Harbor main web plugin UI has portable concepts in plugin catalog cards, setup modal namespace handling, OAuth connect panels, connected account status cards, plugin detail tools accordion, and tool search. The hooks are tightly coupled to hosted workspace/auth/API routes, so local Harbor should reuse visual ideas selectively and build local-specific API hooks.
+- 2026-05-15T15:06:39+05:30: Updated the catalog plan to use Harbor main's staging Cloudflare D1, configured from `../harbor/.env.staging`, as the source to inspect/export real MCP plugin metadata. Runtime local Harbor must still consume a checked-in static seed and remain fully offline.
+- 2026-05-15T15:06:39+05:30: Clarified that the client SDK already exists as `@hrbr/sdk/local` and `createHarbor(...)`; the missing piece is a browser-facing local Harbor product API/server plus invocation history surface for the console UI.
