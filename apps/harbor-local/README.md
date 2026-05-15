@@ -29,7 +29,14 @@ After installing plugins through the dashboard, agents can connect to Local Harb
 http://127.0.0.1:7332/mcp
 ```
 
-The endpoint exposes control-plane tools for catalog listing, source listing, source refresh, tool search, schema lookup, tool invocation, and invocation history. It does not create one MCP tool per connected plugin tool; agents search the local Harbor registry first and then invoke the selected indexed tool.
+The endpoint uses the Reef MCP shape and exposes exactly two tools:
+
+```txt
+inspect
+exec
+```
+
+`inspect` is for local Harbor discovery and planning through the `hrbr.*` control-plane surface. `exec` runs JavaScript through the local QuickJS runtime, resolves installed MCP plugin namespaces through the SDK backend, and records nested plugin calls in the local Traces page.
 
 ## Run
 
