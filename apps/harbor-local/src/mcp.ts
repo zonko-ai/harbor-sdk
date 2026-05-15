@@ -171,6 +171,30 @@ const tools: readonly LocalHarborMcpTool[] = [
     ),
   },
   {
+    name: "harbor_exec_run",
+    description: "Run JavaScript in the Harbor local QuickJS runtime. Installed MCP plugin namespaces are resolved by the SDK backend and plugin calls are traced.",
+    inputSchema: schema({
+      code: { type: "string", description: "JavaScript body to run inside an async QuickJS wrapper. Use namespace globals from harbor_exec_tool_guide." },
+      input: { description: "Optional JSON value exposed to the script as input." },
+      timeoutMs: { type: "number", description: "Optional execution timeout in milliseconds." },
+      confirmWrites: { type: "boolean", description: "Set true to allow write tools. Defaults to false." },
+    }, ["code"]),
+    handler: (harbor, input) => harbor.exec.run(
+      stringParam(input, "code") ?? "",
+      {
+        input: input.input,
+        timeoutMs: numberParam(input, "timeoutMs"),
+        confirmWrites: input.confirmWrites === true,
+      }
+    ),
+  },
+  {
+    name: "harbor_exec_tool_guide",
+    description: "List JavaScript namespace globals and callable methods available to Harbor local QuickJS exec.",
+    inputSchema: schema({}),
+    handler: (harbor) => harbor.exec.toolGuide(),
+  },
+  {
     name: "harbor_invocations_list",
     description: "List recent local Harbor tool invocation history without exposing credentials.",
     inputSchema: schema({

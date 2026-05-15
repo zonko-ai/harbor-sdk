@@ -372,8 +372,26 @@ describe("@hrbr/harbor-local API server", () => {
         "harbor_tools_search",
         "harbor_tool_schema",
         "harbor_tool_invoke",
+        "harbor_exec_run",
+        "harbor_exec_tool_guide",
         "harbor_invocations_list",
       ])
+
+      const guide = await adapter.invokeTool("harbor_exec_tool_guide", {}) as {
+        readonly structuredContent?: readonly { readonly namespace?: string; readonly method?: string }[]
+      }
+      expect(guide.structuredContent?.some((tool) => tool.namespace === "agent-visible" && tool.method === "listItems")).toBe(true)
+
+      const exec = await adapter.invokeTool("harbor_exec_run", {
+        code: "const result = await agentVisible.listItems({ limit: 1 }); return result;",
+      }) as {
+        readonly structuredContent?: {
+          readonly ok?: boolean
+          readonly value?: { readonly structuredContent?: { readonly tool?: string } }
+        }
+      }
+      expect(exec.structuredContent?.ok).toBe(true)
+      expect(exec.structuredContent?.value?.structuredContent?.tool).toBe("list_items")
 
       const search = await adapter.invokeTool("harbor_tools_search", {
         query: "fixture items",
