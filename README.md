@@ -13,8 +13,10 @@ Cloudflare, or any particular agent framework.
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.3-fbf0df?logo=bun&logoColor=black)](https://bun.sh/)
 [![MCP](https://img.shields.io/badge/Model_Context_Protocol-1.x-1f6feb)](https://modelcontextprotocol.io/)
-[![License](https://img.shields.io/badge/License-Proprietary-blueviolet)](#license)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](./LICENSE)
 [![Status](https://img.shields.io/badge/Status-Pre--release-orange)](#roadmap)
+
+**This is the local, self-hosted version of Harbor.** Prefer a managed runtime with a workspace-scoped credential vault, hosted catalog, and team sharing? Try the hosted version at **[tryharbor.ai](https://tryharbor.ai)**.
 
 </div>
 
@@ -22,6 +24,8 @@ Cloudflare, or any particular agent framework.
 
 <div align="center">
   <img src="docs/assets/local-harbor-demo.gif" alt="Local Harbor demo" width="860" />
+
+  <sub>Looking for the managed cloud edition? → <a href="https://tryharbor.ai">tryharbor.ai</a></sub>
 </div>
 
 ---
@@ -470,12 +474,14 @@ Ctrl + F5 on Windows/Linux), or check Network → "Disable cache" in DevTools.
 
 ## License
 
-Proprietary unless a license is added by the project maintainers.
+Released under the [MIT License](./LICENSE). This repository is the local,
+self-hosted edition of Harbor. The hosted edition is available at
+[tryharbor.ai](https://tryharbor.ai).
 
 ---
 
 <div align="center">
 
-Built by the Harbor team. Issues and feature requests welcome on the issue tracker.
+Built by Zonko Team
 
 </div>
