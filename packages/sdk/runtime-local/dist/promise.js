@@ -29300,8 +29300,38 @@ ${code}
                 details: { toolId: toolId2 }
               });
             }
-            const result2 = await toolRuntime.call({ toolId: toolId2, input: request.input ?? {} });
-            return result2.output;
+            const toolInput = request.input ?? {};
+            const toolStarted = Date.now();
+            try {
+              const result2 = await toolRuntime.call({ toolId: toolId2, input: toolInput });
+              await recordHarborLocalToolInvocation({
+                projectRoot: input.projectRoot,
+                invocation: {
+                  sourceRefId: namespace,
+                  namespace,
+                  toolId: toolId2,
+                  input: toolInput,
+                  output: result2.output,
+                  ok: true,
+                  durationMs: Date.now() - toolStarted
+                }
+              });
+              return result2.output;
+            } catch (error) {
+              await recordHarborLocalToolInvocation({
+                projectRoot: input.projectRoot,
+                invocation: {
+                  sourceRefId: namespace,
+                  namespace,
+                  toolId: toolId2,
+                  input: toolInput,
+                  error: error instanceof Error ? { name: error.name, message: error.message } : error,
+                  ok: false,
+                  durationMs: Date.now() - toolStarted
+                }
+              });
+              throw error;
+            }
           }
         });
         return {
@@ -29332,6 +29362,7 @@ var init_exec = __esm(() => {
   init_mcp_runtime();
   init_src4();
   init_errors();
+  init_invocations();
 });
 
 // packages/sdk/runtime-local/src/registry.ts
