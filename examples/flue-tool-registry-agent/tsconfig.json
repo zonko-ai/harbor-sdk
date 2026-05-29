@@ -1,7 +1,0 @@
-{
-  "extends": "@hrbr/tsconfig/base.json",
-  "compilerOptions": {
-    "noEmit": true
-  },
-  "include": ["main.ts", "agents/**/*.ts", "src/**/*.ts"]
-}

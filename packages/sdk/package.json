@@ -1,0 +1,114 @@
+{
+  "name": "@hrbr/sdk",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Composite Harbor system SDK facade for internal runtime, platform, plugin, protocol, and control-plane building blocks.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zonko-ai/harbor-sdk.git",
+    "directory": "packages/sdk"
+  },
+  "homepage": "https://github.com/zonko-ai/harbor-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/zonko-ai/harbor-sdk/issues"
+  },
+  "keywords": [
+    "control-plane",
+    "harbor",
+    "hrbr",
+    "mcp",
+    "runtime",
+    "sdk",
+    "system-sdk"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs"
+    },
+    "./agents": {
+      "types": "./dist/agents.d.mts",
+      "import": "./dist/agents.mjs"
+    },
+    "./core": {
+      "types": "./dist/core.d.mts",
+      "import": "./dist/core.mjs"
+    },
+    "./core/*": {
+      "types": "./dist/core/*.d.mts",
+      "import": "./dist/core/*.mjs"
+    },
+    "./orbit": {
+      "types": "./dist/orbit.d.mts",
+      "import": "./dist/orbit.mjs"
+    },
+    "./orbit/*": {
+      "types": "./dist/orbit/*.d.mts",
+      "import": "./dist/orbit/*.mjs"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.mts",
+      "import": "./dist/platform.mjs"
+    },
+    "./platform/*": {
+      "types": "./dist/platform/*.d.mts",
+      "import": "./dist/platform/*.mjs"
+    },
+    "./plugins": {
+      "types": "./dist/plugins.d.mts",
+      "import": "./dist/plugins.mjs"
+    },
+    "./plugins/*": {
+      "types": "./dist/plugins/*.d.mts",
+      "import": "./dist/plugins/*.mjs"
+    },
+    "./protocol": {
+      "types": "./dist/protocol.d.mts",
+      "import": "./dist/protocol.mjs"
+    },
+    "./protocol/*": {
+      "types": "./dist/protocol/*.d.mts",
+      "import": "./dist/protocol/*.mjs"
+    },
+    "./registry": {
+      "types": "./dist/registry.d.mts",
+      "import": "./dist/registry.mjs"
+    },
+    "./runtime": {
+      "types": "./dist/runtime.d.mts",
+      "import": "./dist/runtime.mjs"
+    },
+    "./runtime/*": {
+      "types": "./dist/runtime/*.d.mts",
+      "import": "./dist/runtime/*.mjs"
+    },
+    "./runtime/planner/*": {
+      "types": "./dist/runtime/planner/*.d.mts",
+      "import": "./dist/runtime/planner/*.mjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "acorn": "^8.15.0",
+    "esbuild": "^0.27.3",
+    "hono": "^4.12.12",
+    "alchemy": "2.0.0-beta.44",
+    "sucrase": "^3.35.1"
+  },
+  "peerDependencies": {
+    "effect": "4.0.0-beta.66"
+  }
+}

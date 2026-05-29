@@ -1,0 +1,1 @@
+{"version":3,"file":"routes.mjs","names":[],"sources":["../../../../packages/sdk/client/src/routes.ts"],"sourcesContent":["export const HARBOR_AUTH_ROUTES = {\n  device: '/auth/device',\n  poll: '/auth/poll',\n  workspaceKey: '/auth/workspace-key',\n} as const\n"],"mappings":";AAAA,MAAa,qBAAqB;CAChC,QAAQ;CACR,MAAM;CACN,cAAc;AAChB"}

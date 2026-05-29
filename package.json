@@ -4,34 +4,20 @@
   "type": "module",
   "packageManager": "bun@1.3.11",
   "workspaces": [
-    "apps/*",
     "packages/*",
-    "packages/sdk/*",
     "examples/*"
   ],
   "scripts": {
-    "typecheck": "bun run typecheck:packages && bun run typecheck:examples && bun run typecheck:apps",
-    "typecheck:packages": "bun run --filter '@hrbr/*' typecheck",
-    "typecheck:examples": "bun run --filter './examples/*' typecheck",
-    "typecheck:apps": "bun run --filter './apps/*' typecheck",
-    "test": "bun test packages/sdk/*/test packages/workflows/test",
-    "docs:api": "typedoc --options typedoc.json",
-    "example:custom-source": "bun run examples/sdk-custom-source/src/index.ts",
-    "example:tool-catalog": "bun run examples/sdk-tool-catalog/src/index.ts",
-    "example:orbit-runtime": "bun run examples/sdk-orbit-runtime/src/index.ts",
-    "example:platform-runtime": "bun run examples/sdk-platform-runtime/src/index.ts",
-    "example:linear-notion": "bun run examples/tool-registry-linear-notion/src/index.ts",
-    "example:linear-mcp-local": "bun run examples/plugin-linear-mcp-local/src/index.ts",
-    "example:notion-mcp-local": "bun run examples/plugin-notion-mcp-local/src/index.ts",
-    "example:flue-tool-registry-agent": "bun run --filter flue-tool-registry-agent-example typecheck"
+    "typecheck": "bun run --filter browser-client-example typecheck && bun run --filter client-promise-example typecheck && bun run --filter sdk-system-example typecheck && bun run --filter local-platform-example typecheck",
+    "smoke": "bun run typecheck && bun run --filter client-promise-example start && bun run --filter sdk-system-example start && bun run --filter local-platform-example start",
+    "pack:dry-run": "npm pack --dry-run ./packages/client && npm pack --dry-run ./packages/sdk"
   },
   "catalog": {
-    "effect": "4.0.0-beta.64",
+    "effect": "4.0.0-beta.66",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "typedoc": "^0.28.19",
     "typescript": "catalog:"
   },
   "trustedDependencies": [

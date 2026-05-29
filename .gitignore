@@ -1,11 +1,9 @@
 node_modules
-dist
-docs/api
 .turbo
 .DS_Store
 *.log
 .env
 .env.*
 !.env.example
-!apps/harbor-backend/.env.dev.example
-!apps/harbor-backend/.env.staging.example
+.pi/
+examples/**/.harbor-local/

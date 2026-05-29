@@ -1,75 +1,53 @@
 # Harbor SDK
 
-Low-level TypeScript building blocks for creating Harbor-like developer platforms without cloning the Harbor SaaS product surface.
+Publish-ready workspace for the two public Harbor JavaScript SDK packages:
 
-The SDK gives developers control over their own sources, credentials, policies, tools, runs, workflows, and runtime primitives. It intentionally does not expose a `createHarbor()` shortcut. Harbor's hosted product remains a first-party SaaS built on top of these primitives.
+- `@hrbr/client`: Promise-first Harbor API client for application and integration authors.
+- `@hrbr/sdk`: composite system SDK facade for Harbor runtime, platform, plugin, protocol, registry, and control-plane building blocks.
 
-## What You Can Build
+The package contents are generated from the Harbor monorepo publish pipeline. This repository keeps the npm artifacts and examples in the shape developers install and run.
 
-- A tool registry for first-party APIs, third-party SaaS integrations, MCP servers, or local command adapters.
-- A workflow runner that calls those tools with traceable steps.
-- A Cloudflare-native execution/runtime layer with `orbit.storage`, `orbit.cache`, `orbit.ai`, `orbit.db`, and `orbit.tools` style primitives.
-- A hosted-client integration that talks to Harbor SaaS when a team wants managed workspaces, OAuth, traces, and plugin operations.
+## Layout
 
-## Package Map
-
-| Package | Purpose |
+| Path | Purpose |
 | --- | --- |
-| `@hrbr/source-core` | Provider-agnostic source and tool adapter primitives. |
-| `@hrbr/source-credentials` | Credential bindings and local credential resolution. |
-| `@hrbr/source-mcp` | HTTP MCP adapter for developer-owned MCP servers. |
-| `@hrbr/source-policy` | Source availability policy and per-tool allow/block/approval policy. |
-| `@hrbr/tools` | Local tool registry, search, describe, schema, invoke, and trace hooks. |
-| `@hrbr/runs` | Run and span schemas plus in-memory trace writer. |
-| `@hrbr/workflows` | Typed workflow definition and execution helpers. |
-| `@hrbr/orbit` | Runtime primitives for storage, cache, AI, DB, tools, jobs, apps, and sockets. |
-| `@hrbr/client` | Hosted Harbor client for teams that want to connect to Harbor SaaS. |
+| `packages/client` | Generated `@hrbr/client` package with root Promise client, Effect subpath, auth helpers, and generated Harbor protocol client. |
+| `packages/sdk` | Generated `@hrbr/sdk` package with namespaced system facades and focused subpaths such as `@hrbr/sdk/platform/local`. |
+| `examples/browser-client` | Browser/app integration pattern using caller-owned bearer token state. |
+| `examples/client-promise` | Promise client runtime execute example with text, JSON, and skill-bundle result content. |
+| `examples/sdk-system` | Root namespace and focused subpath imports from `@hrbr/sdk`. |
+| `examples/local-platform` | Local Harbor-compatible server with the SDK-provided local frontend enabled. |
 
-## Quick Start
+## Local Infra And Frontend
 
-```bash
+`@hrbr/sdk/platform/local` includes the local infrastructure support that belongs in this SDK repo:
+
+- local project initialization
+- local store and run recording
+- local Harbor-compatible fetch handler
+- local HTTP server
+- built-in static local frontend served from that server
+
+The full hosted Harbor dashboard remains product code in the Harbor monorepo. This repo carries the SDK-local frontend surface and examples for exercising it.
+
+## Verify
+
+```sh
 bun install
 bun run typecheck
-bun run example:linear-notion
-bun run docs:api
+bun run smoke
+bun run pack:dry-run
 ```
 
-## Examples
+The local-platform smoke starts a local server, calls it through `@hrbr/client`, confirms the frontend HTML is served, then shuts the server down.
 
-- `examples/sdk-custom-source`: create a custom ticket source, connect a developer-owned MCP endpoint, enforce policy, run a workflow, and inspect traces.
-- `examples/tool-registry-linear-notion`: build a local registry with Linear and Notion-style tools, credentials, policy, search, invocation, and run graph output.
-- `examples/sdk-orbit-runtime`: use the memory Orbit runtime for storage, cache, AI, tools, sockets, and DB calls.
-- `examples/sdk-tool-catalog`: use `@hrbr/client` against hosted Harbor's tool catalog APIs.
+## Publishing
 
-## Mini Tutorials
+Publish from the package directories after the generated artifacts have been refreshed and verified:
 
-- [Custom source adapter](docs/tutorials/01-custom-source.md)
-- [Linear and Notion registry](docs/tutorials/02-linear-notion-registry.md)
-- [Orbit runtime](docs/tutorials/03-orbit-runtime.md)
-- [Hosted Harbor client](docs/tutorials/04-hosted-client.md)
-
-## Design Boundary
-
-This repo is the SDK layer, not the Harbor product. The SDK provides the low-level contracts needed to build:
-
-- source adapters
-- tool registries
-- credential stores
-- policy evaluators
-- trace writers
-- workflow runners
-- runtime primitives
-- hosted Harbor clients
-
-The hosted Harbor SaaS can be rebuilt internally using these primitives, but the public SDK should teach developers how to compose blocks, not how to clone Harbor end to end.
-
-## Development
-
-```bash
-bun install
-bun run typecheck
-bun run test
-bun run docs:api
+```sh
+npm publish ./packages/client --access public
+npm publish ./packages/sdk --access public
 ```
 
-The generated API docs are written to `docs/api`.
+Use the source Harbor monorepo publish smoke before refreshing this repository so stale intermediate tarballs do not get copied here.

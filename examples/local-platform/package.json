@@ -1,0 +1,19 @@
+{
+  "name": "local-platform-example",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "start": "bun run src/index.ts",
+    "serve": "bun run src/serve.ts"
+  },
+  "dependencies": {
+    "@hrbr/client": "workspace:*",
+    "@hrbr/sdk": "workspace:*",
+    "effect": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "catalog:"
+  }
+}

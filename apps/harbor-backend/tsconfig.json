@@ -1,9 +1,0 @@
-{
-  "extends": "@hrbr/tsconfig/base.json",
-  "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": ".",
-    "types": ["bun"]
-  },
-  "include": ["src", "test"]
-}
