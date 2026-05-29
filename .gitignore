@@ -1,4 +1,8 @@
 node_modules
+tmp/
+.venv-python/
+__pycache__/
+*.pyc
 .turbo
 .DS_Store
 *.log
@@ -7,3 +11,5 @@ node_modules
 !.env.example
 .pi/
 examples/**/.harbor-local/
+packages/python/dist/
+packages/python/*.egg-info/

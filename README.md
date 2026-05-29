@@ -4,11 +4,12 @@
 
 # Harbor SDK
 
-**Publish-ready TypeScript packages for building with Harbor.**
+**Publish-ready TypeScript and Python packages for building with Harbor.**
 
-Promise-first API clients, generated protocol types, runtime execution results,
-plugin and registry contracts, platform adapters, and a local Harbor-compatible
-development server with a built-in browser frontend.
+Promise-first TypeScript clients, sync and async Python clients, generated
+protocol types, runtime execution results, plugin and registry contracts,
+platform adapters, and a local Harbor-compatible development server with a
+built-in browser frontend.
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.3-fbf0df?logo=bun&logoColor=black)](https://bun.sh/)
@@ -37,6 +38,7 @@ and the full Harbor dashboard? Use **[tryharbor.ai](https://tryharbor.ai)**.
 - [Architecture at a Glance](#architecture-at-a-glance)
 - [Quickstart](#quickstart)
 - [Use the Client](#use-the-client)
+- [Use the Python Client](#use-the-python-client)
 - [Local Platform Frontend](#local-platform-frontend)
 - [Examples](#examples)
 - [Project Layout](#project-layout)
@@ -77,10 +79,12 @@ examples in the shape external developers consume.
 | --- | --- |
 | `@hrbr/client` | Promise-first Harbor API client for application, browser, integration, CLI, and server authors. Includes `@hrbr/client/effect` for Effect-native hosts. |
 | `@hrbr/sdk` | Composite system SDK facade for Harbor runtime, platform, plugin, protocol, registry, Orbit, and control-plane contracts. |
+| `harbor-sdk` | Python client SDK published from `packages/python`, with sync and async clients over the same generated Harbor protocol. |
 
-The intended public npm surface is two packages. Leaf runtime/protocol/platform
-packages stay behind `@hrbr/sdk` unless there is a concrete reason to expose a
-new public product.
+The intended public npm surface is two packages. The Python surface is one PyPI
+package named `harbor-sdk` with import package `harbor_sdk`. Leaf
+runtime/protocol/platform packages stay behind `@hrbr/sdk` unless there is a
+concrete reason to expose a new public product.
 
 ---
 
@@ -90,6 +94,7 @@ new public product.
 | --- | --- |
 | Promise-first client | `createHarborClient()` returns ordinary Promises for app and integration code. |
 | Effect variant | `@hrbr/client/effect` exposes the same client surface as Effect values and a layer. |
+| Python client | `HarborClient` and `AsyncHarborClient` expose sync/async Python calls with typed runtime content blocks. |
 | Generated protocol client | `harbor.api` and `@hrbr/client/generated/harbor` expose generated Harbor API resources and types. |
 | Explicit auth modes | Workspace API keys, bearer tokens, token providers, OAuth authorize URL helpers, and device-login helpers. |
 | Runtime results | `runtime.execute` preserves raw `result` and typed `content` blocks, including explicit skill bundles. |
@@ -137,6 +142,7 @@ cd harbor-sdk
 bun install
 bun run typecheck
 bun run smoke
+bun run python:sdk:test
 ```
 
 Run the local frontend example:
@@ -186,6 +192,48 @@ const workspaces = await harbor.workspaces.list({ limit: 25 })
 
 Use `@hrbr/client/effect` when the host application wants Effect-native calls
 instead of Promises.
+
+---
+
+## Use the Python Client
+
+```python
+from harbor_sdk import HarborClient
+
+client = HarborClient(
+    api_key="hrbr_...",
+    workspace_id="workspace_...",
+)
+
+run = client.runtime.execute(code='return "hello from Harbor"')
+
+print(run.result)
+for block in run.content or []:
+    if block.type == "text":
+        print(block.text)
+    elif block.type == "json":
+        print(block.json_)
+    elif block.type == "skill_bundle":
+        print(block.skill.slug)
+```
+
+Async hosts use the same shape:
+
+```python
+from harbor_sdk import AsyncHarborClient
+
+client = AsyncHarborClient(
+    api_key="hrbr_...",
+    workspace_id="workspace_...",
+)
+
+run = await client.runtime.execute(code='return "hello from Harbor"')
+```
+
+`api_key` defaults to `HARBOR_API_KEY`, `workspace_id` defaults to
+`HARBOR_WORKSPACE_ID`, and `base_url` defaults to `https://api.tryharbor.ai`.
+The generated protocol layer is exposed as `harbor_sdk_generated`; application
+code should prefer the public `harbor_sdk` facade.
 
 ---
 
@@ -240,6 +288,7 @@ routes for the local workspace/run flow used by the examples.
 | --- | --- |
 | `examples/browser-client` | Browser/app integration with caller-owned bearer token state. |
 | `examples/client-promise` | Promise runtime execution and content blocks for text plus explicit skill bundles. |
+| `examples/python-client` | Offline Python client call showing text, JSON, and skill-bundle content blocks. |
 | `examples/sdk-system` | Root namespace imports and focused subpaths from `@hrbr/sdk`. |
 | `examples/local-platform` | Local project, local server, SDK client call, and built-in frontend. |
 
@@ -259,10 +308,12 @@ harbor-sdk/
 ├── examples/
 │   ├── browser-client/
 │   ├── client-promise/
+│   ├── python-client/
 │   ├── local-platform/
 │   └── sdk-system/
 ├── packages/
 │   ├── client/               # generated @hrbr/client package
+│   ├── python/               # Python harbor-sdk package
 │   └── sdk/                  # generated @hrbr/sdk package
 ├── LICENSE
 ├── package.json
@@ -278,6 +329,7 @@ bun install
 bun run typecheck
 bun run smoke
 bun run pack:dry-run
+bun run python:sdk:test
 ```
 
 The package directories are generated artifacts. For broad source changes,
@@ -311,6 +363,8 @@ refreshed and verified:
 ```bash
 npm publish ./packages/client --access public
 npm publish ./packages/sdk --access public
+bun run python:sdk:pack
+python3 -m twine upload tmp/python-dist/harbor_sdk-*.whl
 ```
 
 Use the source Harbor monorepo publish smoke before refreshing this repository
@@ -321,7 +375,7 @@ so stale intermediate tarballs do not get copied here.
 ## Roadmap
 
 - [ ] Publish `@hrbr/client` and `@hrbr/sdk` to npm.
-- [ ] Add a Python client SDK generated from the same Harbor protocol.
+- [ ] Publish `harbor-sdk` to PyPI.
 - [ ] Add more framework examples for browser, server, CLI, and worker hosts.
 - [ ] Keep local platform frontend examples aligned with the hosted Harbor API
       contract.

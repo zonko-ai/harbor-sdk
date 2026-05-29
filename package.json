@@ -9,9 +9,12 @@
   ],
   "scripts": {
     "typecheck": "bun run --filter browser-client-example typecheck && bun run --filter client-promise-example typecheck && bun run --filter sdk-system-example typecheck && bun run --filter local-platform-example typecheck",
+    "python:sdk:test": "python3 -m venv .venv-python && .venv-python/bin/python -m pip install -q -e packages/python && PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=packages/python .venv-python/bin/python -m unittest discover packages/python/tests",
+    "python:sdk:example": "python3 -m venv .venv-python && .venv-python/bin/python -m pip install -q -e packages/python && PYTHONPATH=packages/python .venv-python/bin/python examples/python-client/main.py",
+    "python:sdk:pack": "python3 -m venv .venv-python && .venv-python/bin/python -m pip install -q build && rm -rf tmp/python-dist && .venv-python/bin/python -m build packages/python --wheel --outdir tmp/python-dist",
     "smoke:imports": "bun --eval 'await import(\"@hrbr/client\"); await import(\"@hrbr/client/effect\"); await import(\"@hrbr/sdk\"); await import(\"@hrbr/sdk/core/trigger\"); await import(\"@hrbr/sdk/platform/local\")'",
-    "smoke": "bun run typecheck && bun run smoke:imports && bun run --filter client-promise-example start && bun run --filter sdk-system-example start && bun run --filter local-platform-example start",
-    "pack:dry-run": "npm pack --dry-run ./packages/client && npm pack --dry-run ./packages/sdk"
+    "smoke": "bun run typecheck && bun run smoke:imports && bun run --filter client-promise-example start && bun run --filter sdk-system-example start && bun run --filter local-platform-example start && bun run python:sdk:test && bun run python:sdk:example",
+    "pack:dry-run": "npm pack --dry-run ./packages/client && npm pack --dry-run ./packages/sdk && bun run python:sdk:pack"
   },
   "catalog": {
     "effect": "4.0.0-beta.66",
