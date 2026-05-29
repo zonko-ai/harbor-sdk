@@ -57,7 +57,9 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "dependencies": {},
   "peerDependencies": {
