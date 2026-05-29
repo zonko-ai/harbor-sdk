@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": false,
   "description": "Promise-first Harbor API client with an explicit Effect-native subpath.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zonko-ai/harbor-sdk.git",

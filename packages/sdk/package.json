@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": false,
   "description": "Composite Harbor system SDK facade for internal runtime, platform, plugin, protocol, and control-plane building blocks.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zonko-ai/harbor-sdk.git",
