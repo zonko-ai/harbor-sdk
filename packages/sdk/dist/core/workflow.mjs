@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Schema, SchemaGetter } from "effect";
 //#region ../core-effect/src/scalars.ts
 const Timestamp = Schema.String;
 Schema.NullOr(Timestamp);
@@ -6,16 +6,299 @@ const WorkspaceId = Schema.String.check(Schema.isUUID());
 Schema.NonEmptyString;
 Schema.NonEmptyString;
 Schema.String.check(Schema.isUUID());
-Schema.NonEmptyString;
-Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/));
-Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
+const SourceId = Schema.NonEmptyString;
+const SourceNamespace = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/));
+/**
+* Normalize an arbitrary free-text string into the lowercase-safe namespace
+* shape accepted by {@link SourceNamespace}: lowercase, non-alphanumerics
+* collapsed to `-`, leading/trailing `-` trimmed, capped at 40 chars.
+*
+* This is the single source of truth for the namespace slugify algorithm. The
+* frontend mirror lives in
+* `apps/web/modules/plugin-registry/namespace-suffix.ts`; the two must stay in
+* sync. Returns `''` for input that contains no alphanumerics — callers that
+* need a non-empty result should fall back to a default (e.g. `'source'`),
+* which is what {@link NormalizedSourceNamespace} does on decode.
+*/
+function sanitizeNamespace(input) {
+	return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+Schema.String.pipe(Schema.decodeTo(SourceNamespace, {
+	decode: SchemaGetter.transform((s) => sanitizeNamespace(s) || "source"),
+	encode: SchemaGetter.passthrough()
+}));
+const RegistrySlug = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_./][a-z0-9]+)*$/));
 Schema.NonEmptyString;
 Schema.NonEmptyString;
-Schema.String.check(Schema.isPattern(/^[A-Z][A-Z0-9_]*$/));
+const SecretName = Schema.String.check(Schema.isPattern(/^[A-Z][A-Z0-9_]*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:_[a-z0-9]+)*$/));
 Schema.Record(Schema.String, Schema.Unknown);
+//#endregion
+//#region ../core-effect/src/source.ts
+const SourceKind = Schema.Literals([
+	"mcp",
+	"cli",
+	"api",
+	"composio"
+]);
+const SourceAuthMode = Schema.Literals([
+	"none",
+	"bearer",
+	"api_key",
+	"oauth2"
+]);
+const AuthKind = Schema.Literals([
+	"none",
+	"static_secret",
+	"native_oauth",
+	"global_confidential_oauth",
+	"manual_client_oauth",
+	"managed_account"
+]);
+const InstallFlow = Schema.Literals([
+	"direct",
+	"discover",
+	"discover_then_auth",
+	"manual_credentials",
+	"managed_provider",
+	"queued_import"
+]);
+const CredentialSlotKind = Schema.Literals([
+	"oauth_token",
+	"api_key",
+	"client_id",
+	"client_secret",
+	"managed_account",
+	"webhook_secret",
+	"env_secret"
+]);
+const CredentialSlotScope = Schema.Literals([
+	"workspace",
+	"caller",
+	"source",
+	"machine"
+]);
+const CredentialSlot = Schema.Struct({
+	slot: Schema.NonEmptyString,
+	kind: CredentialSlotKind,
+	label: Schema.NonEmptyString,
+	optional: Schema.optional(Schema.Boolean),
+	scope: Schema.optional(CredentialSlotScope)
+});
+const CredentialBindingValue = Schema.Union([
+	Schema.Struct({
+		kind: Schema.Literal("secret"),
+		secret_id: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("connection"),
+		connection_id: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("managed_account"),
+		account_id: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("env"),
+		env: SecretName
+	})
+]);
+Schema.Struct({
+	workspace_id: Schema.NonEmptyString,
+	source_id: SourceId,
+	slot: Schema.NonEmptyString,
+	scope: CredentialSlotScope,
+	principal_id: Schema.optional(Schema.NonEmptyString),
+	value: CredentialBindingValue,
+	status: Schema.Literals([
+		"active",
+		"missing",
+		"invalid",
+		"reconnect_required"
+	])
+});
+const SourceStatus = Schema.Literals([
+	"pending",
+	"discovering",
+	"ready",
+	"needs_credentials",
+	"credentials_error",
+	"mcp_disconnected",
+	"spec_error",
+	"refreshing",
+	"requires_oauth",
+	"reconnect_required",
+	"no_tools",
+	"verification_required",
+	"verification_failed"
+]);
+Schema.Literals(["personal", "workspace"]);
+Schema.Literals([
+	"pending",
+	"verified",
+	"failed"
+]);
+const SourceIdentity = Schema.Struct({
+	slug: RegistrySlug,
+	kind: SourceKind,
+	default_namespace: SourceNamespace,
+	display_name: Schema.NonEmptyString
+});
+const ToolBindingKind = Schema.Literals([
+	"mcp",
+	"mcp_prompt",
+	"mcp_resource_read",
+	"mcp_resource_template",
+	"cli_command",
+	"api_request",
+	"api_graphql",
+	"composio"
+]);
+const SourceRuntimeTransport = Schema.Literals([
+	"mcp_http",
+	"mcp_sse",
+	"cli",
+	"api_http",
+	"api_graphql",
+	"composio"
+]);
+const SourceAvailabilityCode = Schema.Literals([
+	"sse_only",
+	"manual_oauth_setup",
+	"requires_client_secret",
+	"install_verification_pending",
+	"known_broken",
+	"superseded_by_kind"
+]);
+const SourceExposure = Schema.Struct({
+	status: Schema.Literals(["active", "coming_soon"]),
+	selectable: Schema.Boolean,
+	hidden_in_onboarding: Schema.Boolean,
+	label: Schema.optional(Schema.String),
+	reason: Schema.optional(Schema.String),
+	code: Schema.optional(SourceAvailabilityCode),
+	superseded_by: Schema.optional(Schema.String)
+});
+const SourcePolicyDiagnostic = Schema.Struct({
+	phase: Schema.Literals([
+		"catalog",
+		"curation",
+		"deploy",
+		"workspace",
+		"runtime"
+	]),
+	modifier_id: Schema.NonEmptyString,
+	message: Schema.String
+});
+Schema.Struct({
+	identity: SourceIdentity,
+	exposure: SourceExposure,
+	setup: Schema.Struct({
+		install_flow: InstallFlow,
+		auth_kind: AuthKind,
+		credential_slots: Schema.Array(CredentialSlot)
+	}),
+	runtime: Schema.Struct({
+		transport: SourceRuntimeTransport,
+		tool_binding_kinds: Schema.Array(ToolBindingKind)
+	}),
+	agent: Schema.Struct({ capabilities: Schema.Array(Schema.String) }),
+	adapters: Schema.Record(Schema.String, Schema.String),
+	diagnostics: Schema.Array(SourcePolicyDiagnostic)
+});
+const OAuthDiscovery = Schema.Struct({
+	authorization_server: Schema.String,
+	authorization_endpoint: Schema.String,
+	token_endpoint: Schema.String,
+	registration_endpoint: Schema.optional(Schema.String),
+	scopes_supported: Schema.Array(Schema.String),
+	has_dynamic_registration: Schema.Boolean,
+	service_documentation: Schema.optional(Schema.String),
+	op_policy_uri: Schema.optional(Schema.String),
+	op_tos_uri: Schema.optional(Schema.String),
+	token_endpoint_auth_methods_supported: Schema.optional(Schema.Array(Schema.String)),
+	resource: Schema.optional(Schema.String),
+	resource_documentation: Schema.optional(Schema.String),
+	revocation_endpoint: Schema.optional(Schema.String)
+});
+const OAuthClientConfig = Schema.Struct({
+	client_id: Schema.optional(Schema.String),
+	client_secret: Schema.optional(Schema.String),
+	redirect_uri: Schema.optional(Schema.String),
+	scope: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	method: Schema.Literals([
+		"none",
+		"header",
+		"bearer",
+		"query",
+		"basic"
+	]),
+	required: Schema.optional(Schema.Boolean),
+	env: Schema.optional(SecretName),
+	secret_name: Schema.optional(Schema.NonEmptyString),
+	header_name: Schema.optional(Schema.String),
+	query_param: Schema.optional(Schema.String),
+	prefix: Schema.optional(Schema.String),
+	username_env: Schema.optional(SecretName),
+	username_secret_name: Schema.optional(Schema.NonEmptyString),
+	password_env: Schema.optional(SecretName),
+	password_secret_name: Schema.optional(Schema.NonEmptyString)
+});
+const McpSourceConfig = Schema.Struct({
+	kind: Schema.Literal("mcp"),
+	endpoint: Schema.NonEmptyString,
+	transport: Schema.Literals([
+		"http",
+		"sse",
+		"auto"
+	]),
+	auth_mode: Schema.optional(SourceAuthMode),
+	oauth_redirect_url: Schema.optional(Schema.String),
+	oauth_scopes: Schema.optional(Schema.Array(Schema.String)),
+	oauth_discovery: Schema.optional(OAuthDiscovery),
+	oauth_client_config: Schema.optional(OAuthClientConfig),
+	default_headers: Schema.optional(Schema.Record(Schema.String, Schema.String))
+});
+const CliSourceConfig = Schema.Struct({
+	kind: Schema.Literal("cli"),
+	namespace: SourceNamespace,
+	launcher: Schema.Literals([
+		"binary",
+		"npx",
+		"uvx",
+		"bunx"
+	]),
+	command: Schema.NonEmptyString,
+	args: Schema.optional(Schema.Array(Schema.String)),
+	required_secrets: Schema.optional(Schema.Array(SecretName))
+});
+const ApiSourceConfig = Schema.Struct({
+	kind: Schema.Literal("api"),
+	namespace: SourceNamespace,
+	base_url: Schema.NonEmptyString,
+	auth_mode: Schema.optional(SourceAuthMode),
+	required_secrets: Schema.optional(Schema.Array(SecretName))
+});
+const SourceConfig = Schema.Union([
+	McpSourceConfig,
+	CliSourceConfig,
+	ApiSourceConfig
+]);
+Schema.Struct({
+	id: SourceId,
+	workspace_id: WorkspaceId,
+	namespace: SourceNamespace,
+	slug: Schema.optional(RegistrySlug),
+	kind: SourceKind,
+	status: SourceStatus,
+	config: SourceConfig,
+	created_at: Timestamp,
+	updated_at: Timestamp
+});
 //#endregion
 //#region ../core-effect/src/workflow.ts
 const WorkflowId = Schema.NonEmptyString;
@@ -56,11 +339,7 @@ const WorkflowUserSummarySchema = Schema.Struct({
 });
 const WorkflowPluginRequirement = Schema.Struct({
 	slug: Schema.String,
-	kind: Schema.optional(Schema.Literals([
-		"mcp",
-		"cli",
-		"api"
-	])),
+	kind: Schema.optional(SourceKind),
 	optional: Schema.optional(Schema.Boolean)
 });
 const WorkflowSourceBinding = Schema.Struct({

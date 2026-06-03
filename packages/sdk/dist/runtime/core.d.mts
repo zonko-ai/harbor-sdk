@@ -3,7 +3,7 @@ import { Context, Effect, Schema, Scope } from "effect";
 //#region ../runtime-core/src/index.d.ts
 declare const RuntimeExecutionMode: Schema.Literals<readonly ["exec", "workflow", "job", "test"]>;
 type RuntimeExecutionMode = typeof RuntimeExecutionMode.Type;
-declare const RuntimeCapabilityKind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "artifact", "job", "workflow_step"]>;
+declare const RuntimeCapabilityKind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "git", "artifact", "job", "workflow_step"]>;
 type RuntimeCapabilityKind = typeof RuntimeCapabilityKind.Type;
 declare const RuntimeMetadata: Schema.$Record<Schema.String, Schema.Unknown>;
 type RuntimeMetadata = typeof RuntimeMetadata.Type;
@@ -39,12 +39,12 @@ declare const TrustedExecutionContext: Schema.Struct<{
 type TrustedExecutionContext = typeof TrustedExecutionContext.Type;
 declare const RuntimeNamespaceRequirement: Schema.Struct<{
   readonly namespace: Schema.String;
-  readonly bindingKind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "artifact", "job", "workflow_step"]>;
+  readonly bindingKind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "git", "artifact", "job", "workflow_step"]>;
   readonly optional: Schema.optional<Schema.Boolean>;
 }>;
 type RuntimeNamespaceRequirement = typeof RuntimeNamespaceRequirement.Type;
 declare const RuntimeCapabilityUsage: Schema.Struct<{
-  readonly kind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "artifact", "job", "workflow_step"]>;
+  readonly kind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "git", "artifact", "job", "workflow_step"]>;
   readonly key: Schema.String;
   readonly metadata: Schema.optional<Schema.$Record<Schema.String, Schema.Unknown>>;
 }>;
@@ -52,12 +52,12 @@ type RuntimeCapabilityUsage = typeof RuntimeCapabilityUsage.Type;
 declare const RuntimePlan: Schema.Struct<{
   readonly requiredNamespaces: Schema.$Array<Schema.Struct<{
     readonly namespace: Schema.String;
-    readonly bindingKind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "artifact", "job", "workflow_step"]>;
+    readonly bindingKind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "git", "artifact", "job", "workflow_step"]>;
     readonly optional: Schema.optional<Schema.Boolean>;
   }>>;
   readonly aliasMap: Schema.$Record<Schema.String, Schema.String>;
   readonly capabilities: Schema.$Array<Schema.Struct<{
-    readonly kind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "artifact", "job", "workflow_step"]>;
+    readonly kind: Schema.Literals<readonly ["tool", "orbit", "secret", "host", "state", "git", "artifact", "job", "workflow_step"]>;
     readonly key: Schema.String;
     readonly metadata: Schema.optional<Schema.$Record<Schema.String, Schema.Unknown>>;
   }>>;

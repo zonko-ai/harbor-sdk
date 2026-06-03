@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Schema, SchemaGetter } from "effect";
 //#region ../core-effect/src/scalars.ts
 const Timestamp = Schema.String;
 Schema.NullOr(Timestamp);
@@ -8,6 +8,33 @@ Schema.NonEmptyString;
 const RunId = Schema.String.check(Schema.isUUID());
 const SourceId = Schema.NonEmptyString;
 const SourceNamespace = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/));
+/**
+* Normalize an arbitrary free-text string into the lowercase-safe namespace
+* shape accepted by {@link SourceNamespace}: lowercase, non-alphanumerics
+* collapsed to `-`, leading/trailing `-` trimmed, capped at 40 chars.
+*
+* This is the single source of truth for the namespace slugify algorithm. The
+* frontend mirror lives in
+* `apps/web/modules/plugin-registry/namespace-suffix.ts`; the two must stay in
+* sync. Returns `''` for input that contains no alphanumerics — callers that
+* need a non-empty result should fall back to a default (e.g. `'source'`),
+* which is what {@link NormalizedSourceNamespace} does on decode.
+*/
+function sanitizeNamespace(input) {
+	return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+/**
+* A request-body namespace field that **sanitizes on decode** rather than
+* rejecting non-slug input. Any input string is run through
+* {@link sanitizeNamespace}; if that yields an empty string (input had no
+* usable alphanumerics) it falls back to `'source'`, matching the frontend
+* `nextFreeNamespace` default. The decoded value always satisfies
+* {@link SourceNamespace}. Encoding is identity.
+*/
+const NormalizedSourceNamespace = Schema.String.pipe(Schema.decodeTo(SourceNamespace, {
+	decode: SchemaGetter.transform((s) => sanitizeNamespace(s) || "source"),
+	encode: SchemaGetter.passthrough()
+}));
 const RegistrySlug$1 = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_./][a-z0-9]+)*$/));
@@ -283,7 +310,8 @@ Schema.Struct({
 const SourceKind = Schema.Literals([
 	"mcp",
 	"cli",
-	"api"
+	"api",
+	"composio"
 ]);
 const SourceAuthMode = Schema.Literals([
 	"none",
@@ -395,14 +423,16 @@ const ToolBindingKind$1 = Schema.Literals([
 	"mcp_resource_template",
 	"cli_command",
 	"api_request",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 const SourceRuntimeTransport = Schema.Literals([
 	"mcp_http",
 	"mcp_sse",
 	"cli",
 	"api_http",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 const SourceAvailabilityCode = Schema.Literals([
 	"sse_only",
@@ -546,7 +576,8 @@ const ToolBindingKind = Schema.Literals([
 	"mcp_resource_template",
 	"cli_command",
 	"api_request",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 Schema.Struct({
 	kind: ToolBindingKind,
@@ -728,6 +759,12 @@ const PluginSource = Schema.Struct({
 	mcp_resource_count: Schema.optional(Schema.Number),
 	mcp_resource_template_count: Schema.optional(Schema.Number),
 	generated_types: Schema.optional(Schema.NullOr(Schema.String)),
+	/**
+	* Composio connected account id (`ca_...`) persisted after the
+	* managed-account OAuth flow. Reused by SDK-native `kind:'composio'`
+	* execution so tool calls run against the already-authorized account.
+	*/
+	composio_connected_account_id: Schema.optional(Schema.NullOr(Schema.String)),
 	created_by: Schema.optional(Schema.NullOr(Schema.String)),
 	created_by_user: Schema.optional(Schema.NullOr(PluginSourceCreator)),
 	source_visibility: Schema.optional(SourceVisibility),
@@ -831,6 +868,15 @@ const CliCommandBinding = Schema.Struct({
 	timeout_ms: Schema.optional(Schema.Number),
 	streaming: Schema.optional(Schema.Boolean)
 });
+const ComposioToolBinding = Schema.Struct({
+	kind: Schema.Literal("composio"),
+	/** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+	tool_slug: Schema.NonEmptyString,
+	/** Owning toolkit slug, e.g. `gmail`. Informational; mirrors the source config. */
+	toolkit_slug: Schema.optional(Schema.NonEmptyString),
+	/** Pinned Composio tool version. Forwarded to the execute call when set. */
+	version: Schema.optional(Schema.NonEmptyString)
+});
 Schema.Union([
 	MCPToolBinding,
 	MCPPromptBinding,
@@ -838,7 +884,8 @@ Schema.Union([
 	MCPResourceTemplateBinding,
 	ApiRequestBinding,
 	ApiGraphqlBinding,
-	CliCommandBinding
+	CliCommandBinding,
+	ComposioToolBinding
 ]);
 const InvokeResultContent = Schema.Struct({
 	type: Schema.Literals([
@@ -908,6 +955,7 @@ Schema.Struct({
 const ToolSearchKind = Schema.Literals([
 	"mcp",
 	"cli_command",
+	"composio",
 	"api_request",
 	"api_graphql"
 ]);
@@ -944,7 +992,11 @@ const ToolSignatureHit = Schema.Struct({
 	score: Schema.Number,
 	kind: ToolSearchKind
 });
-Schema.Struct({ hits: Schema.Array(ToolSignatureHit) });
+Schema.Struct({
+	hits: Schema.Array(ToolSignatureHit),
+	results: Schema.Array(ToolSignatureHit),
+	usage_hint: Schema.String
+});
 Schema.Struct({
 	tool_id: Schema.String,
 	name: Schema.String,
@@ -1254,7 +1306,7 @@ Schema.Struct({
 Schema.Struct({
 	workspace_id: WorkspaceId,
 	kind: SourceKind,
-	namespace: Schema.NonEmptyString,
+	namespace: NormalizedSourceNamespace,
 	display_name: Schema.NonEmptyString,
 	config: Schema.Unknown,
 	auth_config: Schema.optional(Schema.Unknown),
@@ -1313,7 +1365,7 @@ Schema.Struct({
 Schema.Struct({
 	workspace_id: WorkspaceId,
 	slug: RegistrySlug$1,
-	namespace: Schema.optional(SourceNamespace),
+	namespace: Schema.optional(NormalizedSourceNamespace),
 	source_visibility: Schema.optional(SourceVisibility),
 	secrets_by_env: Schema.optional(Schema.Record(SecretName, Schema.NonEmptyString)),
 	credential_value: Schema.optional(Schema.NonEmptyString)
@@ -1781,6 +1833,12 @@ const PluginRegistryCliConfig = Schema.Struct({
 	cli_result_defaults: Schema.optional(CliSandResultDefaults),
 	sand_runtime_constraints: Schema.optional(SandRuntimeConstraints)
 });
+const PluginRegistryComposioConfig = Schema.Struct({
+	composio_auth_config_id: Schema.NonEmptyString,
+	toolkit_slug: Schema.NonEmptyString,
+	version: Schema.optional(Schema.NonEmptyString),
+	allowed_tools: Schema.optional(Schema.Array(Schema.NonEmptyString))
+});
 const PluginRegistryApiConfig = Schema.Struct({
 	api_protocol: Schema.optional(Schema.Literals([
 		"openapi",
@@ -1815,6 +1873,12 @@ const PluginRegistryEntry = Schema.Union([
 		kind: Schema.Literal("api"),
 		api_setup: PluginRegistryApiSetup,
 		config: PluginRegistryApiConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
+	}),
+	Schema.Struct({
+		...PluginRegistryEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig,
 		manifest: Schema.optional(PluginRegistryManifest)
 	})
 ]);
@@ -1857,6 +1921,12 @@ const PluginRegistryPublicEntry = Schema.Union([
 		api_setup: PluginRegistryApiSetup,
 		config: PluginRegistryApiConfig,
 		manifest: Schema.optional(PluginRegistryManifest)
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
 	})
 ]);
 const PluginRegistryListResult = Schema.Struct({
@@ -1883,6 +1953,11 @@ const PluginRegistryPublicEntryWithoutManifest = Schema.Union([
 		kind: Schema.Literal("api"),
 		api_setup: PluginRegistryApiSetup,
 		config: PluginRegistryApiConfig
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig
 	})
 ]);
 const PluginRegistryListResultWithoutManifest = Schema.Struct({
@@ -12564,12 +12639,10 @@ var gmail_mcp_default = {
 	display_name: "Gmail",
 	description: "Read, search, draft, send, label, and triage Gmail messages on behalf of the connected user",
 	category: "comms",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/49d5a85a-a4ff-4842-a0ea-e545b3a1d7c3/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_S4X59eoandGf"
+		"composio_auth_config_id": "ac_S4X59eoandGf",
+		"toolkit_slug": "gmail"
 	},
 	auth: {
 		"method": "none",
@@ -12590,12 +12663,10 @@ var google_drive_mcp_default = {
 	display_name: "Google Drive",
 	description: "Search and read files in the connected user's Google Drive",
 	category: "storage",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/fc1c078c-7248-4437-8cf5-57acd0c2bdd7/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_-JpcQd2Qeck8"
+		"composio_auth_config_id": "ac_-JpcQd2Qeck8",
+		"toolkit_slug": "googledrive"
 	},
 	auth: {
 		"method": "none",
@@ -12616,12 +12687,10 @@ var google_sheets_mcp_default = {
 	display_name: "Google Sheets",
 	description: "Read and write Google Sheets ranges, append rows, and create tabs",
 	category: "data",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/ab99f337-9071-4b5f-be19-5d7a65e72638/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_Ou58hAS2jOhP"
+		"composio_auth_config_id": "ac_Ou58hAS2jOhP",
+		"toolkit_slug": "googlesheets"
 	},
 	auth: {
 		"method": "none",
@@ -12642,12 +12711,10 @@ var google_docs_mcp_default = {
 	display_name: "Google Docs",
 	description: "Read and append content to Google Docs as markdown",
 	category: "data",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/587d655f-9574-454a-80ce-04a3d3d4c8e0/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_KB7gKC3kbFGP"
+		"composio_auth_config_id": "ac_KB7gKC3kbFGP",
+		"toolkit_slug": "googledocs"
 	},
 	auth: {
 		"method": "none",
@@ -12668,12 +12735,10 @@ var google_calendar_mcp_default = {
 	display_name: "Google Calendar",
 	description: "List, create, and update calendar events; read free/busy across calendars",
 	category: "comms",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/5dea3930-4d0b-4f5a-9441-a015d54747cc/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_HZdMZoL4mwsL"
+		"composio_auth_config_id": "ac_HZdMZoL4mwsL",
+		"toolkit_slug": "googlecalendar"
 	},
 	auth: {
 		"method": "none",
@@ -12694,12 +12759,10 @@ var onedrive_mcp_default = {
 	display_name: "OneDrive",
 	description: "Search, read, upload, share, and manage files in the connected user's OneDrive",
 	category: "storage",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/9e1d321d-ce15-4789-9da5-63432955f994/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_SsVdIydkFEGK"
+		"composio_auth_config_id": "ac_SsVdIydkFEGK",
+		"toolkit_slug": "one_drive"
 	},
 	auth: {
 		"method": "none",
@@ -12720,12 +12783,10 @@ var outlook_mcp_default = {
 	display_name: "Outlook",
 	description: "Read, search, draft, send, and organize Outlook mail, calendar events, and contacts",
 	category: "comms",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/fbf60df9-b039-463a-91fc-a329aa9a6870/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_qzmn1g9V4Fe3"
+		"composio_auth_config_id": "ac_qzmn1g9V4Fe3",
+		"toolkit_slug": "outlook"
 	},
 	auth: {
 		"method": "none",
@@ -12746,12 +12807,10 @@ var microsoft_teams_mcp_default = {
 	display_name: "Microsoft Teams",
 	description: "Read and manage Teams chats, channels, meetings, files, and collaboration workflows",
 	category: "comms",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/a6de0b0d-90dd-4aaf-83db-d8b9a77b9263/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_jA2-etu4SEI6"
+		"composio_auth_config_id": "ac_jA2-etu4SEI6",
+		"toolkit_slug": "microsoft_teams"
 	},
 	auth: {
 		"method": "none",
@@ -12772,12 +12831,10 @@ var excel_mcp_default = {
 	display_name: "Excel",
 	description: "Read, update, create, and analyze Excel workbooks, worksheets, ranges, tables, and charts",
 	category: "data",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/79d97c07-1396-4cc7-b6f8-90dab637cbcf/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_NlWoBCTlrzGW"
+		"composio_auth_config_id": "ac_NlWoBCTlrzGW",
+		"toolkit_slug": "excel"
 	},
 	auth: {
 		"method": "none",
@@ -12798,12 +12855,10 @@ var sharepoint_mcp_default = {
 	display_name: "SharePoint",
 	description: "Search, read, create, update, and manage SharePoint sites, lists, folders, and files",
 	category: "storage",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/334ca15a-d504-4495-bbe8-b65d5f59dd6a/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_jajzHz0UpwEM"
+		"composio_auth_config_id": "ac_jajzHz0UpwEM",
+		"toolkit_slug": "share_point"
 	},
 	auth: {
 		"method": "none",

@@ -406,6 +406,8 @@ function prescanReferences(code) {
 			jobs: /\bjobs\s*\.\s*[A-Za-z_$]/.test(stripped) || /\bhrbr\s*\.\s*jobs\s*\.\s*[A-Za-z_$]/.test(stripped),
 			defineJob: /\bdefineJob\s*\(/.test(stripped),
 			deployApp: /\bdeployApp\s*\(/.test(stripped),
+			state: /\bstate\s*\.\s*[A-Za-z_$]/.test(stripped),
+			git: /\bgit\s*\.\s*[A-Za-z_$]/.test(stripped),
 			step: /\bstep\s*\.\s*(do|sleep|sleepUntil|waitForEvent)\b/.test(stripped),
 			parseFailed: true
 		};
@@ -419,6 +421,8 @@ function prescanReferences(code) {
 	let jobs = false;
 	let defineJob = false;
 	let deployApp = false;
+	let state = false;
+	let git = false;
 	let step = false;
 	const candidates = /* @__PURE__ */ new Set();
 	const visit = (node, scopes) => {
@@ -515,6 +519,8 @@ function prescanReferences(code) {
 				else if (name === "jobs") jobs = true;
 				else if (name === "defineJob") defineJob = true;
 				else if (name === "deployApp") deployApp = true;
+				else if (name === "state") state = true;
+				else if (name === "git") git = true;
 				else if (name === "step") step = true;
 				else candidates.add(name);
 				return;
@@ -535,14 +541,16 @@ function prescanReferences(code) {
 		jobs,
 		defineJob,
 		deployApp,
+		state,
+		git,
 		step,
 		parseFailed: false
 	};
 	memoSet(prescanMemo, code, result, PRESCAN_MEMO_MAX);
 	return result;
 }
-function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
-	const memoKey = resolveMemoKey(code, namespaces, sandNamespaces);
+function resolveBindingUsage(code, namespaces, sandNamespaces = [], shellFsEnabled = false) {
+	const memoKey = `${resolveMemoKey(code, namespaces, sandNamespaces)} ${shellFsEnabled ? "1" : "0"}`;
 	const memoHit = resolveMemo.get(memoKey);
 	if (memoHit) return memoHit;
 	const namespaceAliases = buildNamespaceAliases(namespaces);
@@ -563,6 +571,7 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 		"defineJob",
 		"deployApp",
 		"step",
+		...shellFsEnabled ? ["state", "git"] : [],
 		...aliasToNamespace.keys()
 	]);
 	let hrbr = false;
@@ -572,6 +581,8 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 	let jobs = false;
 	let defineJob = false;
 	let deployApp = false;
+	let state = false;
+	let git = false;
 	let step = false;
 	const referencedNamespaces = /* @__PURE__ */ new Set();
 	const referencedSandNamespaces = /* @__PURE__ */ new Set();
@@ -605,6 +616,8 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 			jobs: true,
 			defineJob: true,
 			deployApp: true,
+			state: shellFsEnabled,
+			git: shellFsEnabled,
 			step: true
 		};
 	}
@@ -707,6 +720,8 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 				if (name === "jobs" && !isDeclared(scopes, name)) jobs = true;
 				if (name === "defineJob" && !isDeclared(scopes, name)) defineJob = true;
 				if (name === "deployApp" && !isDeclared(scopes, name)) deployApp = true;
+				if (shellFsEnabled && name === "state" && !isDeclared(scopes, name)) state = true;
+				if (shellFsEnabled && name === "git" && !isDeclared(scopes, name)) git = true;
 				if (name === "step" && !isDeclared(scopes, name)) step = true;
 				const namespace = aliasToNamespace.get(name);
 				if (namespace && !isDeclared(scopes, name)) {
@@ -741,6 +756,8 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 		jobs,
 		defineJob,
 		deployApp,
+		state,
+		git,
 		step
 	};
 	memoSet(resolveMemo, memoKey, result, RESOLVE_MEMO_MAX);

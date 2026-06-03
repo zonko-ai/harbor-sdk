@@ -5,11 +5,11 @@ declare const SourceStatus: Schema.Literals<readonly ["pending", "discovering", 
 type SourceStatus = typeof SourceStatus.Type;
 //#endregion
 //#region ../core-effect/src/plugin.d.ts
-declare const TOOL_BINDING_KINDS: readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql"];
-declare const ToolBindingKind: Schema.Literals<readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql"]>;
+declare const TOOL_BINDING_KINDS: readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql", "composio"];
+declare const ToolBindingKind: Schema.Literals<readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql", "composio"]>;
 type ToolBindingKind = typeof ToolBindingKind.Type;
 declare const ToolBinding: Schema.Struct<{
-  readonly kind: Schema.Literals<readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql", "composio"]>;
   readonly source_id: Schema.NonEmptyString;
   readonly namespace: Schema.String;
   readonly external_name: Schema.NonEmptyString;
@@ -155,7 +155,7 @@ type McpAnnotations = typeof McpAnnotations.Type;
 declare const PluginSource: Schema.Struct<{
   readonly id: Schema.String;
   readonly workspace_id: Schema.String;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
   readonly namespace: Schema.String;
   readonly display_name: Schema.String;
   readonly description: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -200,6 +200,12 @@ declare const PluginSource: Schema.Struct<{
   readonly mcp_resource_count: Schema.optional<Schema.Number>;
   readonly mcp_resource_template_count: Schema.optional<Schema.Number>;
   readonly generated_types: Schema.optional<Schema.NullOr<Schema.String>>;
+  /**
+   * Composio connected account id (`ca_...`) persisted after the
+   * managed-account OAuth flow. Reused by SDK-native `kind:'composio'`
+   * execution so tool calls run against the already-authorized account.
+   */
+  readonly composio_connected_account_id: Schema.optional<Schema.NullOr<Schema.String>>;
   readonly created_by: Schema.optional<Schema.NullOr<Schema.String>>;
   readonly created_by_user: Schema.optional<Schema.NullOr<Schema.Struct<{
     readonly id: Schema.String;
@@ -379,6 +385,13 @@ declare const CliCommandBinding: Schema.Struct<{
   readonly streaming: Schema.optional<Schema.Boolean>;
 }>;
 type CliCommandBinding = typeof CliCommandBinding.Type;
+declare const ComposioToolBinding: Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">; /** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+  readonly tool_slug: Schema.NonEmptyString; /** Owning toolkit slug, e.g. `gmail`. Informational; mirrors the source config. */
+  readonly toolkit_slug: Schema.optional<Schema.NonEmptyString>; /** Pinned Composio tool version. Forwarded to the execute call when set. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
+}>;
+type ComposioToolBinding = typeof ComposioToolBinding.Type;
 declare const ProviderToolBinding: Schema.Union<readonly [Schema.Struct<{
   readonly kind: Schema.Literal<"mcp">;
   readonly tool_name: Schema.String;
@@ -458,6 +471,11 @@ declare const ProviderToolBinding: Schema.Union<readonly [Schema.Struct<{
   readonly sand_result_mode: Schema.Literals<readonly ["json_stdout", "stdout_text", "binary_base64", "exit_code_only"]>;
   readonly timeout_ms: Schema.optional<Schema.Number>;
   readonly streaming: Schema.optional<Schema.Boolean>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">; /** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+  readonly tool_slug: Schema.NonEmptyString; /** Owning toolkit slug, e.g. `gmail`. Informational; mirrors the source config. */
+  readonly toolkit_slug: Schema.optional<Schema.NonEmptyString>; /** Pinned Composio tool version. Forwarded to the execute call when set. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
 }>]>;
 type ProviderToolBinding = typeof ProviderToolBinding.Type;
 declare const InvokeResultContent: Schema.Struct<{
@@ -592,7 +610,7 @@ declare const ExecuteResult: Schema.Struct<{
   readonly workflow_instance_id: Schema.optional<Schema.String>;
 }>;
 type ExecuteResult = typeof ExecuteResult.Type;
-declare const ToolSearchKind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>;
+declare const ToolSearchKind: Schema.Literals<readonly ["mcp", "cli_command", "composio", "api_request", "api_graphql"]>;
 type ToolSearchKind = typeof ToolSearchKind.Type;
 declare const ToolSearchResult: Schema.Struct<{
   readonly tool_id: Schema.String;
@@ -626,7 +644,7 @@ declare const ToolSignatureHit: Schema.Struct<{
     readonly example: Schema.String;
   }>>;
   readonly score: Schema.Number;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "composio", "api_request", "api_graphql"]>;
 }>;
 type ToolSignatureHit = typeof ToolSignatureHit.Type;
 declare const ToolsSearchResponse: Schema.Struct<{
@@ -651,8 +669,32 @@ declare const ToolsSearchResponse: Schema.Struct<{
       readonly example: Schema.String;
     }>>;
     readonly score: Schema.Number;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "composio", "api_request", "api_graphql"]>;
   }>>;
+  readonly results: Schema.$Array<Schema.Struct<{
+    readonly tool_id: Schema.String;
+    readonly name: Schema.String;
+    readonly namespace: Schema.String;
+    readonly js_var: Schema.String;
+    readonly js_name: Schema.String;
+    readonly display_name: Schema.String;
+    readonly description: Schema.optional<Schema.String>;
+    readonly signature: Schema.String;
+    readonly input_schema: Schema.optional<Schema.Unknown>;
+    readonly output_schema: Schema.optional<Schema.Unknown>;
+    readonly shared_defs: Schema.optional<Schema.Unknown>;
+    readonly input_type: Schema.optional<Schema.String>;
+    readonly output_type: Schema.optional<Schema.String>;
+    readonly type_definitions: Schema.optional<Schema.String>;
+    readonly call_example: Schema.optional<Schema.String>;
+    readonly call: Schema.optional<Schema.Struct<{
+      readonly expression: Schema.String;
+      readonly example: Schema.String;
+    }>>;
+    readonly score: Schema.Number;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "composio", "api_request", "api_graphql"]>;
+  }>>;
+  readonly usage_hint: Schema.String;
 }>;
 type ToolsSearchResponse = typeof ToolsSearchResponse.Type;
 declare const ToolDescribeResponse: Schema.Struct<{
@@ -675,7 +717,7 @@ declare const ToolDescribeResponse: Schema.Struct<{
     readonly expression: Schema.String;
     readonly example: Schema.String;
   }>;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "composio", "api_request", "api_graphql"]>;
 }>;
 type ToolDescribeResponse = typeof ToolDescribeResponse.Type;
 declare const ToolSchemaResponse: Schema.Struct<{
@@ -761,7 +803,7 @@ type AddToolResult = typeof AddToolResult.Type;
 declare const SourceSummary: Schema.Struct<{
   readonly namespace: Schema.String;
   readonly display_name: Schema.String;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
   readonly tool_count: Schema.Number;
   readonly status: Schema.Literals<readonly ["pending", "discovering", "ready", "needs_credentials", "credentials_error", "mcp_disconnected", "spec_error", "refreshing", "requires_oauth", "reconnect_required", "no_tools", "verification_required", "verification_failed"]>;
   readonly category: Schema.optional<Schema.String>;
@@ -954,7 +996,7 @@ declare const SourceListResult: Schema.Struct<{
   readonly data: Schema.$Array<Schema.Struct<{
     readonly id: Schema.String;
     readonly workspace_id: Schema.String;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
     readonly namespace: Schema.String;
     readonly display_name: Schema.String;
     readonly description: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -999,6 +1041,12 @@ declare const SourceListResult: Schema.Struct<{
     readonly mcp_resource_count: Schema.optional<Schema.Number>;
     readonly mcp_resource_template_count: Schema.optional<Schema.Number>;
     readonly generated_types: Schema.optional<Schema.NullOr<Schema.String>>;
+    /**
+     * Composio connected account id (`ca_...`) persisted after the
+     * managed-account OAuth flow. Reused by SDK-native `kind:'composio'`
+     * execution so tool calls run against the already-authorized account.
+     */
+    readonly composio_connected_account_id: Schema.optional<Schema.NullOr<Schema.String>>;
     readonly created_by: Schema.optional<Schema.NullOr<Schema.String>>;
     readonly created_by_user: Schema.optional<Schema.NullOr<Schema.Struct<{
       readonly id: Schema.String;
@@ -1080,7 +1128,7 @@ declare const RefreshSourceResult: Schema.Struct<{
   readonly source: Schema.Struct<{
     readonly id: Schema.String;
     readonly workspace_id: Schema.String;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
     readonly namespace: Schema.String;
     readonly display_name: Schema.String;
     readonly description: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -1125,6 +1173,12 @@ declare const RefreshSourceResult: Schema.Struct<{
     readonly mcp_resource_count: Schema.optional<Schema.Number>;
     readonly mcp_resource_template_count: Schema.optional<Schema.Number>;
     readonly generated_types: Schema.optional<Schema.NullOr<Schema.String>>;
+    /**
+     * Composio connected account id (`ca_...`) persisted after the
+     * managed-account OAuth flow. Reused by SDK-native `kind:'composio'`
+     * execution so tool calls run against the already-authorized account.
+     */
+    readonly composio_connected_account_id: Schema.optional<Schema.NullOr<Schema.String>>;
     readonly created_by: Schema.optional<Schema.NullOr<Schema.String>>;
     readonly created_by_user: Schema.optional<Schema.NullOr<Schema.Struct<{
       readonly id: Schema.String;
@@ -1151,8 +1205,8 @@ declare const ToolIdBody: Schema.Struct<{
 type ToolIdBody = typeof ToolIdBody.Type;
 declare const AddSourceBody: Schema.Struct<{
   readonly workspace_id: Schema.String;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
-  readonly namespace: Schema.NonEmptyString;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
+  readonly namespace: Schema.decodeTo<Schema.String, Schema.String, never, never>;
   readonly display_name: Schema.NonEmptyString;
   readonly config: Schema.Unknown;
   readonly auth_config: Schema.optional<Schema.Unknown>;
@@ -1174,7 +1228,7 @@ declare const AddSourceResult: Schema.Struct<{
   readonly source: Schema.Struct<{
     readonly id: Schema.String;
     readonly workspace_id: Schema.String;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
     readonly namespace: Schema.String;
     readonly display_name: Schema.String;
     readonly description: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -1219,6 +1273,12 @@ declare const AddSourceResult: Schema.Struct<{
     readonly mcp_resource_count: Schema.optional<Schema.Number>;
     readonly mcp_resource_template_count: Schema.optional<Schema.Number>;
     readonly generated_types: Schema.optional<Schema.NullOr<Schema.String>>;
+    /**
+     * Composio connected account id (`ca_...`) persisted after the
+     * managed-account OAuth flow. Reused by SDK-native `kind:'composio'`
+     * execution so tool calls run against the already-authorized account.
+     */
+    readonly composio_connected_account_id: Schema.optional<Schema.NullOr<Schema.String>>;
     readonly created_by: Schema.optional<Schema.NullOr<Schema.String>>;
     readonly created_by_user: Schema.optional<Schema.NullOr<Schema.Struct<{
       readonly id: Schema.String;
@@ -1311,7 +1371,7 @@ type SourceVerificationProbeResult = typeof SourceVerificationProbeResult.Type;
 declare const RegistryInstallBody: Schema.Struct<{
   readonly workspace_id: Schema.String;
   readonly slug: Schema.String;
-  readonly namespace: Schema.optional<Schema.String>;
+  readonly namespace: Schema.optional<Schema.decodeTo<Schema.String, Schema.String, never, never>>;
   readonly source_visibility: Schema.optional<Schema.Literals<readonly ["personal", "workspace"]>>;
   readonly secrets_by_env: Schema.optional<Schema.$Record<Schema.String, Schema.NonEmptyString>>;
   readonly credential_value: Schema.optional<Schema.NonEmptyString>;
@@ -1441,7 +1501,7 @@ declare const ToolsSearchBody: Schema.Struct<{
   readonly query: Schema.NonEmptyString;
   readonly limit: Schema.optional<Schema.Number>;
   readonly source: Schema.optional<Schema.String>;
-  readonly kind: Schema.optional<Schema.$Array<Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>>>;
+  readonly kind: Schema.optional<Schema.$Array<Schema.Literals<readonly ["mcp", "cli_command", "composio", "api_request", "api_graphql"]>>>;
   readonly verbose: Schema.optional<Schema.Boolean>;
   readonly mode: Schema.optional<Schema.Literals<readonly ["auto", "vector", "lexical"]>>;
 }>;
@@ -1692,5 +1752,5 @@ declare function renderToolCallExample(tool: Pick<ToolSignatureInput, 'namespace
   readonly multiline?: boolean;
 }): string;
 //#endregion
-export { AWAITING_OAUTH_SOURCE_STATUSES, AddSourceBody, AddSourceResult, AddToolBody, AddToolResult, ApiGraphqlBinding, ApiRequestBinding, AuthConfig, AuthTemplate, CliArgTemplateFlag, CliArgTemplateInput, CliArgTemplateLiteral, CliArgTemplateOption, CliArgTemplatePart, CliCommandBinding, CliCwdPolicy, CliLauncher, CliSandResultDefaults, ComposioStaticAuthConfig, ComposioStaticAuthScheme, CredentialCreateBody, CredentialCreateResult, CredentialDeleteResult, CredentialIdBody, CredentialKind, CredentialListItem, CredentialUpsertBody, CredentialUpsertResult, CredentialsListBody, CredentialsListResult, DiscoveryResult, DiscoverySourceMetadata, ExecuteResult, ExecuteResultContent, ExecuteResultJsonContent, ExecuteResultSkillBundleContent, ExecuteResultTextContent, ExecuteSkillBundle, ExecuteSkillBundleFile, ExtractedTool, InvokeResult, InvokeResultContent, InvokeToolBody, InvokerResult, InvokerRuntimeConfig, MCPPromptBinding, MCPResourceReadBinding, MCPResourceTemplateBinding, MCPToolBinding, McpAnnotations, McpIcon, McpOAuthDiscoveryResult, McpProbeBody, McpProbeResult, McpServerInfo, MetaSearchBody, OAuthCallbackUrlResult, OAuthConfigureBody, OAuthConfigureResult, OAuthDisconnectResult, OAuthFlowStatusBody, OAuthFlowStatusResult, OAuthReconnectBody, OAuthSetupHints, OAuthSetupHintsBody, OAuthSetupHintsRegisterUrlSource, OAuthStartResult, PersistedAuthConfig, PluginCredential, PluginInstallJob, PluginInstallJobGetBody, PluginInstallJobListBody, PluginInstallJobListResult, PluginInstallJobStatus, PluginSource, PluginSourceCreator, PluginSourceDisplayStatus, PluginSourceDomainAction, PluginSourceDomainView, PluginTool, ProviderToolBinding, RefreshSourceBody, RefreshSourceResult, RegistryInstallBody, RegistryInstallJobResult, RegistryInstallResult, RegistryInstallSourceResult, RegistryListBody, RemoveSourceResult, ResolvedAuth, SourceAbandonResult, SourceAuthTestBody, SourceAuthTestRedactedRequest, SourceAuthTestResult, SourceCleanupStaleResult, SourceIdBody, SourceLink, SourceListBody, SourceListResult, SourceSummary, SourceVerification, SourceVerificationGetBody, SourceVerificationGetResult, SourceVerificationProbeBody, SourceVerificationProbeResult, SourceVerificationSetBody, SourceVerificationSetResult, SourceVerificationSummary, SourceVisibilitySetBody, SubmitSourceRequestBody, SubmitSourceRequestResult, TOOL_BINDING_KINDS, ToolBinding, ToolBindingKind, ToolDescribeBody, ToolDescribeResponse, ToolIdBody, ToolIdsBody, ToolInvocationResult, ToolSchemaResponse, ToolSchemasResponse, ToolSearchBody, ToolSearchKind, ToolSearchMode, ToolSearchResult, ToolSignatureHit, ToolSignatureInput, ToolsListBody, ToolsListResult, ToolsReindexBody, ToolsReindexResult, ToolsSearchBody, ToolsSearchResponse, WorkspaceOAuthClient, WorkspaceOAuthClientDeleteBody, WorkspaceOAuthClientDeleteResult, WorkspaceOAuthClientListBody, WorkspaceOAuthClientListResult, WorkspaceOAuthClientSetBody, WorkspaceOAuthClientSetResult, buildNamespaceAliases, buildToolAliases, displayPluginSourceStatus, effectivePluginSourceStatus, isPluginSourceAwaitingOauth, isPluginSourceRunnable, namespaceToJsVar, pluginSourceDomainView, pluginSourceNextAction, rankNearestMatches, renderToolCallExample, renderToolCallExpression, renderToolSignature, toCamelCase, toSafeIdentifier, toSanitizedIdentifier, toolNameToJsName };
+export { AWAITING_OAUTH_SOURCE_STATUSES, AddSourceBody, AddSourceResult, AddToolBody, AddToolResult, ApiGraphqlBinding, ApiRequestBinding, AuthConfig, AuthTemplate, CliArgTemplateFlag, CliArgTemplateInput, CliArgTemplateLiteral, CliArgTemplateOption, CliArgTemplatePart, CliCommandBinding, CliCwdPolicy, CliLauncher, CliSandResultDefaults, ComposioStaticAuthConfig, ComposioStaticAuthScheme, ComposioToolBinding, CredentialCreateBody, CredentialCreateResult, CredentialDeleteResult, CredentialIdBody, CredentialKind, CredentialListItem, CredentialUpsertBody, CredentialUpsertResult, CredentialsListBody, CredentialsListResult, DiscoveryResult, DiscoverySourceMetadata, ExecuteResult, ExecuteResultContent, ExecuteResultJsonContent, ExecuteResultSkillBundleContent, ExecuteResultTextContent, ExecuteSkillBundle, ExecuteSkillBundleFile, ExtractedTool, InvokeResult, InvokeResultContent, InvokeToolBody, InvokerResult, InvokerRuntimeConfig, MCPPromptBinding, MCPResourceReadBinding, MCPResourceTemplateBinding, MCPToolBinding, McpAnnotations, McpIcon, McpOAuthDiscoveryResult, McpProbeBody, McpProbeResult, McpServerInfo, MetaSearchBody, OAuthCallbackUrlResult, OAuthConfigureBody, OAuthConfigureResult, OAuthDisconnectResult, OAuthFlowStatusBody, OAuthFlowStatusResult, OAuthReconnectBody, OAuthSetupHints, OAuthSetupHintsBody, OAuthSetupHintsRegisterUrlSource, OAuthStartResult, PersistedAuthConfig, PluginCredential, PluginInstallJob, PluginInstallJobGetBody, PluginInstallJobListBody, PluginInstallJobListResult, PluginInstallJobStatus, PluginSource, PluginSourceCreator, PluginSourceDisplayStatus, PluginSourceDomainAction, PluginSourceDomainView, PluginTool, ProviderToolBinding, RefreshSourceBody, RefreshSourceResult, RegistryInstallBody, RegistryInstallJobResult, RegistryInstallResult, RegistryInstallSourceResult, RegistryListBody, RemoveSourceResult, ResolvedAuth, SourceAbandonResult, SourceAuthTestBody, SourceAuthTestRedactedRequest, SourceAuthTestResult, SourceCleanupStaleResult, SourceIdBody, SourceLink, SourceListBody, SourceListResult, SourceSummary, SourceVerification, SourceVerificationGetBody, SourceVerificationGetResult, SourceVerificationProbeBody, SourceVerificationProbeResult, SourceVerificationSetBody, SourceVerificationSetResult, SourceVerificationSummary, SourceVisibilitySetBody, SubmitSourceRequestBody, SubmitSourceRequestResult, TOOL_BINDING_KINDS, ToolBinding, ToolBindingKind, ToolDescribeBody, ToolDescribeResponse, ToolIdBody, ToolIdsBody, ToolInvocationResult, ToolSchemaResponse, ToolSchemasResponse, ToolSearchBody, ToolSearchKind, ToolSearchMode, ToolSearchResult, ToolSignatureHit, ToolSignatureInput, ToolsListBody, ToolsListResult, ToolsReindexBody, ToolsReindexResult, ToolsSearchBody, ToolsSearchResponse, WorkspaceOAuthClient, WorkspaceOAuthClientDeleteBody, WorkspaceOAuthClientDeleteResult, WorkspaceOAuthClientListBody, WorkspaceOAuthClientListResult, WorkspaceOAuthClientSetBody, WorkspaceOAuthClientSetResult, buildNamespaceAliases, buildToolAliases, displayPluginSourceStatus, effectivePluginSourceStatus, isPluginSourceAwaitingOauth, isPluginSourceRunnable, namespaceToJsVar, pluginSourceDomainView, pluginSourceNextAction, rankNearestMatches, renderToolCallExample, renderToolCallExpression, renderToolSignature, toCamelCase, toSafeIdentifier, toSanitizedIdentifier, toolNameToJsName };
 //# sourceMappingURL=plugin.d.mts.map

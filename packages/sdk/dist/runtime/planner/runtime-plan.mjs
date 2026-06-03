@@ -13,6 +13,7 @@ const RuntimeCapabilityKind = Schema.Literals([
 	"secret",
 	"host",
 	"state",
+	"git",
 	"artifact",
 	"job",
 	"workflow_step"
@@ -357,8 +358,8 @@ function getHrbrMemberPropertyName(node, scopes) {
 function isHrbrWorkspacePrimitive(name) {
 	return name === null || name === "storage" || name === "cache" || name === "db" || name === "tools" || name === "ai";
 }
-function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
-	const memoKey = resolveMemoKey(code, namespaces, sandNamespaces);
+function resolveBindingUsage(code, namespaces, sandNamespaces = [], shellFsEnabled = false) {
+	const memoKey = `${resolveMemoKey(code, namespaces, sandNamespaces)} ${shellFsEnabled ? "1" : "0"}`;
 	const memoHit = resolveMemo.get(memoKey);
 	if (memoHit) return memoHit;
 	const namespaceAliases = buildNamespaceAliases(namespaces);
@@ -379,6 +380,7 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 		"defineJob",
 		"deployApp",
 		"step",
+		...shellFsEnabled ? ["state", "git"] : [],
 		...aliasToNamespace.keys()
 	]);
 	let hrbr = false;
@@ -388,6 +390,8 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 	let jobs = false;
 	let defineJob = false;
 	let deployApp = false;
+	let state = false;
+	let git = false;
 	let step = false;
 	const referencedNamespaces = /* @__PURE__ */ new Set();
 	const referencedSandNamespaces = /* @__PURE__ */ new Set();
@@ -421,6 +425,8 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 			jobs: true,
 			defineJob: true,
 			deployApp: true,
+			state: shellFsEnabled,
+			git: shellFsEnabled,
 			step: true
 		};
 	}
@@ -523,6 +529,8 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 				if (name === "jobs" && !isDeclared(scopes, name)) jobs = true;
 				if (name === "defineJob" && !isDeclared(scopes, name)) defineJob = true;
 				if (name === "deployApp" && !isDeclared(scopes, name)) deployApp = true;
+				if (shellFsEnabled && name === "state" && !isDeclared(scopes, name)) state = true;
+				if (shellFsEnabled && name === "git" && !isDeclared(scopes, name)) git = true;
 				if (name === "step" && !isDeclared(scopes, name)) step = true;
 				const namespace = aliasToNamespace.get(name);
 				if (namespace && !isDeclared(scopes, name)) {
@@ -557,6 +565,8 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 		jobs,
 		defineJob,
 		deployApp,
+		state,
+		git,
 		step
 	};
 	memoSet(resolveMemo, memoKey, result, RESOLVE_MEMO_MAX);
@@ -564,10 +574,10 @@ function resolveBindingUsage(code, namespaces, sandNamespaces = []) {
 }
 //#endregion
 //#region ../runtime-planner/src/namespace-plan.ts
-function planRuntimeNamespaceUsage(userCode, sources) {
-	const availableNamespaces = [...new Set(sources.filter((source) => source.kind === "mcp" || source.kind === "api" || source.kind === "cli" && source.has_cli_bindings).map((source) => source.namespace))];
+function planRuntimeNamespaceUsage(userCode, sources, shellFsEnabled = false) {
+	const availableNamespaces = [...new Set(sources.filter((source) => source.kind === "mcp" || source.kind === "api" || source.kind === "composio" || source.kind === "cli" && source.has_cli_bindings).map((source) => source.namespace))];
 	const availableSandNamespaces = [...new Set(sources.filter((source) => source.kind === "cli" && source.has_cli_bindings).map((source) => source.namespace))];
-	const bindingUsage = resolveBindingUsage(userCode, availableNamespaces, availableSandNamespaces);
+	const bindingUsage = resolveBindingUsage(userCode, availableNamespaces, availableSandNamespaces, shellFsEnabled);
 	const namespaces = [...bindingUsage.namespaces];
 	const sandNamespaces = bindingUsage.sand ? [...bindingUsage.sandNamespaces.length > 0 ? bindingUsage.sandNamespaces : availableSandNamespaces] : [];
 	return {
@@ -580,6 +590,8 @@ function planRuntimeNamespaceUsage(userCode, sources) {
 		orbit: bindingUsage.orbit,
 		secrets: bindingUsage.secrets,
 		jobs: bindingUsage.jobs,
+		state: bindingUsage.state,
+		git: bindingUsage.git,
 		step: bindingUsage.step,
 		aliases: bindingUsage.aliases
 	};
@@ -617,6 +629,14 @@ function projectRuntimeNamespaceUsage(usage, request, options = {}) {
 		kind: "job",
 		key: "jobs"
 	});
+	if (usage.state) capabilities.push({
+		kind: "state",
+		key: "state"
+	});
+	if (usage.git) capabilities.push({
+		kind: "git",
+		key: "git"
+	});
 	if (usage.step) capabilities.push({
 		kind: "workflow_step",
 		key: "step"
@@ -636,7 +656,7 @@ function createRuntimePlan(request, _context, options = {}) {
 	return createRuntimePlanProjection(request, options).runtimePlan;
 }
 function createRuntimePlanProjection(request, options = {}) {
-	return projectRuntimeNamespaceUsage(planRuntimeNamespaceUsage(request.code, options.sourceBindings ?? []), request, options);
+	return projectRuntimeNamespaceUsage(planRuntimeNamespaceUsage(request.code, options.sourceBindings ?? [], options.shellFsEnabled ?? false), request, options);
 }
 function decodeSourceBindings(value) {
 	if (value === void 0) return void 0;

@@ -22,7 +22,6 @@ declare const Workspace: Schema.Struct<{
   readonly name: Schema.String;
   readonly slug: Schema.String;
   readonly role: Schema.Literals<readonly ["owner", "admin", "member", "viewer"]>;
-  readonly onboarded_at: Schema.NullOr<Schema.String>;
   readonly current_user_id: Schema.optional<Schema.String>;
   readonly current_user_email: Schema.optional<Schema.String>;
   readonly current_user_name: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -49,13 +48,21 @@ declare const ListWorkspacesBody: Schema.Struct<{
   readonly include_total: Schema.optional<Schema.Boolean>;
 }>;
 type ListWorkspacesBody = typeof ListWorkspacesBody.Type;
+/**
+ * Per-user onboarding state. Onboarding is a property of the human, not of
+ * any single workspace membership, so it is exposed as a top-level block on
+ * the workspaces listing rather than denormalized onto each workspace.
+ */
+declare const UserOnboarding: Schema.Struct<{
+  readonly onboardedAt: Schema.NullOr<Schema.String>;
+}>;
+type UserOnboarding = typeof UserOnboarding.Type;
 declare const ListWorkspacesResult: Schema.Struct<{
   readonly data: Schema.$Array<Schema.Struct<{
     readonly id: Schema.String;
     readonly name: Schema.String;
     readonly slug: Schema.String;
     readonly role: Schema.Literals<readonly ["owner", "admin", "member", "viewer"]>;
-    readonly onboarded_at: Schema.NullOr<Schema.String>;
     readonly current_user_id: Schema.optional<Schema.String>;
     readonly current_user_email: Schema.optional<Schema.String>;
     readonly current_user_name: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -63,6 +70,9 @@ declare const ListWorkspacesResult: Schema.Struct<{
     readonly created_at: Schema.optional<Schema.String>;
     readonly updated_at: Schema.optional<Schema.String>;
   }>>;
+  readonly user: Schema.Struct<{
+    readonly onboardedAt: Schema.NullOr<Schema.String>;
+  }>;
   readonly total: Schema.optional<Schema.NullOr<Schema.Number>>;
   readonly limit: Schema.Number;
   readonly offset: Schema.Number;
@@ -133,5 +143,5 @@ declare const Invite: Schema.Struct<{
 }>;
 type Invite = typeof Invite.Type;
 //#endregion
-export { ASSIGNABLE_ROLES, AcceptInviteBody, AssignableRole, CreateWorkspaceBody, Invite, InviteIdBody, InviteStatus, ListWorkspacesBody, ListWorkspacesResult, Member, MemberIdBody, ROLES, ResendInviteBody, Role, SendInviteBody, UpdateMemberRoleBody, UpdateWorkspaceBody, Workspace, WorkspaceBody, WorkspaceMember, WorkspaceRole, WorkspaceSlug, hasRole, isRole };
+export { ASSIGNABLE_ROLES, AcceptInviteBody, AssignableRole, CreateWorkspaceBody, Invite, InviteIdBody, InviteStatus, ListWorkspacesBody, ListWorkspacesResult, Member, MemberIdBody, ROLES, ResendInviteBody, Role, SendInviteBody, UpdateMemberRoleBody, UpdateWorkspaceBody, UserOnboarding, Workspace, WorkspaceBody, WorkspaceMember, WorkspaceRole, WorkspaceSlug, hasRole, isRole };
 //# sourceMappingURL=workspace.d.mts.map

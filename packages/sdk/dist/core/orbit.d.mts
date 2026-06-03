@@ -289,6 +289,7 @@ declare const OrbitJobSummary: Schema.Struct<{
   readonly deployment_provider: Schema.optional<Schema.NullOr<Schema.Union<readonly [Schema.Literal<"cloudflare_wfp">, Schema.Literal<"cloudflare_container">, Schema.Literal<"local">]>>>;
   readonly deployment_status: Schema.optional<Schema.NullOr<Schema.Union<readonly [Schema.Literal<"promoting">, Schema.Literal<"ready">, Schema.Literal<"failed">, Schema.Literal<"disabled">]>>>;
   readonly deployed_at: Schema.optional<Schema.NullOr<Schema.String>>;
+  readonly created_at: Schema.String;
 }>;
 type OrbitJobSummary = typeof OrbitJobSummary.Type;
 declare const OrbitJobVersionRecord: Schema.Struct<{
@@ -461,6 +462,7 @@ declare const OrbitJobListResponse: Schema.Struct<{
     readonly deployment_provider: Schema.optional<Schema.NullOr<Schema.Union<readonly [Schema.Literal<"cloudflare_wfp">, Schema.Literal<"cloudflare_container">, Schema.Literal<"local">]>>>;
     readonly deployment_status: Schema.optional<Schema.NullOr<Schema.Union<readonly [Schema.Literal<"promoting">, Schema.Literal<"ready">, Schema.Literal<"failed">, Schema.Literal<"disabled">]>>>;
     readonly deployed_at: Schema.optional<Schema.NullOr<Schema.String>>;
+    readonly created_at: Schema.String;
   }>>;
   readonly count: Schema.Number;
 }>;
@@ -954,6 +956,7 @@ declare const OrbitAppSummary: Schema.Struct<{
   readonly status: Schema.Union<readonly [Schema.Literal<"ready">, Schema.Literal<"disabled">, Schema.Literal<"failed">]>;
   readonly url: Schema.NullOr<Schema.String>;
   readonly access: Schema.Union<readonly [Schema.Literal<"public">, Schema.Literal<"workspace_member">]>;
+  readonly created_at: Schema.String;
 }>;
 type OrbitAppSummary = typeof OrbitAppSummary.Type;
 declare const OrbitAppVersionRecord: Schema.Struct<{
@@ -1031,6 +1034,7 @@ declare const OrbitAppListResponse: Schema.Struct<{
     readonly status: Schema.Union<readonly [Schema.Literal<"ready">, Schema.Literal<"disabled">, Schema.Literal<"failed">]>;
     readonly url: Schema.NullOr<Schema.String>;
     readonly access: Schema.Union<readonly [Schema.Literal<"public">, Schema.Literal<"workspace_member">]>;
+    readonly created_at: Schema.String;
   }>>;
   readonly count: Schema.Number;
 }>;

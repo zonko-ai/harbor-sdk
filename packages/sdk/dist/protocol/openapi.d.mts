@@ -261,6 +261,7 @@ declare const harborOpenApiComponents: {
     readonly description: "OpenAPI 3 document for Harbor first-party API surfaces.";
   };
   readonly Workspace: JsonObject;
+  readonly UserOnboarding: JsonObject;
   readonly WorkspaceDetail: JsonObject;
   readonly ListWorkspacesRequest: JsonObject;
   readonly WorkspaceRequest: JsonObject;
@@ -365,6 +366,7 @@ declare function createHarborOpenApiDocument(options?: HarborOpenApiOptions): {
         readonly description: "OpenAPI 3 document for Harbor first-party API surfaces.";
       };
       readonly Workspace: JsonObject;
+      readonly UserOnboarding: JsonObject;
       readonly WorkspaceDetail: JsonObject;
       readonly ListWorkspacesRequest: JsonObject;
       readonly WorkspaceRequest: JsonObject;
@@ -480,6 +482,7 @@ declare const harborOpenApiDocument: {
         readonly description: "OpenAPI 3 document for Harbor first-party API surfaces.";
       };
       readonly Workspace: JsonObject;
+      readonly UserOnboarding: JsonObject;
       readonly WorkspaceDetail: JsonObject;
       readonly ListWorkspacesRequest: JsonObject;
       readonly WorkspaceRequest: JsonObject;

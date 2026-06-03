@@ -113,6 +113,12 @@ const RUNTIME_ORBIT_PRIMITIVES = [
 		exposedOnHrbr: true
 	},
 	{
+		key: "artifact_read",
+		operation: "artifact.read",
+		family: "artifact",
+		exposedOnHrbr: true
+	},
+	{
 		key: "ai_run",
 		operation: "ai.run",
 		family: "ai",
@@ -260,6 +266,9 @@ function createRuntimeOrbitSurfaceSource(options = {}) {
 		"    describe: (tool_id) => " + runtimeOrbitCall(options, "tools_describe", "{ tool_id }") + ",",
 		"    namespaces: () => " + runtimeOrbitCall(options, "tools_namespaces", "{}") + ",",
 		"  },",
+		"  artifact: {",
+		"    read: (refOrId) => " + runtimeOrbitCall(options, "artifact_read", "refOrId") + ",",
+		"  },",
 		"  ai: {",
 		"    run: (model, input, opts) => typeof model === \"string\" ? " + runtimeOrbitCall(options, "ai_run", "{ model, input, ...opts }") + " : " + runtimeOrbitCall(options, "ai_run", "{ input: model, ...input }") + ",",
 		"    generate: (input, opts) => " + runtimeOrbitCall(options, "ai_generate", "{ input, opts }") + ",",
@@ -273,7 +282,7 @@ function createRuntimeOrbitSurfaceSource(options = {}) {
 	];
 	if (exposeOrbit) lines.push("const " + orbit + " = " + workspace + ";");
 	if (options.exposeHrbr) {
-		lines.push("const __hrbr_jobs = " + (options.jobsExpression ?? defaultRuntimeOrbitJobsExpression()) + ";", "const " + hrbr + " = Object.freeze({", "  storage: " + workspace + ".storage,", "  cache: " + workspace + ".cache,", "  db: " + workspace + ".db,", "  ai: " + workspace + ".ai,", "  tools: " + workspace + ".tools,", "  jobs: __hrbr_jobs,", "});");
+		lines.push("const __hrbr_jobs = " + (options.jobsExpression ?? defaultRuntimeOrbitJobsExpression()) + ";", "const " + hrbr + " = Object.freeze({", "  storage: " + workspace + ".storage,", "  cache: " + workspace + ".cache,", "  db: " + workspace + ".db,", "  ai: " + workspace + ".ai,", "  tools: " + workspace + ".tools,", "  artifact: " + workspace + ".artifact,", "  jobs: __hrbr_jobs,", "});");
 		if (exposeGlobalHrbr) lines.push("globalThis." + hrbr + " = " + hrbr + ";");
 	}
 	return lines.join("\n");

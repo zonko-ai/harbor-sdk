@@ -494,10 +494,6 @@ const harborOpenApiComponents = {
 			"member",
 			"viewer"
 		]),
-		onboarded_at: nullable({
-			type: "string",
-			format: "date-time"
-		}),
 		current_user_id: {
 			type: "string",
 			format: "uuid"
@@ -512,9 +508,12 @@ const harborOpenApiComponents = {
 		"id",
 		"name",
 		"slug",
-		"role",
-		"onboarded_at"
+		"role"
 	]),
+	UserOnboarding: objectSchema({ onboardedAt: nullable({
+		type: "string",
+		format: "date-time"
+	}) }, ["onboardedAt"]),
 	WorkspaceDetail: objectSchema({
 		id: {
 			type: "string",
@@ -566,6 +565,7 @@ const harborOpenApiComponents = {
 			type: "array",
 			items: ref("Workspace")
 		},
+		user: ref("UserOnboarding"),
 		total: nullable({ type: "number" }),
 		limit: {
 			type: "integer",
@@ -579,6 +579,7 @@ const harborOpenApiComponents = {
 		nextCursor: nullable({ type: "string" })
 	}, [
 		"data",
+		"user",
 		"limit",
 		"offset",
 		"hasMore"

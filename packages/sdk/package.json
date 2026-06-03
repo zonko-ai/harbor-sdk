@@ -1,6 +1,6 @@
 {
   "name": "@hrbr/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Composite Harbor system SDK facade for internal runtime, platform, plugin, protocol, and control-plane building blocks.",
   "license": "MIT",
@@ -48,6 +48,10 @@
     "./core/*": {
       "types": "./dist/core/*.d.mts",
       "import": "./dist/core/*.mjs"
+    },
+    "./inspect": {
+      "types": "./dist/inspect.d.mts",
+      "import": "./dist/inspect.mjs"
     },
     "./orbit": {
       "types": "./dist/orbit.d.mts",
@@ -104,7 +108,7 @@
     "README.md"
   ],
   "dependencies": {
-    "@effect/vitest": "4.0.0-beta.66",
+    "@babel/parser": "^7.29.3",
     "acorn": "^8.15.0",
     "esbuild": "^0.27.3",
     "hono": "^4.12.12",
@@ -112,6 +116,6 @@
     "sucrase": "^3.35.1"
   },
   "peerDependencies": {
-    "effect": "4.0.0-beta.66"
+    "effect": "4.0.0-beta.70"
   }
 }

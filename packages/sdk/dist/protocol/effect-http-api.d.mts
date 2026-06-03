@@ -2,14 +2,19 @@ import { Schema } from "effect";
 
 //#region \0rolldown/runtime.js
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Types.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Types.d.ts
 /**
  * Prevents TypeScript from inferring a type parameter from a specific
  * position.
  *
- * - Use on a function parameter when you want inference to come from other
- *   parameters, not this one.
- * - The parameter using `NoInfer` must still match the inferred type.
+ * **When to use**
+ *
+ * Use on a function parameter when you want inference to come from other
+ * parameters, not this one.
+ *
+ * **Details**
+ *
+ * The parameter using `NoInfer` must still match the inferred type.
  *
  * **Example** (Controlling inference)
  *
@@ -22,18 +27,23 @@ import { Schema } from "effect";
  * const result = withDefault<"a" | "b">("a", "b")
  * ```
  *
- * @since 2.0.0
  * @category models
+ * @since 2.0.0
  */
 type NoInfer$1<A> = [A][A extends any ? 0 : never];
 /**
  * Function-type alias encoding covariant variance for a phantom type
  * parameter.
  *
- * - Use as a phantom field type to make a type parameter covariant
- *   (output position).
- * - `Covariant<A>` is assignable to `Covariant<B>` when `A extends B`
- *   (subtype direction).
+ * **When to use**
+ *
+ * Use as a phantom field type to make a type parameter covariant in output
+ * position.
+ *
+ * **Details**
+ *
+ * `Covariant<A>` is assignable to `Covariant<B>` when `A extends B`, following
+ * the subtype direction.
  *
  * **Example** (Covariant phantom type)
  *
@@ -50,15 +60,14 @@ type NoInfer$1<A> = [A][A extends any ? 0 : never];
  * @see {@link Contravariant}
  * @see {@link Invariant}
  *
- * @since 2.0.0
  * @category models
+ * @since 2.0.0
  */
 type Covariant<A> = (_: never) => A;
 /**
  * Namespace for {@link Covariant}-related utilities.
  *
  * @since 3.9.0
- * @category models
  */
 declare namespace Covariant {
   /**
@@ -75,8 +84,8 @@ declare namespace Covariant {
    *
    * @see {@link Covariant}
    *
-   * @since 3.9.0
    * @category models
+   * @since 3.9.0
    */
   type Type<A> = A extends Covariant<infer U> ? U : never;
 }
@@ -84,10 +93,15 @@ declare namespace Covariant {
  * Function-type alias encoding contravariant variance for a phantom type
  * parameter.
  *
- * - Use as a phantom field type to make a type parameter contravariant
- *   (input position).
- * - `Contravariant<A>` is assignable to `Contravariant<B>` when `B extends A`
- *   (supertype direction).
+ * **When to use**
+ *
+ * Use as a phantom field type to make a type parameter contravariant in input
+ * position.
+ *
+ * **Details**
+ *
+ * `Contravariant<A>` is assignable to `Contravariant<B>` when `B extends A`,
+ * following the supertype direction.
  *
  * **Example** (Contravariant phantom type)
  *
@@ -104,15 +118,14 @@ declare namespace Covariant {
  * @see {@link Covariant}
  * @see {@link Invariant}
  *
- * @since 2.0.0
  * @category models
+ * @since 2.0.0
  */
 type Contravariant<A> = (_: A) => void;
 /**
  * Namespace for {@link Contravariant}-related utilities.
  *
  * @since 3.9.0
- * @category models
  */
 declare namespace Contravariant {
   /**
@@ -129,25 +142,25 @@ declare namespace Contravariant {
    *
    * @see {@link Contravariant}
    *
-   * @since 3.9.0
    * @category models
+   * @since 3.9.0
    */
   type Type<A> = A extends Contravariant<infer U> ? U : never;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Combiner.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Combiner.d.ts
 /**
- * Represents a strategy for combining two values of the same type `A`.
- *
- * A `Combiner` contains a single `combine` method that takes two values and
+ * Represents a strategy for combining two values of the same type `A`. A
+ * `Combiner` contains a single `combine` method that takes two values and
  * returns a merged result. It does not include an identity/empty value; use
  * `Reducer` when you need one.
  *
- * When to use:
- * - You need to describe how two values of the same type merge.
- * - You want to pass a reusable combining strategy to library functions like
- *   `Struct.makeCombiner` or `Option.makeCombinerFailFast`.
- * - You are building a `Reducer` and need to define the combining step first.
+ * **When to use**
+ *
+ * Use `Combiner` when you need to describe how two values of the same type
+ * merge, pass a reusable combining strategy to library functions like
+ * `Struct.makeCombiner` or `Option.makeCombinerFailFast`, or define the
+ * combining step for a `Reducer`.
  *
  * **Example** (number addition combiner)
  *
@@ -161,8 +174,7 @@ declare namespace Contravariant {
  * ```
  *
  * @see {@link make} – create a `Combiner` from a function
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 interface Combiner<A> {
@@ -172,16 +184,18 @@ interface Combiner<A> {
   readonly combine: (self: A, that: A) => A;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Equivalence.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Equivalence.d.ts
 /**
  * Represents an equivalence relation over type `A`.
  *
- * When to use this:
- * - As a type annotation for equivalence functions
- * - When implementing custom equivalence logic
- * - When working with collection operations that require equivalence relations
+ * **When to use**
  *
- * Behavior:
+ * - Use as a type annotation for equivalence functions
+ * - Use when implementing custom equivalence logic
+ * - Use when working with collection operations that require equivalence relations
+ *
+ * **Details**
+ *
  * - Pure function: does not mutate inputs or have side effects
  * - Returns `boolean`: `true` if values are equivalent, `false` otherwise
  * - Must satisfy reflexive, symmetric, and transitive properties
@@ -213,21 +227,24 @@ interface Combiner<A> {
  * console.log(pointEq({ x: 1, y: 2 }, { x: 1, y: 2 })) // true
  * ```
  *
- * See also: {@link make}, {@link strictEqual}
- *
+ * @see {@link make}
+ * @see {@link strictEqual}
  * @category type class
  * @since 2.0.0
  */
 type Equivalence<in A> = (self: A, that: A) => boolean;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Hash.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Hash.d.ts
 /**
  * A type that represents an object that can be hashed.
+ *
+ * **Details**
  *
  * Objects implementing this interface provide a method to compute their hash value,
  * which is used for efficient comparison and storage operations.
  *
- * @example
+ * **Example** (Implementing Hash)
+ *
  * ```ts
  * import { Hash } from "effect"
  *
@@ -250,29 +267,31 @@ interface Hash {
   [symbol](): number;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Equal.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Equal.d.ts
 /**
  * The interface for types that define their own equality logic.
  *
- * Any object that implements both `[Equal.symbol]` (equality) and
- * `[Hash.symbol]` (hashing) is recognized by {@link equals} and by
- * hash-based collections such as `HashMap` and `HashSet`.
+ * **When to use**
  *
- * When to use:
  * - When you need value-based equality for a class (e.g. domain IDs,
  *   coordinates, money values).
  * - When your type will be stored in `HashMap` or `HashSet`.
  * - When the default structural comparison is too broad or too narrow for
  *   your type.
  *
- * Behavior:
+ * **Details**
+ *
+ * Any object that implements both `[Equal.symbol]` (equality) and
+ * `[Hash.symbol]` (hashing) is recognized by {@link equals} and by hash-based
+ * collections such as `HashMap` and `HashSet`.
+ *
  * - Extends `Hash.Hash`, so implementors **must** also provide `[Hash.symbol]`.
  * - The hash contract: if `a[Equal.symbol](b)` returns `true`, then
  *   `Hash.hash(a)` must equal `Hash.hash(b)`.
  * - {@link equals} delegates to this method when both operands implement it.
  *   If only one operand implements `Equal`, they are considered unequal.
  *
- * **Example** (coordinate with value equality)
+ * **Example** (Coordinate with Value Equality)
  *
  * ```ts
  * import { Equal, Hash } from "effect"
@@ -298,7 +317,6 @@ interface Hash {
  * @see {@link symbol} — the property key used by the equality method
  * @see {@link equals} — the main comparison function
  * @see {@link isEqual} — type guard for `Equal` implementors
- *
  * @category models
  * @since 2.0.0
  */
@@ -306,18 +324,20 @@ interface Equal extends Hash {
   [symbol](that: Equal): boolean;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Inspectable.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Inspectable.d.ts
 /**
  * Interface for objects that can be inspected and provide custom string representations.
+ *
+ * **Details**
  *
  * Objects implementing this interface can control how they appear in debugging contexts,
  * JSON serialization, and Node.js inspection. This is particularly useful for creating
  * custom data types that display meaningful information during development.
  *
- * @example
+ * **Example** (Implementing inspectable objects)
+ *
  * ```ts
- * import { Inspectable } from "effect"
- * import { format } from "effect/Formatter"
+ * import { Formatter, Inspectable } from "effect"
  *
  * class Result implements Inspectable.Inspectable {
  *   constructor(
@@ -326,7 +346,7 @@ interface Equal extends Hash {
  *   ) {}
  *
  *   toString(): string {
- *     return format(this.toJSON())
+ *     return Formatter.format(this.toJSON())
  *   }
  *
  *   toJSON() {
@@ -342,8 +362,8 @@ interface Equal extends Hash {
  * console.log(success.toString()) // Pretty formatted JSON
  * ```
  *
- * @since 2.0.0
  * @category models
+ * @since 2.0.0
  */
 interface Inspectable {
   toString(): string;
@@ -351,14 +371,41 @@ interface Inspectable {
   [NodeInspectSymbol](): unknown;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Pipeable.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Pipeable.d.ts
 /**
+ * The `Pipeable` module defines the shared interface and implementation helpers
+ * for values that support Effect-style method chaining with `.pipe(...)`.
+ *
+ * A `Pipeable` value can pass itself through a sequence of unary functions from
+ * left to right, so code can be written as `value.pipe(f, g, h)` instead of
+ * deeply nesting calls. This is the method form used by many Effect data types
+ * to compose transformations, validations, and effectful operations while
+ * keeping the original value as the starting point of the pipeline.
+ *
+ * **Common tasks**
+ *
+ * - Type values that expose a `.pipe(...)` method with the {@link Pipeable} interface
+ * - Implement a custom `.pipe(...)` method with {@link pipeArguments}
+ * - Reuse the standard implementation through {@link Prototype}, {@link Class}, or {@link Mixin}
+ *
+ * **Gotchas**
+ *
+ * - Each function receives the result of the previous function, not the original value
+ * - The overloads preserve precise types for long pipelines, but very long chains may be easier to read when split
+ *
  * @since 2.0.0
  */
 /**
- * @since 2.0.0
- * @category models
- * @example
+ * Interface for values that support method-style `pipe` composition.
+ *
+ * **Details**
+ *
+ * Calling `value.pipe(f, g, h)` passes the value through each function from
+ * left to right, returning the final result. Many Effect data types implement
+ * this so operations can be chained without nesting function calls.
+ *
+ * **Example** (Chaining operations with pipe)
+ *
  * ```ts
  * import { Effect } from "effect"
  *
@@ -369,6 +416,9 @@ interface Inspectable {
  *   Effect.tap((x) => Effect.log(`Result: ${x}`))
  * )
  * ```
+ *
+ * @category models
+ * @since 2.0.0
  */
 interface Pipeable {
   pipe<A>(this: A): A;
@@ -395,27 +445,48 @@ interface Pipeable {
   pipe<A, B = never, C = never, D = never, E = never, F = never, G = never, H = never, I = never, J = never, K = never, L = never, M = never, N = never, O = never, P = never, Q = never, R = never, S = never, T = never, U = never>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R, rs: (_: R) => S, st: (_: S) => T, tu: (_: T) => U): U;
 }
 /**
- * @since 4.0.0
+ * Base constructor whose instances implement the standard `Pipeable.pipe`
+ * method.
+ *
+ * **When to use**
+ *
+ * Extend or compose this constructor when defining a class that should support
+ * Effect-style method chaining through `.pipe(...)`.
+ *
  * @category constructors
+ * @since 3.15.0
  */
 declare const Class: new () => Pipeable;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Context.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Context.d.ts
 /**
- * @since 4.0.0
+ * String literal type used as the runtime type identifier for `Context`
+ * service keys.
+ *
  * @category Type Identifiers
+ * @since 4.0.0
  */
 type ServiceTypeId = "~effect/Context/Service";
 /**
- * @since 4.0.0
+ * Runtime type identifier attached to `Context` service keys and used by
+ * `isKey` to recognize them.
+ *
  * @category Type Identifiers
+ * @since 4.0.0
  */
 declare const ServiceTypeId: ServiceTypeId;
 /**
- * The base type used for all Context keys.
+ * Typed identifier for a service stored in a `Context`.
  *
+ * **Details**
+ *
+ * `Identifier` tracks the requirement in Effect types, while `Shape` is the
+ * service implementation retrieved by the key. A key is also an Effect value,
+ * so yielding it inside `Effect.gen` retrieves the service from the current
+ * fiber context.
+ *
+ * @category models
  * @since 4.0.0
- * @category Models
  */
 interface Key$1<out Identifier, out Shape> extends Effect<Shape, never, Identifier> {
   readonly [ServiceTypeId]: ServiceTypeId;
@@ -426,7 +497,16 @@ interface Key$1<out Identifier, out Shape> extends Effect<Shape, never, Identifi
 }
 declare const TypeId$10: "~effect/Context";
 /**
- * @example
+ * Immutable collection of service implementations used for dependency
+ * injection in Effect programs.
+ *
+ * **Details**
+ *
+ * The type parameter tracks the service identifiers available in the context.
+ * At runtime, services are stored by each key's string `key`.
+ *
+ * **Example** (Creating a context with multiple services)
+ *
  * ```ts
  * import { Context } from "effect"
  *
@@ -442,8 +522,8 @@ declare const TypeId$10: "~effect/Context";
  *   .pipe(Context.add(Database, { query: (sql) => `Result: ${sql}` }))
  * ```
  *
- * @since 4.0.0
- * @category Models
+ * @category models
+ * @since 2.0.0
  */
 interface Context$2<in Services> extends Equal, Pipeable, Inspectable {
   readonly [TypeId$10]: {
@@ -453,160 +533,121 @@ interface Context$2<in Services> extends Equal, Pipeable, Inspectable {
   mutable: boolean;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Unify.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Unify.d.ts
 /**
+ * The `Unify` module contains the type-level protocol Effect uses to normalize
+ * unions of data types that opt in to unification. It is primarily a library
+ * authoring tool: data types expose hidden symbol properties describing how
+ * their variants should be widened, and {@link Unify} turns those protocol
+ * entries into the user-facing union type that TypeScript should infer.
+ *
+ * Most application code does not need to interact with these symbols directly.
+ * The main runtime helper, {@link unify}, is an identity function that preserves
+ * values and functions at runtime while applying {@link Unify} to the relevant
+ * static type. This is useful when authoring APIs that return branded or
+ * protocol-enabled values and need inference to collapse to the public Effect
+ * data type rather than exposing implementation details.
+ *
  * @since 2.0.0
  */
 /**
  * A unique symbol used to identify unification behavior in Effect types.
  *
+ * **Details**
+ *
  * This symbol is used internally by the Effect type system to enable automatic
  * unification of Effect types in unions and complex type operations.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The unifySymbol is used internally in Effect types
- * // to enable automatic type unification
- * declare const effect: {
- *   readonly [Unify.unifySymbol]?: any
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 declare const unifySymbol: unique symbol;
 /**
  * The type of the unifySymbol.
  *
+ * **Details**
+ *
  * This type represents the unique symbol used for identifying unification
  * behavior in Effect types. It's typically used in type-level operations
  * to enable automatic type unification.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The unifySymbol type is used in type declarations
- * // to enable unification behavior
- * type UnifyableType = {
- *   [Unify.unifySymbol]?: any
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 type unifySymbol = typeof unifySymbol;
 /**
  * A unique symbol used to identify the type information for unification.
  *
+ * **Details**
+ *
  * This symbol is used internally by the Effect type system to store type
  * information that can be used during type unification operations.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The typeSymbol is used internally in Effect types
- * // to store type information for unification
- * declare const effect: {
- *   readonly [Unify.typeSymbol]?: any
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 declare const typeSymbol: unique symbol;
 /**
  * The type of the typeSymbol.
  *
+ * **Details**
+ *
  * This type represents the unique symbol used for storing type information
  * in types that support unification. It's used in type-level operations
  * to access and manipulate type information.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The typeSymbol type is used in type declarations
- * // to store type information for unification
- * type TypedValue = {
- *   [Unify.typeSymbol]?: string
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 type typeSymbol = typeof typeSymbol;
 /**
  * A unique symbol used to specify types that should be ignored during unification.
  *
+ * **Details**
+ *
  * This symbol is used internally by the Effect type system to mark types
  * that should be excluded from the unification process, allowing for more
  * precise type handling in complex scenarios.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The ignoreSymbol is used internally in Effect types
- * // to mark types that should be ignored during unification
- * declare const effect: {
- *   readonly [Unify.ignoreSymbol]?: any
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 declare const ignoreSymbol: unique symbol;
 /**
  * The type of the ignoreSymbol.
  *
+ * **Details**
+ *
  * This type represents the unique symbol used for marking types that should
  * be ignored during unification operations. It's used in type-level operations
  * to exclude specific types from the unification process.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The ignoreSymbol type is used in type declarations
- * // to mark types that should be ignored during unification
- * type IgnorableType = {
- *   [Unify.ignoreSymbol]?: unknown
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 type ignoreSymbol = typeof ignoreSymbol;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/LogLevel.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/LogLevel.d.ts
 /**
- * @since 4.0.0
+ * Log levels that represent actual message severities, excluding the `All` and
+ * `None` sentinel levels.
+ *
  * @category models
+ * @since 4.0.0
  */
 type Severity = "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "Trace";
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Formatter.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Formatter.d.ts
 /**
- * A callable interface representing a function that converts a `Value` into a
- * `Format` (defaults to `string`).
+ * A callable interface representing a function that converts a `Value` into a `Format`, which defaults to `string`.
  *
- * When to use:
- * - You want to type a formatting / rendering function generically.
- * - You are building a pipeline that accepts pluggable formatters.
+ * **When to use**
  *
- * Behavior:
- * - Pure callable type; carries no runtime implementation.
- * - Contravariant in `Value`, covariant in `Format`.
+ * Use `Formatter` when you want to type a formatting or rendering function generically, or when you are building a pipeline that accepts pluggable formatters.
+ *
+ * **Details**
+ *
+ * This is a pure callable type and carries no runtime implementation. It is contravariant in `Value` and covariant in `Format`.
  *
  * **Example** (Define a custom formatter)
  *
@@ -619,30 +660,31 @@ type Severity = "Fatal" | "Error" | "Warn" | "Info" | "Debug" | "Trace";
  * // HELLO
  * ```
  *
- * See also: {@link format}, {@link formatJson}
- *
- * @category Model
+ * @see {@link format}
+ * @see {@link formatJson}
+ * @category models
  * @since 4.0.0
  */
 interface Formatter<in Value, out Format = string> {
   (value: Value): Format;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/SchemaGetter.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/SchemaGetter.d.ts
 /**
  * A composable transformation from an encoded type `E` to a decoded type `T`.
  *
- * A Getter wraps a function `Option<E> -> Effect<Option<T>, Issue, R>`:
+ * **When to use**
+ *
+ * - Building custom schema transformations with `Schema.decodeTo` or `Schema.decode`.
+ * - Composing multiple transformation steps into a single getter.
+ *
+ * **Details**
+ *
+ * - A getter wraps a function `Option<E> -> Effect<Option<T>, Issue, R>`.
  * - Receives `Option.None` when the encoded key is absent (e.g. missing struct field).
  * - Returns `Option.None` to omit the value from the decoded output.
  * - Fails with `Issue` on invalid input.
  * - May require Effect services via `R`.
- *
- * Use this when:
- * - Building custom schema transformations with `Schema.decodeTo` or `Schema.decode`.
- * - Composing multiple transformation steps into a single getter.
- *
- * Behavior:
  * - Immutable — constructing or composing getters does not mutate existing instances.
  * - `.map(f)` applies `f` to the decoded value (inside the `Some`), leaving `None` unchanged.
  * - `.compose(other)` chains two getters: the output of `this` feeds into `other`.
@@ -659,12 +701,11 @@ interface Formatter<in Value, out Format = string> {
  * // composed: Getter<number, string> — parses then doubles
  * ```
  *
- * See also:
- * - {@link transform} — create a getter from a pure function
- * - {@link passthrough} — identity getter
- * - {@link transformOrFail} — fallible transformation
+ * @see {@link transform} - create a getter from a pure function
+ * @see {@link passthrough} - identity getter
+ * @see {@link transformOrFail} - fallible transformation
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Getter<out T, in E, R = never> extends Class {
@@ -674,21 +715,23 @@ declare class Getter<out T, in E, R = never> extends Class {
   compose<T2, R2>(other: Getter<T2, T, R2>): Getter<T2, E, R | R2>;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/SchemaTransformation.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/SchemaTransformation.d.ts
 /**
  * A middleware that wraps the entire parsing `Effect` pipeline for both
  * decode and encode directions.
+ *
+ * **When to use**
+ *
+ * - You need to catch or recover from parsing errors (e.g. `Schema.catchDecoding`).
+ * - You need to run side effects around the parsing pipeline.
+ * - You need access to the full `Effect` rather than a single decoded value.
+ *
+ * **Details**
  *
  * Unlike `Transformation`, which operates on individual values via `Getter`,
  * `Middleware` receives the full `Effect` produced by the inner schema and can
  * intercept, modify, retry, or replace it.
  *
- * When to use this:
- * - You need to catch or recover from parsing errors (e.g. `Schema.catchDecoding`).
- * - You need to run side effects around the parsing pipeline.
- * - You need access to the full `Effect` rather than a single decoded value.
- *
- * Behavior:
  * - Immutable — constructing a Middleware does not mutate existing instances.
  * - `decode` receives an `Effect<Option<E>, Issue, RDE>` and returns
  *   `Effect<Option<T>, Issue, RDT>`.
@@ -711,10 +754,9 @@ declare class Getter<out T, in E, R = never> extends Class {
  * )
  * ```
  *
- * See also:
- * - {@link Transformation} — value-level bidirectional transformation
+ * @see {@link Transformation} — value-level bidirectional transformation
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Middleware<in out T, in out E, RDE, RDT, RET, REE> {
@@ -729,16 +771,18 @@ declare const TypeId$9 = "~effect/SchemaTransformation/Transformation";
  * A bidirectional transformation between a decoded type `T` and an encoded
  * type `E`, built from a pair of `Getter`s.
  *
- * This is the primary building block for `Schema.decodeTo`, `Schema.encodeTo`,
- * `Schema.decode`, `Schema.encode`, and `Schema.link`. Each direction is a
- * `SchemaGetter.Getter` that handles optionality, failure, and Effect services.
+ * **When to use**
  *
- * When to use this:
  * - You need to define how a schema converts between two representations.
  * - You want to compose multiple transformations into a pipeline.
  * - You want to flip a transformation to swap decode/encode.
  *
- * Behavior:
+ * **Details**
+ *
+ * This is the primary building block for `Schema.decodeTo`, `Schema.encodeTo`,
+ * `Schema.decode`, `Schema.encode`, and `Schema.link`. Each direction is a
+ * `SchemaGetter.Getter` that handles optionality, failure, and Effect services.
+ *
  * - Immutable — `flip()` and `compose()` return new instances.
  * - `flip()` swaps the decode and encode getters.
  * - `compose(other)` chains: `this.decode` then `other.decode` for decoding,
@@ -756,13 +800,12 @@ declare const TypeId$9 = "~effect/SchemaTransformation/Transformation";
  * // encode: passthrough (both directions)
  * ```
  *
- * See also:
- * - {@link make} — construct from `{ decode, encode }` getters
- * - {@link transform} — construct from pure functions
- * - {@link transformOrFail} — construct from effectful functions
- * - {@link Middleware} — effect-pipeline-level alternative
+ * @see {@link make} — construct from `{ decode, encode }` getters
+ * @see {@link transform} — construct from pure functions
+ * @see {@link transformOrFail} — construct from effectful functions
+ * @see {@link Middleware} — effect-pipeline-level alternative
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Transformation<in out T, in out E, RD = never, RE = never> {
@@ -775,9 +818,11 @@ declare class Transformation<in out T, in out E, RD = never, RE = never> {
   compose<T2, RD2, RE2>(other: Transformation<T2, T, RD2, RE2>): Transformation<T2, E, RD | RD2, RE | RE2>;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/SchemaAST.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/SchemaAST.d.ts
 /**
  * Discriminated union of all AST node types.
+ *
+ * **Details**
  *
  * Every `Schema` has an `.ast` property of this type. Use the guard functions
  * ({@link isString}, {@link isObjects}, etc.) to narrow to a specific variant,
@@ -789,15 +834,17 @@ declare class Transformation<in out T, in out E, RD = never, RE = never> {
  *
  * @see {@link Base}
  * @see {@link isAST}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 type AST = Declaration | Null | Undefined | Void$1 | Never | Unknown | Any$2 | String$1 | Number$1 | Boolean | BigInt | Symbol$2 | Literal | UniqueSymbol | ObjectKeyword | Enum | TemplateLiteral | Arrays | Objects$1 | Union$1 | Suspend;
 /**
- * A single step in an {@link Encoding} chain, pairing a target {@link AST}
- * with a `Transformation` or `Middleware` that converts values between the
- * current node and the target.
+ * A single step in an {@link Encoding} chain.
+ *
+ * **Details**
+ *
+ * A link pairs a target {@link AST} with a `Transformation` or `Middleware`
+ * that converts values between the current node and the target.
  *
  * - `to` — the AST node on the other side of this transformation step.
  * - `transformation` — the bidirectional conversion logic (decode/encode).
@@ -807,8 +854,7 @@ type AST = Declaration | Null | Undefined | Void$1 | Never | Unknown | Any$2 | S
  *
  * @see {@link Encoding}
  * @see {@link decodeTo}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Link {
@@ -820,58 +866,63 @@ declare class Link {
  * A non-empty chain of {@link Link} values representing the transformation
  * steps between a schema's decoded (type) form and its encoded (wire) form.
  *
+ * **Details**
+ *
  * Stored on {@link Base.encoding}. When `undefined`, the node has no
  * encoding transformation (type and encoded forms are identical).
  *
  * @see {@link Link}
  * @see {@link toEncoded}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 type Encoding$1 = readonly [Link, ...Array<Link>];
 /**
- * Options that control parsing/validation behavior.
+ * Options that control schema parsing, validation, transformation, and output behavior.
  *
- * Pass to `Schema.decodeUnknown`, `Schema.encode`, etc. to customize error
- * reporting, excess property handling, and output key ordering.
+ * **Details**
  *
- * - `errors` — `"first"` (default) stops at the first error; `"all"`
- *   collects every error.
- * - `onExcessProperty` — `"ignore"` (default) strips unknown keys;
+ * Pass to `Schema.decodeUnknown`, `Schema.encode`, and related APIs to customize
+ * error reporting, excess property handling, output key ordering, check
+ * execution, and asynchronous parser concurrency.
+ *
+ * - `errors` — `"first"` (default) stops at the first error; `"all"` collects
+ *   every error.
+ * - `onExcessProperty` — `"ignore"` (default) strips unknown object keys;
  *   `"error"` fails; `"preserve"` keeps them.
  * - `propertyOrder` — `"none"` (default) lets the system choose key order;
  *   `"original"` preserves input key order.
+ * - `disableChecks` — skips validation checks while still applying defaults and
+ *   transformations.
+ * - `concurrency` — maximum number of async parse effects to run concurrently;
+ *   defaults to `1`, or use `"unbounded"`.
  *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 interface ParseOptions {
   /**
-   * The `errors` option allows you to receive all parsing errors when
-   * attempting to parse a value using a schema. By default only the first error
-   * is returned, but by setting the `errors` option to `"all"`, you can receive
-   * all errors that occurred during the parsing process. This can be useful for
-   * debugging or for providing more comprehensive error messages to the user.
+   * Controls how many parsing errors are reported.
    *
-   * default: "first"
+   * **Details**
+   *
+   * The default, `"first"`, stops at the first error. Set the option to `"all"`
+   * to collect every parsing error, which can help with debugging or with
+   * presenting more complete error messages to a user.
+   *
+   * @default "first"
    */
   readonly errors?: "first" | "all" | undefined;
   /**
-   * When using a `Objects` to parse a value, by default any properties that
-   * are not specified in the schema will be stripped out from the output. This
-   * is because the `Objects` is expecting a specific shape for the parsed
-   * value, and any excess properties do not conform to that shape.
+   * Controls how object parsing handles keys that are not declared by the schema.
    *
-   * However, you can use the `onExcessProperty` option (default value:
-   * `"ignore"`) to trigger a parsing error. This can be particularly useful in
-   * cases where you need to detect and handle potential errors or unexpected
-   * values.
+   * **Details**
    *
-   * If you want to allow excess properties to remain, you can use
-   * `onExcessProperty` set to `"preserve"`.
+   * The default, `"ignore"`, strips unspecified properties from the output. Use
+   * `"error"` to fail when an excess property is present, or `"preserve"` to
+   * keep excess properties in the output.
    *
-   * default: "ignore"
+   * @default "ignore"
    */
   readonly onExcessProperty?: "ignore" | "error" | "preserve" | undefined;
   /**
@@ -880,16 +931,20 @@ interface ParseOptions {
    * important for the consuming processes or when maintaining the input order
    * enhances readability and usability.
    *
+   * **Details**
+   *
    * By default, the `propertyOrder` option is set to `"none"`. This means that
    * the internal system decides the order of keys to optimize parsing speed.
-   * The order of keys in this mode should not be considered stable, and it's
-   * recommended not to rely on key ordering as it may change in future updates
-   * without notice.
    *
    * Setting `propertyOrder` to `"original"` ensures that the keys are ordered
    * as they appear in the input during the decoding/encoding process.
    *
-   * default: "none"
+   * **Gotchas**
+   *
+   * The key order for `"none"` should not be considered stable and may change
+   * in future updates without notice.
+   *
+   * @default "none"
    */
   readonly propertyOrder?: "none" | "original" | undefined;
   /**
@@ -900,12 +955,14 @@ interface ParseOptions {
   /**
    * The maximum number of async effects to run concurrently.
    *
-   * Defaults to 1.
+   * @default 1
    */
   readonly concurrency?: number | "unbounded" | undefined;
 }
 /**
  * Per-property metadata attached to AST nodes via {@link Base.context}.
+ *
+ * **Details**
  *
  * Tracks whether a property key is optional, mutable, has a constructor
  * default, or carries key-level annotations. Typically set by helpers like
@@ -920,8 +977,7 @@ interface ParseOptions {
  *
  * @see {@link optionalKey}
  * @see {@link isOptional}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Context$1 {
@@ -938,20 +994,23 @@ declare class Context$1 {
  * Non-empty array of validation {@link Check} values attached to an AST node
  * via {@link Base.checks}.
  *
+ * **Details**
+ *
  * Checks are run after basic type matching succeeds. They represent
  * refinements like `minLength`, `pattern`, `int`, etc.
  *
  * @see {@link Check}
  * @see {@link Filter}
  * @see {@link FilterGroup}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 type Checks = readonly [Check<any>, ...Array<Check<any>>];
 declare const TypeId$8 = "~effect/Schema";
 /**
  * Abstract base class for all {@link AST} node variants.
+ *
+ * **Details**
  *
  * Every AST node extends `Base` and inherits these fields:
  *
@@ -965,8 +1024,7 @@ declare const TypeId$8 = "~effect/Schema";
  * Subclasses add a `_tag` discriminant and variant-specific data.
  *
  * @see {@link AST}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare abstract class Base$1 {
@@ -982,17 +1040,20 @@ declare abstract class Base$1 {
 /**
  * AST node for user-defined opaque types with custom parsing logic.
  *
+ * **When to use**
+ *
  * Use when none of the built-in AST nodes fit. The `run` function receives
  * `typeParameters` and returns a parser that validates/transforms raw input.
+ *
+ * **Details**
  *
  * - `typeParameters` — inner schemas this declaration is parameterized over
  *   (e.g. the element type for a custom collection).
  * - `run` — factory producing the actual parse function.
  *
  * @see {@link isDeclaration}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class Declaration extends Base$1 {
   readonly _tag = "Declaration";
@@ -1003,12 +1064,13 @@ declare class Declaration extends Base$1 {
 /**
  * AST node matching the `null` literal value.
  *
+ * **Details**
+ *
  * Parsing succeeds only when the input is exactly `null`.
  *
  * @see {@link null}
  * @see {@link isNull}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Null extends Base$1 {
@@ -1017,12 +1079,13 @@ declare class Null extends Base$1 {
 /**
  * AST node matching the `undefined` value.
  *
+ * **Details**
+ *
  * Parsing succeeds only when the input is exactly `undefined`.
  *
  * @see {@link undefined}
  * @see {@link isUndefined}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Undefined extends Base$1 {
@@ -1031,13 +1094,14 @@ declare class Undefined extends Base$1 {
 /**
  * AST node matching the `void` type (accepts `undefined` at runtime).
  *
+ * **Details**
+ *
  * Behaves like {@link Undefined} for parsing but represents the TypeScript
  * `void` type semantically.
  *
  * @see {@link void}
  * @see {@link isVoid}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Void$1 extends Base$1 {
@@ -1046,13 +1110,14 @@ declare class Void$1 extends Base$1 {
 /**
  * AST node representing the `never` type — no value matches.
  *
+ * **Details**
+ *
  * Parsing always fails. Useful as a placeholder in unions or as the result
  * of narrowing that eliminates all options.
  *
  * @see {@link never}
  * @see {@link isNever}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Never extends Base$1 {
@@ -1064,7 +1129,7 @@ declare class Never extends Base$1 {
  * @see {@link any}
  * @see {@link isAny}
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Any$2 extends Base$1 {
@@ -1073,13 +1138,14 @@ declare class Any$2 extends Base$1 {
 /**
  * AST node representing the `unknown` type — every value matches.
  *
+ * **Details**
+ *
  * Unlike {@link Any}, this is type-safe: the parsed result is typed as
  * `unknown` rather than `any`.
  *
  * @see {@link unknown}
  * @see {@link isUnknown}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Unknown extends Base$1 {
@@ -1092,8 +1158,8 @@ declare class Unknown extends Base$1 {
  * @see {@link objectKeyword}
  * @see {@link isObjectKeyword}
  *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class ObjectKeyword extends Base$1 {
   readonly _tag = "ObjectKeyword";
@@ -1101,12 +1167,13 @@ declare class ObjectKeyword extends Base$1 {
 /**
  * AST node representing a TypeScript `enum`.
  *
+ * **Details**
+ *
  * Holds `enums` as an array of `[name, value]` pairs where values are
  * `string | number`. Parsing succeeds when the input matches any enum value.
  *
  * @see {@link isEnum}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Enum extends Base$1 {
@@ -1118,14 +1185,15 @@ declare class Enum extends Base$1 {
  * AST node representing a TypeScript template literal type
  * (e.g. `` `user_${string}` ``).
  *
+ * **Details**
+ *
  * `parts` is an array of AST nodes; each part contributes to the
  * template literal pattern. A regex is derived from the parts to validate
  * strings at runtime.
  *
  * @see {@link isTemplateLiteral}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class TemplateLiteral extends Base$1 {
   readonly _tag = "TemplateLiteral";
@@ -1135,13 +1203,14 @@ declare class TemplateLiteral extends Base$1 {
 /**
  * AST node matching a specific `unique symbol` value.
  *
+ * **Details**
+ *
  * Parsing succeeds only when the input is reference-equal to the stored
  * `symbol`.
  *
  * @see {@link isUniqueSymbol}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class UniqueSymbol extends Base$1 {
   readonly _tag = "UniqueSymbol";
@@ -1153,13 +1222,15 @@ declare class UniqueSymbol extends Base$1 {
  *
  * @see {@link Literal}
  *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 type LiteralValue = string | number | boolean | bigint;
 /**
  * AST node matching an exact primitive value (string, number, boolean, or
  * bigint).
+ *
+ * **Details**
  *
  * Parsing succeeds only when the input is strictly equal (`===`) to the
  * stored `literal`. Numeric literals must be finite — `Infinity`, `-Infinity`,
@@ -1176,9 +1247,8 @@ type LiteralValue = string | number | boolean | bigint;
  *
  * @see {@link LiteralValue}
  * @see {@link isLiteral}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class Literal extends Base$1 {
   readonly _tag = "Literal";
@@ -1191,7 +1261,7 @@ declare class Literal extends Base$1 {
  * @see {@link string}
  * @see {@link isString}
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class String$1 extends Base$1 {
@@ -1201,7 +1271,10 @@ declare class String$1 extends Base$1 {
  * AST node matching any `number` value (including `NaN`, `Infinity`,
  * `-Infinity`).
  *
+ * **Details**
+ *
  * Default JSON serialization:
+ *
  * - Finite numbers are serialized as JSON numbers.
  * - `Infinity`, `-Infinity`, and `NaN` are serialized as JSON strings.
  *
@@ -1210,8 +1283,7 @@ declare class String$1 extends Base$1 {
  *
  * @see {@link number}
  * @see {@link isNumber}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Number$1 extends Base$1 {
@@ -1223,7 +1295,7 @@ declare class Number$1 extends Base$1 {
  * @see {@link boolean}
  * @see {@link isBoolean}
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Boolean extends Base$1 {
@@ -1232,13 +1304,14 @@ declare class Boolean extends Base$1 {
 /**
  * AST node matching any `symbol` value.
  *
+ * **Details**
+ *
  * When serialized to a string-based codec, symbols are converted via
  * `Symbol.keyFor` and must be registered with `Symbol.for`.
  *
  * @see {@link symbol}
  * @see {@link isSymbol}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Symbol$2 extends Base$1 {
@@ -1247,13 +1320,14 @@ declare class Symbol$2 extends Base$1 {
 /**
  * AST node matching any `bigint` value.
  *
+ * **Details**
+ *
  * When serialized to a string-based codec, bigints are converted to/from
  * their decimal string representation.
  *
  * @see {@link bigInt}
  * @see {@link isBigInt}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class BigInt extends Base$1 {
@@ -1262,6 +1336,8 @@ declare class BigInt extends Base$1 {
 /**
  * AST node for array-like types — both tuples and arrays.
  *
+ * **Details**
+ *
  * - `elements` — positional element types (tuple elements). An element is
  *   optional if its {@link Context.isOptional} is `true`.
  * - `rest` — the rest/variadic element types. When non-empty, the first
@@ -1269,6 +1345,8 @@ declare class BigInt extends Base$1 {
  *   entries are trailing positional elements after the spread.
  * - `isMutable` — whether the resulting array is `readonly` (`false`) or
  *   mutable (`true`).
+ *
+ * **Gotchas**
  *
  * Construction enforces TypeScript ordering rules: a required element
  * cannot follow an optional one, and an optional element cannot follow a
@@ -1290,8 +1368,7 @@ declare class BigInt extends Base$1 {
  *
  * @see {@link isArrays}
  * @see {@link Objects}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Arrays extends Base$1 {
@@ -1304,14 +1381,15 @@ declare class Arrays extends Base$1 {
 /**
  * A named property within an {@link Objects} node.
  *
+ * **Details**
+ *
  * Pairs a `name` (any `PropertyKey`) with a `type` ({@link AST}). The
  * property's optionality and mutability are determined by the `type`'s
  * {@link Context}.
  *
  * @see {@link Objects}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class PropertySignature {
   readonly name: PropertyKey;
@@ -1321,14 +1399,15 @@ declare class PropertySignature {
 /**
  * Bidirectional merge strategy for index signature key-value pairs.
  *
+ * **Details**
+ *
  * Used by {@link IndexSignature} when the same key appears multiple times
  * (e.g. from `Schema.extend` or overlapping records). Provides separate
  * `decode` and `encode` combiners that determine how duplicate entries are
  * merged.
  *
  * @see {@link IndexSignature}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class KeyValueCombiner {
@@ -1339,19 +1418,22 @@ declare class KeyValueCombiner {
 /**
  * An index signature entry within an {@link Objects} node.
  *
+ * **Details**
+ *
  * - `parameter` — the key type AST (e.g. {@link String} for `string` keys,
  *   {@link TemplateLiteral} for patterned keys).
  * - `type` — the value type AST.
  * - `merge` — optional {@link KeyValueCombiner} for handling duplicate keys.
+ *
+ * **Gotchas**
  *
  * Using `Schema.optionalKey` on the value type is not allowed for index
  * signatures (throws at construction); use `Schema.optional` instead.
  *
  * @see {@link Objects}
  * @see {@link PropertySignature}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class IndexSignature {
   readonly parameter: AST;
@@ -1360,14 +1442,19 @@ declare class IndexSignature {
   constructor(parameter: AST, type: AST, merge: KeyValueCombiner | undefined);
 }
 /**
- * AST node for object-like types — both structs and records.
+ * AST node for object-like schemas, including structs and records.
+ *
+ * **Details**
  *
  * - `propertySignatures` — named properties with their types (struct fields).
  * - `indexSignatures` — index signature entries (record patterns), each with
- *   a `parameter` AST (the key type) and a `type` AST (the value type).
+ *   a `parameter` AST for matching keys and a `type` AST for values.
  *
- * An `Objects` with no properties and no index signatures acts as a bare
- * `object | array` type check (accepts any non-nullish value).
+ * An `Objects` node with no properties and no index signatures performs only a
+ * non-nullish check: it accepts any value except `null` and `undefined`,
+ * including primitive values.
+ *
+ * **Gotchas**
  *
  * Duplicate property names throw at construction time.
  *
@@ -1391,8 +1478,7 @@ declare class IndexSignature {
  * @see {@link PropertySignature}
  * @see {@link IndexSignature}
  * @see {@link Arrays}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Objects$1 extends Base$1 {
@@ -1404,6 +1490,8 @@ declare class Objects$1 extends Base$1 {
 }
 /**
  * AST node representing a union of schemas.
+ *
+ * **Details**
  *
  * - `types` — the member AST nodes.
  * - `mode` — `"anyOf"` succeeds on the first match (like TypeScript unions);
@@ -1428,9 +1516,8 @@ declare class Objects$1 extends Base$1 {
  * ```
  *
  * @see {@link isUnion}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class Union$1<A extends AST = AST> extends Base$1 {
   readonly _tag = "Union";
@@ -1440,6 +1527,8 @@ declare class Union$1<A extends AST = AST> extends Base$1 {
 }
 /**
  * AST node for lazy/recursive schemas.
+ *
+ * **Details**
  *
  * Wraps a thunk (`() => AST`) that is memoized on first call. Use this to
  * define recursive or mutually recursive schemas without infinite loops at
@@ -1464,9 +1553,8 @@ declare class Union$1<A extends AST = AST> extends Base$1 {
  * ```
  *
  * @see {@link isSuspend}
- *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class Suspend extends Base$1 {
   readonly _tag = "Suspend";
@@ -1475,6 +1563,8 @@ declare class Suspend extends Base$1 {
 }
 /**
  * A single validation check attached to an AST node.
+ *
+ * **Details**
  *
  * - `run` — the validation function. Returns `undefined` on success, or an
  *   `Issue` on failure.
@@ -1489,8 +1579,7 @@ declare class Suspend extends Base$1 {
  * @see {@link FilterGroup}
  * @see {@link Check}
  * @see {@link isPattern}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Filter$1<in E> extends Class {
@@ -1514,14 +1603,15 @@ declare class Filter$1<in E> extends Class {
 /**
  * A composite validation check grouping multiple {@link Check} values.
  *
+ * **Details**
+ *
  * Created by calling `.and()` on a {@link Filter} or another `FilterGroup`.
  * All inner checks are run; failures from aborted filters still stop
  * evaluation.
  *
  * @see {@link Filter}
  * @see {@link Check}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class FilterGroup<in E> extends Class {
@@ -1536,27 +1626,28 @@ declare class FilterGroup<in E> extends Class {
  * A validation check — either a single {@link Filter} or a composite
  * {@link FilterGroup}.
  *
+ * **Details**
+ *
  * Stored in the {@link Checks} array on {@link Base.checks}.
  *
  * @see {@link Filter}
  * @see {@link FilterGroup}
- *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 type Check<T> = Filter$1<T> | FilterGroup<T>;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/SchemaIssue.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/SchemaIssue.d.ts
 declare const TypeId$7 = "~effect/SchemaIssue/Issue";
 /**
  * Returns `true` if the given value is an {@link Issue}.
  *
- * When to use:
+ * **When to use**
  *
  * - Narrowing an `unknown` value to `Issue` in error-handling code.
  * - Distinguishing an `Issue` from other error types in a catch-all handler.
  *
- * Behaviour:
+ * **Details**
  *
  * - Pure; does not mutate input.
  * - Checks for the internal `TypeId` brand on the value.
@@ -1575,15 +1666,18 @@ declare const TypeId$7 = "~effect/SchemaIssue/Issue";
  *
  * @see {@link Issue}
  *
+ * @category guards
  * @since 4.0.0
  */
 /**
  * Union of all terminal (leaf) issue types that have no inner `Issue` children.
  *
- * When to use:
+ * **When to use**
  *
  * - Constraining formatter hooks to only handle terminal nodes.
  * - Pattern-matching on the `_tag` of an issue when you only care about leaves.
+ *
+ * **Details**
  *
  * Members: {@link InvalidType}, {@link InvalidValue}, {@link MissingKey},
  * {@link UnexpectedKey}, {@link Forbidden}, {@link OneOf}.
@@ -1591,32 +1685,32 @@ declare const TypeId$7 = "~effect/SchemaIssue/Issue";
  * @see {@link Issue} — the full union including composite nodes
  * @see {@link LeafHook} — formatter hook that operates on `Leaf` values
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 type Leaf = InvalidType | InvalidValue | MissingKey | UnexpectedKey | Forbidden | OneOf;
 /**
  * The root discriminated union of all validation error nodes.
  *
- * Every node has a `_tag` field for pattern-matching. The union includes both
- * terminal {@link Leaf} types and composite types that wrap inner issues:
- * {@link Filter}, {@link Encoding}, {@link Pointer}, {@link Composite},
- * {@link AnyOf}.
- *
- * When to use:
+ * **When to use**
  *
  * - Typing the error channel in `Effect<A, Issue, R>` results from schema
  *   parsing.
  * - Writing custom formatters or issue-tree walkers.
  *
- * All `Issue` instances have a `toString()` that delegates to the default
- * formatter, so `String(issue)` produces a human-readable message.
+ * **Details**
+ *
+ * Every node has a `_tag` field for pattern-matching. The union includes both
+ * terminal {@link Leaf} types and composite types that wrap inner issues:
+ * {@link Filter}, {@link Encoding}, {@link Pointer}, {@link Composite},
+ * {@link AnyOf}. All `Issue` instances have a `toString()` that delegates to
+ * the default formatter, so `String(issue)` produces a human-readable message.
  *
  * @see {@link Leaf} — the terminal subset
  * @see {@link isIssue} — type guard
  * @see {@link getActual} — extract the actual value from any issue
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 type Issue = Leaf | Filter | Encoding | Pointer | Composite | AnyOf;
@@ -1627,12 +1721,12 @@ declare class Base {
 /**
  * Issue produced when a schema filter (refinement check) fails.
  *
- * When to use:
+ * **When to use**
  *
  * - Inspect which filter rejected the value.
  * - Walk the inner `issue` for the specific validation failure.
  *
- * Behaviour:
+ * **Details**
  *
  * - `actual` is the raw input value that was tested (plain `unknown`, not
  *   wrapped in `Option`).
@@ -1655,7 +1749,7 @@ declare class Base {
  * @see {@link Leaf} — terminal issue types that commonly appear as the inner `issue`
  * @see {@link CheckHook} — formatter hook for `Filter` issues
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Filter extends Base {
@@ -1692,13 +1786,13 @@ declare class Filter extends Base {
 /**
  * Issue produced when a schema transformation (encode/decode step) fails.
  *
- * When to use:
+ * **When to use**
  *
  * - Inspect failures from `Schema.decodeTo` / `Schema.encodeTo`
  *   transformations.
  * - Walk the inner `issue` for the root cause of the transformation failure.
  *
- * Behaviour:
+ * **Details**
  *
  * - `ast` is the AST node for the transformation that failed.
  * - `actual` is `Option.some(value)` when the input was present, or
@@ -1708,7 +1802,7 @@ declare class Filter extends Base {
  * @see {@link Filter} — failure from a refinement check (not a transformation)
  * @see {@link Composite} — multiple issues from a single schema node
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class Encoding extends Base {
@@ -1746,12 +1840,12 @@ declare class Encoding extends Base {
  * Wraps an inner {@link Issue} with a property-key path, indicating *where* in
  * a nested structure the error occurred.
  *
- * When to use:
+ * **When to use**
  *
  * - Walk the issue tree to accumulate path segments for error reporting.
  * - Match on `_tag === "Pointer"` when flattening nested issues.
  *
- * Behaviour:
+ * **Details**
  *
  * - `path` is an array of property keys (strings, numbers, or symbols).
  * - Has no `actual` value — {@link getActual} returns `Option.none()`.
@@ -1761,8 +1855,8 @@ declare class Encoding extends Base {
  * @see {@link getActual} — returns `Option.none()` for `Pointer`
  * @see {@link Composite} — groups multiple issues under one schema node
  *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class Pointer extends Base {
   readonly _tag = "Pointer";
@@ -1789,13 +1883,13 @@ declare class Pointer extends Base {
 /**
  * Issue produced when a required key or tuple index is missing from the input.
  *
- * When to use:
+ * **When to use**
  *
  * - Detect absent fields in struct/tuple validation.
  * - Typically found inside a {@link Pointer} that indicates which key is
  *   missing.
  *
- * Behaviour:
+ * **Details**
  *
  * - Has no `actual` value — {@link getActual} returns `Option.none()`.
  * - `annotations` may contain a custom `messageMissingKey` for formatting.
@@ -1803,7 +1897,7 @@ declare class Pointer extends Base {
  * @see {@link Pointer} — wraps this issue with the missing key's path
  * @see {@link UnexpectedKey} — the opposite case (extra key present)
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class MissingKey extends Base {
@@ -1823,13 +1917,13 @@ declare class MissingKey extends Base {
  * Issue produced when an input object or tuple contains a key/index not
  * declared by the schema.
  *
- * When to use:
+ * **When to use**
  *
  * - Detect excess properties during strict struct/tuple validation.
  * - Typically found inside a {@link Pointer} that indicates which key was
  *   unexpected.
  *
- * Behaviour:
+ * **Details**
  *
  * - `actual` is the raw value at the unexpected key (plain `unknown`).
  * - `ast` is the schema that was being validated against.
@@ -1838,7 +1932,7 @@ declare class MissingKey extends Base {
  * @see {@link MissingKey} — the opposite case (required key absent)
  * @see {@link Pointer} — wraps this issue with the unexpected key's path
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class UnexpectedKey extends Base {
@@ -1866,13 +1960,13 @@ declare class UnexpectedKey extends Base {
 /**
  * Issue that groups multiple child issues under a single schema node.
  *
- * When to use:
+ * **When to use**
  *
  * - Walk the issue tree for struct/tuple schemas that collect all field errors
  *   rather than failing on the first.
  * - Match on `_tag === "Composite"` to iterate over `issues`.
  *
- * Behaviour:
+ * **Details**
  *
  * - `issues` is a non-empty readonly array (at least one child).
  * - `actual` is `Option.some(value)` when the input was present, or
@@ -1882,8 +1976,8 @@ declare class UnexpectedKey extends Base {
  * @see {@link AnyOf} — used for union no-match errors (similar but different semantics)
  * @see {@link Pointer} — adds path context to individual issues
  *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class Composite extends Base {
   readonly _tag = "Composite";
@@ -1920,13 +2014,13 @@ declare class Composite extends Base {
  * Issue produced when the runtime type of the input does not match the type
  * expected by the schema (e.g. got `null` when `string` was expected).
  *
- * When to use:
+ * **When to use**
  *
  * - Detect basic type mismatches (wrong primitive, null where object expected,
  *   etc.).
  * - The most common leaf issue in typical validation failures.
  *
- * Behaviour:
+ * **Details**
  *
  * - `ast` is the schema node that expected a different type.
  * - `actual` is `Option.some(value)` when the input was present, or
@@ -1950,7 +2044,7 @@ declare class Composite extends Base {
  *
  * @see {@link InvalidValue} — the input has the right type but fails a value constraint
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class InvalidType extends Base {
@@ -1979,13 +2073,13 @@ declare class InvalidType extends Base {
  * Issue produced when the input has the correct type but its value violates a
  * constraint (e.g. a string that is too short, a number out of range).
  *
- * When to use:
+ * **When to use**
  *
  * - Detect constraint violations from `Schema.filter`, `Schema.minLength`,
  *   `Schema.greaterThan`, etc.
  * - Create custom validation errors in `Schema.makeFilter` callbacks.
  *
- * Behaviour:
+ * **Details**
  *
  * - `actual` is `Option.some(value)` when the failing value is known, or
  *   `Option.none()` when absent.
@@ -2009,7 +2103,7 @@ declare class InvalidType extends Base {
  * @see {@link InvalidType} — the input has the wrong type entirely
  * @see {@link Filter} — composite wrapper when a schema filter produces this issue
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class InvalidValue extends Base {
@@ -2038,12 +2132,12 @@ declare class InvalidValue extends Base {
  * Issue produced when a forbidden operation is encountered during parsing,
  * such as an asynchronous Effect running inside `Schema.decodeUnknownSync`.
  *
- * When to use:
+ * **When to use**
  *
  * - Detect that a schema requires async execution but was run synchronously.
  * - Provide custom error messages via the `annotations.message` field.
  *
- * Behaviour:
+ * **Details**
  *
  * - `actual` is `Option.some(value)` when the input is known, or
  *   `Option.none()` when absent.
@@ -2065,8 +2159,8 @@ declare class InvalidValue extends Base {
  *
  * @see {@link InvalidValue} — for value-constraint failures (not operation failures)
  *
- * @category model
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 declare class Forbidden extends Base {
   readonly _tag = "Forbidden";
@@ -2093,13 +2187,13 @@ declare class Forbidden extends Base {
 /**
  * Issue produced when a value does not match *any* member of a union schema.
  *
- * When to use:
+ * **When to use**
  *
  * - Inspect which union members were attempted and why each failed.
  * - `issues` may be empty when the union has no members or when the input does
  *   not pass the initial type guard.
  *
- * Behaviour:
+ * **Details**
  *
  * - `ast` is the `Union` AST node.
  * - `actual` is the raw input value (plain `unknown`).
@@ -2109,7 +2203,7 @@ declare class Forbidden extends Base {
  * @see {@link OneOf} — the opposite: *too many* members matched
  * @see {@link Composite} — groups multiple issues under a non-union schema
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class AnyOf extends Base {
@@ -2147,12 +2241,12 @@ declare class AnyOf extends Base {
  * Issue produced when a value matches *multiple* members of a union that is
  * configured to allow exactly one match (oneOf mode).
  *
- * When to use:
+ * **When to use**
  *
  * - Detect ambiguous union matches when `oneOf` validation is enabled.
  * - Inspect `successes` to see which members matched.
  *
- * Behaviour:
+ * **Details**
  *
  * - `ast` is the `Union` AST node.
  * - `actual` is the raw input value (plain `unknown`).
@@ -2162,7 +2256,7 @@ declare class AnyOf extends Base {
  *
  * @see {@link AnyOf} — the opposite: *no* members matched
  *
- * @category model
+ * @category models
  * @since 4.0.0
  */
 declare class OneOf extends Base {
@@ -2197,7 +2291,7 @@ declare class OneOf extends Base {
   successes: ReadonlyArray<AST>);
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/schema/schema.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/internal/schema/schema.d.ts
 declare class SchemaError {
   readonly [SchemaErrorTypeId] = "~effect/Schema/SchemaError";
   readonly _tag = "SchemaError";
@@ -2208,14 +2302,16 @@ declare class SchemaError {
   toString(): string;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/JsonSchema.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/JsonSchema.d.ts
 /**
  * A plain object representing a single JSON Schema node.
  *
- * This is an open record type (`[x: string]: unknown`) so it can hold any
- * JSON Schema keyword. Most functions in this module accept or return this
- * type.
+ * **Details**
  *
+ * This is an open record type (`[x: string]: unknown`) so it can hold any JSON
+ * Schema keyword. Most functions in this module accept or return this type.
+ *
+ * @category models
  * @since 4.0.0
  */
 interface JsonSchema {
@@ -2224,18 +2320,23 @@ interface JsonSchema {
 /**
  * A record of named JSON Schema definitions, keyed by definition name.
  *
+ * @category models
  * @since 4.0.0
  */
 interface Definitions extends Record<string, JsonSchema> {}
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Struct.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Struct.d.ts
 /**
  * Flattens intersection types into a single object type for readability.
  *
- * - Use when hovering over a type shows `A & B & C` instead of the merged
- *   shape.
- * - Purely cosmetic — no runtime effect.
- * - Preserves `readonly` modifiers; use {@link Mutable} to strip them.
+ * **When to use**
+ *
+ * Use when hovering over a type shows `A & B & C` instead of the merged shape.
+ *
+ * **Details**
+ *
+ * This helper is purely cosmetic at the type level and has no runtime effect.
+ * It preserves `readonly` modifiers; use {@link Mutable} to strip them.
  *
  * **Example** (Flattening an intersection)
  *
@@ -2251,7 +2352,6 @@ interface Definitions extends Record<string, JsonSchema> {}
  *
  * @see {@link Mutable} – also flattens but removes `readonly`
  * @see {@link Assign} – merges two types with right-side precedence
- *
  * @category Type-Level Programming
  * @since 4.0.0
  */
@@ -2285,7 +2385,7 @@ interface JumpableRandomGenerator extends RandomGenerator$1 {
   jump(): void;
 } //#endregion
 //#endregion
-//#region ../../../node_modules/.bun/fast-check@4.7.0/node_modules/fast-check/lib/cjs/fast-check.d.ts
+//#region ../../../node_modules/.bun/fast-check@4.8.0/node_modules/fast-check/lib/cjs/fast-check.d.ts
 //#region src/check/precondition/Pre.d.ts
 /**
 * Add pre-condition checks inside a property execution
@@ -2531,7 +2631,7 @@ declare class Value<T> {
   * Depending on `hasToBeCloned` it will either be `value_` or a clone of it
   * @remarks Since 2.15.0
   */
-  readonly value!: T;
+  readonly value: T;
   /**
   * Internal value of the shrinkable
   * @remarks Since 2.15.0
@@ -2548,7 +2648,7 @@ declare class Value<T> {
   * @param context - Context associated to the generated value (useful for shrink)
   * @param customGetValue - Limited to internal usages (to ease migration to next), it will be removed on next major
   */
-  constructor(value_: T, context: unknown, customGetValue?: (() => T) | undefined);
+  constructor(value_: T, context: unknown, customGetValue?: () => T);
 } //#endregion
 //#region src/check/arbitrary/definition/Arbitrary.d.ts
 /**
@@ -3952,6 +4052,24 @@ type CloneValue<T, N extends number, Rest extends T[] = []> = [number] extends [
 * @public
 */
 declare function clone<T, N extends number>(arb: Arbitrary<T>, numValues: N): Arbitrary<CloneValue<T, N>>; //#endregion
+//#region src/arbitrary/chainUntil.d.ts
+/**
+* Build an arbitrary by iteratively chaining arbitraries until the chainer returns undefined.
+*
+* Starting from a value produced by `startArb`, the `chainer` function is called with the current value
+* to produce the next arbitrary. This process repeats until `chainer` returns `undefined`.
+* The final value in the chain is the one produced by this arbitrary.
+*
+* The implementation is fully iterative (non-recursive) and supports shrinking.
+*
+* @param startArb - The starting arbitrary producing the initial value
+* @param chainer - A function called with the current value that returns either the next arbitrary to generate from or undefined to stop the chain
+* @returns An arbitrary producing the last value in the chain
+*
+* @remarks Since 4.8.0
+* @public
+*/
+declare function chainUntil<T>(startArb: Arbitrary<T>, chainer: (prev: T) => Arbitrary<T> | undefined): Arbitrary<T>; //#endregion
 //#region src/arbitrary/dictionary.d.ts
 /**
 * Constraints to be applied on {@link dictionary}
@@ -6953,22 +7071,22 @@ declare function limitShrink<T>(arbitrary: Arbitrary<T>, maxShrinks: number): Ar
 */
 declare const __type: string;
 /**
-* Version of fast-check used by your project (eg.: "4.7.0")
+* Version of fast-check used by your project (eg.: "4.8.0")
 * @remarks Since 1.22.0
 * @public
 */
 declare const __version: string;
 /**
-* Commit hash of the current code (eg.: "fd1a1840b2fda7f909f825083bd486318adfcf11")
+* Commit hash of the current code (eg.: "c0da76fbcf6470339ad7bb2f0dfcebee06ede56c")
 * @remarks Since 2.7.0
 * @public
 */
 declare const __commitHash: string; //#endregion
 declare namespace FastCheck_d_exports {
-  export { Arbitrary, ArrayConstraints$1 as ArrayConstraints, AsyncCommand, AsyncPropertyHookFunction, BigIntArrayConstraints, BigIntConstraints$1 as BigIntConstraints, CloneValue, Command, CommandsContraints, ContextValue, DateConstraints$1 as DateConstraints, DepthContext, DepthIdentifier, DepthSize, DictionaryConstraints, DomainConstraints, DoubleConstraints, EmailAddressConstraints, Arbitraries as EntityGraphArbitraries, EntityGraphContraints, EntityRelations as EntityGraphRelations, EntityGraphValue, ExecutionStatus, ExecutionTree, FalsyContraints, FalsyValue, Float32ArrayConstraints, Float64ArrayConstraints, FloatConstraints, GeneratorValue, GlobalAsyncPropertyHookFunction, GlobalParameters, GlobalPropertyHookFunction, IAsyncProperty, IAsyncPropertyWithHooks, ICommand, IProperty, IPropertyWithHooks, IRawProperty, IntArrayConstraints, IntegerConstraints, JsonSharedConstraints, JsonValue, LetrecLooselyTypedBuilder, LetrecLooselyTypedTie, LetrecTypedBuilder, LetrecTypedTie, LetrecValue, LoremConstraints, MapConstraints, MaybeWeightedArbitrary, Memo, MixedCaseConstraints, ModelRunAsyncSetup, ModelRunSetup, NatConstraints, ObjectConstraints, OneOfConstraints, OneOfValue, OptionConstraints, Parameters$1 as Parameters, PreconditionFailure, PropertyFailure, PropertyHookFunction, Random, RandomGenerator, RandomType, RecordConstraints, RecordValue, RunDetails, RunDetailsCommon, RunDetailsFailureInterrupted, RunDetailsFailureProperty, RunDetailsFailureTooManySkips, RunDetailsSuccess, Scheduler, SchedulerAct, SchedulerConstraints, SchedulerReportItem, SchedulerSequenceItem, SetConstraints, ShuffledSubarrayConstraints, Size, SizeForArbitrary, SparseArrayConstraints, Stream, StringConstraints$1 as StringConstraints, StringMatchingConstraints, StringSharedConstraints, SubarrayConstraints, UniqueArrayConstraints, UniqueArrayConstraintsCustomCompare, UniqueArrayConstraintsCustomCompareSelect, UniqueArrayConstraintsRecommended, UniqueArraySharedConstraints, UuidConstraints, Value, VerbosityLevel, WebAuthorityConstraints, WebFragmentsConstraints, WebPathConstraints, WebQueryParametersConstraints, WebSegmentConstraints, WebUrlConstraints, WeightedArbitrary, WithAsyncToStringMethod, WithCloneMethod, WithToStringMethod, __commitHash, __type, __version, anything, array, assert, asyncDefaultReportMessage, asyncModelRun, asyncProperty, asyncStringify, asyncToStringMethod, base64String, bigInt, bigInt64Array, bigUint64Array, boolean, check, clone, cloneIfNeeded, cloneMethod, commands, compareBooleanFunc, compareFunc, configureGlobal, constant, constantFrom, context, createDepthIdentifier, date, defaultReportMessage, dictionary, domain, double, emailAddress, entityGraph, falsy, float, float32Array, float64Array, func, gen, getDepthContextFor, hasAsyncToStringMethod, hasCloneMethod, hasToStringMethod, hash, infiniteStream, int16Array, int32Array, int8Array, integer, ipV4, ipV4Extended, ipV6, json, jsonValue, letrec, limitShrink, lorem, map, mapToConstant, maxSafeInteger, maxSafeNat, memo, mixedCase, modelRun, nat, noBias, noShrink, object, oneof, option, pre, property, readConfigureGlobal, record, resetConfigureGlobal, sample, scheduledModelRun, scheduler, schedulerFor, set, shuffledSubarray, sparseArray, statistics, stream, string, stringMatching, stringify, subarray, toStringMethod, tuple, uint16Array, uint32Array, uint8Array, uint8ClampedArray, ulid, uniqueArray, uuid, webAuthority, webFragments, webPath, webQueryParameters, webSegment, webUrl };
+  export { Arbitrary, ArrayConstraints$1 as ArrayConstraints, AsyncCommand, AsyncPropertyHookFunction, BigIntArrayConstraints, BigIntConstraints$1 as BigIntConstraints, CloneValue, Command, CommandsContraints, ContextValue, DateConstraints$1 as DateConstraints, DepthContext, DepthIdentifier, DepthSize, DictionaryConstraints, DomainConstraints, DoubleConstraints, EmailAddressConstraints, Arbitraries as EntityGraphArbitraries, EntityGraphContraints, EntityRelations as EntityGraphRelations, EntityGraphValue, ExecutionStatus, ExecutionTree, FalsyContraints, FalsyValue, Float32ArrayConstraints, Float64ArrayConstraints, FloatConstraints, GeneratorValue, GlobalAsyncPropertyHookFunction, GlobalParameters, GlobalPropertyHookFunction, IAsyncProperty, IAsyncPropertyWithHooks, ICommand, IProperty, IPropertyWithHooks, IRawProperty, IntArrayConstraints, IntegerConstraints, JsonSharedConstraints, JsonValue, LetrecLooselyTypedBuilder, LetrecLooselyTypedTie, LetrecTypedBuilder, LetrecTypedTie, LetrecValue, LoremConstraints, MapConstraints, MaybeWeightedArbitrary, Memo, MixedCaseConstraints, ModelRunAsyncSetup, ModelRunSetup, NatConstraints, ObjectConstraints, OneOfConstraints, OneOfValue, OptionConstraints, Parameters$1 as Parameters, PreconditionFailure, PropertyFailure, PropertyHookFunction, Random, RandomGenerator, RandomType, RecordConstraints, RecordValue, RunDetails, RunDetailsCommon, RunDetailsFailureInterrupted, RunDetailsFailureProperty, RunDetailsFailureTooManySkips, RunDetailsSuccess, Scheduler, SchedulerAct, SchedulerConstraints, SchedulerReportItem, SchedulerSequenceItem, SetConstraints, ShuffledSubarrayConstraints, Size, SizeForArbitrary, SparseArrayConstraints, Stream, StringConstraints$1 as StringConstraints, StringMatchingConstraints, StringSharedConstraints, SubarrayConstraints, UniqueArrayConstraints, UniqueArrayConstraintsCustomCompare, UniqueArrayConstraintsCustomCompareSelect, UniqueArrayConstraintsRecommended, UniqueArraySharedConstraints, UuidConstraints, Value, VerbosityLevel, WebAuthorityConstraints, WebFragmentsConstraints, WebPathConstraints, WebQueryParametersConstraints, WebSegmentConstraints, WebUrlConstraints, WeightedArbitrary, WithAsyncToStringMethod, WithCloneMethod, WithToStringMethod, __commitHash, __type, __version, anything, array, assert, asyncDefaultReportMessage, asyncModelRun, asyncProperty, asyncStringify, asyncToStringMethod, base64String, bigInt, bigInt64Array, bigUint64Array, boolean, chainUntil, check, clone, cloneIfNeeded, cloneMethod, commands, compareBooleanFunc, compareFunc, configureGlobal, constant, constantFrom, context, createDepthIdentifier, date, defaultReportMessage, dictionary, domain, double, emailAddress, entityGraph, falsy, float, float32Array, float64Array, func, gen, getDepthContextFor, hasAsyncToStringMethod, hasCloneMethod, hasToStringMethod, hash, infiniteStream, int16Array, int32Array, int8Array, integer, ipV4, ipV4Extended, ipV6, json, jsonValue, letrec, limitShrink, lorem, map, mapToConstant, maxSafeInteger, maxSafeNat, memo, mixedCase, modelRun, nat, noBias, noShrink, object, oneof, option, pre, property, readConfigureGlobal, record, resetConfigureGlobal, sample, scheduledModelRun, scheduler, schedulerFor, set, shuffledSubarray, sparseArray, statistics, stream, string, stringMatching, stringify, subarray, toStringMethod, tuple, uint16Array, uint32Array, uint8Array, uint8ClampedArray, ulid, uniqueArray, uuid, webAuthority, webFragments, webPath, webQueryParameters, webSegment, webUrl };
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Schema.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Schema.d.ts
 declare const TypeId$6 = "~effect/Schema/Schema";
 /**
  * Whether a schema field is required or optional within a struct.
@@ -6976,6 +7094,7 @@ declare const TypeId$6 = "~effect/Schema/Schema";
  * @see {@link optionalKey} — mark a struct field as optional
  * @see {@link optional} — mark a struct field as optional with `| undefined`
  *
+ * @category models
  * @since 4.0.0
  */
 type Optionality = "required" | "optional";
@@ -6984,6 +7103,7 @@ type Optionality = "required" | "optional";
  *
  * @see {@link mutableKey} — mark a struct field as mutable
  *
+ * @category models
  * @since 4.0.0
  */
 type Mutability = "readonly" | "mutable";
@@ -6993,20 +7113,23 @@ type Mutability = "readonly" | "mutable";
  * @see {@link withConstructorDefault} — add a default to a schema field
  * @see {@link tag} — creates a literal field with a constructor default
  *
+ * @category models
  * @since 4.0.0
  */
 type ConstructorDefault = "no-default" | "with-default";
 /**
  * Options for `makeEffect`, `make`, and Class constructors.
  *
- * When to use:
+ * **When to use**
+ *
  * - Pass `disableChecks: true` to skip validation when you trust the data.
  * - Pass `parseOptions` to control error reporting behavior.
  *
  * @see {@link Bottom.makeEffect}
  * @see {@link Bottom.make}
  *
- * @since 4.0.0
+ * @category models
+ * @since 3.13.4
  */
 interface MakeOptions {
   /**
@@ -7023,7 +7146,8 @@ interface MakeOptions {
  * parameters controlling type inference, mutability, optionality, services,
  * and transformation behavior.
  *
- * When to use:
+ * **When to use**
+ *
  * - You are writing advanced generic schema utilities or performing schema
  *   introspection.
  * - In user code, prefer {@link Schema}, {@link Codec}, {@link Decoder}, or
@@ -7033,6 +7157,7 @@ interface MakeOptions {
  * @see {@link Schema} — tracks only the decoded Type
  * @see {@link Codec} — tracks Type + Encoded
  *
+ * @category models
  * @since 4.0.0
  */
 interface Bottom<out T, out E, out RD, out RE, out Ast extends AST, out Rebuild extends Top, out TypeMakeIn = T, out Iso = T, in out TypeParameters extends ReadonlyArray<Top> = readonly [], out TypeMake = TypeMakeIn, out TypeMutability extends Mutability = "readonly", out TypeOptionality extends Optionality = "required", out TypeConstructorDefault extends ConstructorDefault = "no-default", out EncodedMutability extends Mutability = "readonly", out EncodedOptionality extends Optionality = "required"> extends Pipeable {
@@ -7057,7 +7182,7 @@ interface Bottom<out T, out E, out RD, out RE, out Ast extends AST, out Rebuild 
   check(...checks: readonly [Check<this["Type"]>, ...Array<Check<this["Type"]>>]): this["Rebuild"];
   rebuild(ast: this["ast"]): this["Rebuild"];
   /**
-   * @throws {Error} The issue is contained in the error cause.
+   * Constructs a value from the make input representation.
    */
   make(input: this["~type.make.in"], options?: MakeOptions): this["Type"];
   makeOption(input: this["~type.make.in"], options?: MakeOptions): Option<this["Type"]>;
@@ -7065,6 +7190,8 @@ interface Bottom<out T, out E, out RD, out RE, out Ast extends AST, out Rebuild 
 }
 /**
  * The existential "any schema" type — all type parameters are erased to `unknown`.
+ *
+ * **Details**
  *
  * Use `Top` as a constraint when writing generic utilities that must accept *any*
  * schema regardless of its `Type`, `Encoded`, or service requirements. It is the
@@ -7076,6 +7203,7 @@ interface Bottom<out T, out E, out RD, out RE, out Ast extends AST, out Rebuild 
  * - {@link Decoder}`<T, RD>` — for decode-only APIs
  * - {@link Encoder}`<E, RE>` — for encode-only APIs
  *
+ * @category models
  * @since 4.0.0
  */
 interface Top extends Bottom<unknown, unknown, unknown, unknown, AST, Top, unknown, unknown, any, // this is because TypeParameters is invariant
@@ -7083,7 +7211,7 @@ unknown, Mutability, Optionality, ConstructorDefault, Mutability, Optionality> {
 /**
  * Namespace of type-level helpers for {@link Schema}.
  *
- * @since 4.0.0
+ * @since 3.10.0
  */
 declare namespace Schema$1 {
   /**
@@ -7099,12 +7227,15 @@ declare namespace Schema$1 {
    * // { readonly name: string; readonly age: number }
    * ```
    *
-   * @since 4.0.0
+   * @category utility types
+   * @since 3.10.0
    */
   type Type<S> = S extends Top ? S["Type"] : never;
 }
 /**
  * A typed view of a schema that tracks only the decoded (output) type `T`.
+ *
+ * **Details**
  *
  * Use `Schema<T>` as a constraint when you want to accept "any schema that
  * decodes to `T`" and do not need to know or constrain the encoded
@@ -7128,7 +7259,8 @@ declare namespace Schema$1 {
  * @see {@link Codec} — also tracks Encoded, DecodingServices, EncodingServices
  * @see {@link Schema.Type} — extract the decoded type at the type level
  *
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 interface Schema$1<out T> extends Top {
   readonly "Type": T;
@@ -7153,7 +7285,8 @@ declare namespace Codec {
    * // string
    * ```
    *
-   * @since 4.0.0
+   * @category utility types
+   * @since 3.10.0
    */
   type Encoded<S> = S extends Top ? S["Encoded"] : never;
   /**
@@ -7169,6 +7302,7 @@ declare namespace Codec {
    * // never
    * ```
    *
+   * @category utility types
    * @since 4.0.0
    */
   type DecodingServices<S> = S extends Top ? S["DecodingServices"] : never;
@@ -7185,23 +7319,16 @@ declare namespace Codec {
    * // never
    * ```
    *
+   * @category utility types
    * @since 4.0.0
    */
   type EncodingServices<S> = S extends Top ? S["EncodingServices"] : never;
-  /**
-   * Converts a schema type into an assertion function signature. The resulting
-   * function narrows its argument to `I & S["Type"]`. Only schemas with
-   * `DecodingServices: never` (i.e. no required services) can be used here.
-   *
-   * Produced by {@link asserts}.
-   *
-   * @since 4.0.0
-   */
-  type ToAsserts<S extends Top> = <I>(input: I) => asserts input is I & S["Type"];
 }
 /**
  * A schema that tracks the decoded type `T`, the encoded type `E`, and the
  * Effect services required during decoding (`RD`) and encoding (`RE`).
+ *
+ * **Details**
  *
  * Use `Codec<T, E, RD, RE>` when you need to preserve full type information
  * about a schema — both what it decodes to and what it serializes from/to.
@@ -7227,6 +7354,7 @@ declare namespace Codec {
  * @see {@link Codec.EncodingServices} — extract required encoding services
  * @see {@link revealCodec} — helper to make TypeScript infer the full Codec type
  *
+ * @category models
  * @since 4.0.0
  */
 interface Codec<out T, out E = T, out RD = never, out RE = never> extends Schema$1<T> {
@@ -7239,12 +7367,14 @@ interface Codec<out T, out E = T, out RD = never, out RE = never> extends Schema
  * Schema for `string` values.
  *
  * @see {@link String} for the schema value.
+ * @category models
  * @since 4.0.0
  */
 interface String extends Bottom<string, string, never, never, String$1, String> {}
 /**
  * Schema for `string` values. Validates that the input is `typeof` `"string"`.
  *
+ * @category schemas
  * @since 4.0.0
  */
 declare const String: String;
@@ -7252,18 +7382,22 @@ declare const String: String;
  * Schema for `number` values, including `NaN`, `Infinity`, and `-Infinity`.
  *
  * @see {@link Number} for the schema value.
+ * @category models
  * @since 4.0.0
  */
 interface Number extends Bottom<number, number, never, never, Number$1, Number> {}
 /**
  * Schema for `number` values, including `NaN`, `Infinity`, and `-Infinity`.
  *
- * **Default Json Serializer**
+ * **Details**
+ *
+ * Default JSON serializer:
  *
  * - Finite numbers are serialized as numbers.
  * - Non-finite values are serialized as strings (`"NaN"`, `"Infinity"`, `"-Infinity"`).
  *
  * @see {@link Finite} for a schema that excludes non-finite values.
+ * @category schemas
  * @since 4.0.0
  */
 declare const Number: Number;
@@ -7271,6 +7405,7 @@ declare const Number: Number;
  * Schema for `symbol` values.
  *
  * @see {@link Symbol} for the schema value.
+ * @category models
  * @since 4.0.0
  */
 interface Symbol$1 extends Bottom<symbol, symbol, never, never, Symbol$2, Symbol$1> {}
@@ -7278,6 +7413,7 @@ interface Symbol$1 extends Bottom<symbol, symbol, never, never, Symbol$2, Symbol
  * Schema for `symbol` values. Validates that the input is `typeof` `"symbol"`.
  *
  * @see {@link UniqueSymbol} for a schema that matches a specific symbol.
+ * @category schemas
  * @since 4.0.0
  */
 declare const Symbol$1: Symbol$1;
@@ -7285,26 +7421,38 @@ declare const Symbol$1: Symbol$1;
  * Schema for the `void` type.
  *
  * @see {@link Void} for the schema value.
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 interface Void extends Bottom<void, void, never, never, Void$1, Void> {}
 /**
  * Schema for the `void` type. Accepts `undefined` as the encoded value.
  *
- * @since 4.0.0
+ * @category schemas
+ * @since 3.10.0
  */
 declare const Void: Void;
 /**
  * Namespace for `Record` type utilities.
  *
+ * **Details**
+ *
  * - `Record.Key` — constraint for the key schema (must encode to `PropertyKey`)
  * - `Record.Type<K, V>` — decoded type of the record
  * - `Record.Encoded<K, V>` — encoded type of the record
  *
- * @since 4.0.0
+ * @since 3.10.0
  */
 declare namespace Record$1 {
   /**
+   * Constraint for schemas that can be used as record keys.
+   *
+   * **Details**
+   *
+   * The key schema must decode and encode property keys (`string`, `number`, or
+   * `symbol`) so it can describe object property names.
+   *
+   * @category utility types
    * @since 4.0.0
    */
   interface Key extends Codec<PropertyKey$1, PropertyKey$1, unknown, unknown> {
@@ -7312,7 +7460,17 @@ declare namespace Record$1 {
     readonly "Iso": PropertyKey$1;
   }
   /**
-   * @since 4.0.0
+   * Computes the decoded object type for a record schema from its key and value
+   * schemas.
+   *
+   * **Details**
+   *
+   * The key schema supplies the property keys and the value schema supplies each
+   * property's decoded `Type`. Optional and mutable value schemas affect the
+   * resulting property optionality and writability.
+   *
+   * @category utility types
+   * @since 3.10.0
    */
   type Type<Key extends Record$1.Key, Value extends Top> = Value extends {
     readonly "~type.optionality": "optional";
@@ -7322,6 +7480,10 @@ declare namespace Record$1 {
     readonly "~type.mutability": "mutable";
   } ? { [P in Key["Type"]]: Value["Type"] } : { readonly [P in Key["Type"]]: Value["Type"] };
   /**
+   * Computes the iso object type for a record schema from the key schema's `Iso`
+   * keys and the value schema's `Iso` values.
+   *
+   * @category utility types
    * @since 4.0.0
    */
   type Iso<Key extends Record$1.Key, Value extends Top> = Value extends {
@@ -7332,7 +7494,16 @@ declare namespace Record$1 {
     readonly "~type.mutability": "mutable";
   } ? { [P in Key["Iso"]]: Value["Iso"] } : { readonly [P in Key["Iso"]]: Value["Iso"] };
   /**
-   * @since 4.0.0
+   * Computes the encoded object type for a record schema from the key and value
+   * schemas' encoded types.
+   *
+   * **Details**
+   *
+   * Encoded-side optionality and mutability on the value schema determine whether
+   * the encoded record properties are optional or writable.
+   *
+   * @category utility types
+   * @since 3.10.0
    */
   type Encoded<Key extends Record$1.Key, Value extends Top> = Value extends {
     readonly "~encoded.optionality": "optional";
@@ -7342,14 +7513,31 @@ declare namespace Record$1 {
     readonly "~encoded.mutability": "mutable";
   } ? { [P in Key["Encoded"]]: Value["Encoded"] } : { readonly [P in Key["Encoded"]]: Value["Encoded"] };
   /**
+   * Union of the decoding service requirements of a record's key schema and value
+   * schema.
+   *
+   * @category utility types
    * @since 4.0.0
    */
   type DecodingServices<Key extends Record$1.Key, Value extends Top> = Key["DecodingServices"] | Value["DecodingServices"];
   /**
+   * Union of the encoding service requirements of a record's key schema and value
+   * schema.
+   *
+   * @category utility types
    * @since 4.0.0
    */
   type EncodingServices<Key extends Record$1.Key, Value extends Top> = Key["EncodingServices"] | Value["EncodingServices"];
   /**
+   * Computes the input object type accepted when constructing a record value.
+   *
+   * **Details**
+   *
+   * Keys use the key schema's `~type.make` type and values use the value schema's
+   * `~type.make` type. Value optionality and mutability determine whether
+   * properties are optional or writable.
+   *
+   * @category utility types
    * @since 4.0.0
    */
   type MakeIn<Key extends Record$1.Key, Value extends Top> = Value extends {
@@ -7364,6 +7552,7 @@ declare namespace Record$1 {
  * Companion type for a key-value record (map) with a typed key and value schema.
  * Produced by {@link Record}.
  *
+ * @category models
  * @since 4.0.0
  */
 interface $Record<Key extends Record$1.Key, Value extends Top> extends Bottom<Record$1.Type<Key, Value>, Record$1.Encoded<Key, Value>, Record$1.DecodingServices<Key, Value>, Record$1.EncodingServices<Key, Value>, Objects$1, $Record<Key, Value>, Simplify<Record$1.MakeIn<Key, Value>>, Record$1.Iso<Key, Value>> {
@@ -7388,8 +7577,8 @@ interface $Record<Key extends Record$1.Key, Value extends Top> extends Bottom<Re
  * // { a: 1, b: 2 }
  * ```
  *
- * @category Constructors
- * @since 4.0.0
+ * @category constructors
+ * @since 3.10.0
  */
 declare function Record$1<Key extends Record$1.Key, Value extends Top>(key: Key, value: Value, options?: {
   readonly keyValueCombiner: {
@@ -7398,8 +7587,15 @@ declare function Record$1<Key extends Record$1.Key, Value extends Top>(key: Key,
   };
 }): $Record<Key, Value>;
 /**
- * Companion type for a `ReadonlyArray`. Produced by {@link ArraySchema}.
+ * Schema interface produced by `Schema.Array` for readonly arrays.
  *
+ * **Details**
+ *
+ * The decoded type is `ReadonlyArray<S["Type"]>`, the encoded type is
+ * `ReadonlyArray<S["Encoded"]>`, and the element schema is available as
+ * `schema`.
+ *
+ * @category models
  * @since 4.0.0
  */
 interface $Array<S extends Top> extends Bottom<ReadonlyArray<S["Type"]>, ReadonlyArray<S["Encoded"]>, S["DecodingServices"], S["EncodingServices"], Arrays, $Array<S>, ReadonlyArray<S["~type.make"]>, ReadonlyArray<S["Iso"]>> {
@@ -7408,14 +7604,17 @@ interface $Array<S extends Top> extends Bottom<ReadonlyArray<S["Type"]>, Readonl
 /**
  * Companion type for a union of multiple schemas. Produced by {@link Union}.
  *
- * @since 4.0.0
+ * @category models
+ * @since 3.10.0
  */
 interface Union<Members extends ReadonlyArray<Top>> extends Bottom<{ [K in keyof Members]: Members[K]["Type"] }[number], { [K in keyof Members]: Members[K]["Encoded"] }[number], { [K in keyof Members]: Members[K]["DecodingServices"] }[number], { [K in keyof Members]: Members[K]["EncodingServices"] }[number], Union$1<{ [K in keyof Members]: Members[K]["ast"] }[number]>, Union<Members>, { [K in keyof Members]: Members[K]["~type.make"] }[number], { [K in keyof Members]: Members[K]["Iso"] }[number]> {
   readonly members: Members;
   /**
    * Returns a new union with the members modified by the provided function.
    *
-   * **Options**
+   * **Details**
+   *
+   * Options:
    *
    * - `unsafePreserveChecks` - if `true`, keep any `.check(...)` constraints
    *   that were attached to the original union. Defaults to `false`.
@@ -7434,6 +7633,8 @@ interface Union<Members extends ReadonlyArray<Top>> extends Bottom<{ [K in keyof
  * Creates a union schema from an array of member schemas. Members are tested in
  * order; the first match is returned.
  *
+ * **Details**
+ *
  * Optionally, specify `mode`:
  * - `"anyOf"` (default) — matches if any member matches.
  * - `"oneOf"` — matches if exactly one member matches.
@@ -7449,15 +7650,17 @@ interface Union<Members extends ReadonlyArray<Top>> extends Bottom<{ [K in keyof
  * Schema.decodeUnknownSync(schema)(42)       // 42
  * ```
  *
- * @category Constructors
- * @since 4.0.0
+ * @category constructors
+ * @since 3.10.0
  */
 declare function Union<const Members extends ReadonlyArray<Top>>(members: Members, options?: {
   mode?: "anyOf" | "oneOf";
 }): Union<Members>;
 /**
  * Schema type wrapping a lazily-evaluated schema. Produced by {@link suspend}.
- * @since 4.0.0
+ *
+ * @category models
+ * @since 3.10.0
  */
 interface suspend<S extends Top> extends Bottom<S["Type"], S["Encoded"], S["DecodingServices"], S["EncodingServices"], Suspend, suspend<S>, S["~type.make.in"], S["Iso"], S["~type.parameters"], S["~type.make"], S["~type.mutability"], S["~type.optionality"], S["~type.constructor.default"], S["~encoded.mutability"], S["~encoded.optionality"]> {}
 /**
@@ -7466,6 +7669,7 @@ interface suspend<S extends Top> extends Bottom<S["Type"], S["Encoded"], S["Deco
  * preventing infinite recursion during schema definition.
  *
  * **Example** (Recursive tree schema)
+ *
  * ```ts
  * import { Schema } from "effect"
  *
@@ -7480,15 +7684,16 @@ interface suspend<S extends Top> extends Bottom<S["Type"], S["Encoded"], S["Deco
  * })
  * ```
  *
- * @category Constructors
- * @since 4.0.0
+ * @category constructors
+ * @since 3.10.0
  */
 declare function suspend<S extends Top>(f: () => S): suspend<S>;
 /**
- * Companion type for {@link Finite}.
+ * Type-level representation of the `Finite` number schema, which rejects `NaN`,
+ * `Infinity`, and `-Infinity`.
  *
  * @category Number
- * @since 4.0.0
+ * @since 3.10.0
  */
 interface Finite extends Number {
   readonly "Rebuild": Finite;
@@ -7497,11 +7702,12 @@ interface Finite extends Number {
  * A schema for finite numbers, rejecting `NaN`, `Infinity`, and `-Infinity`.
  *
  * @category Number
- * @since 4.0.0
+ * @since 3.10.0
  */
 declare const Finite: Finite;
 /**
- * A union schema for JavaScript property keys: `number | symbol | string`.
+ * A union schema for property keys accepted by Effect schemas: finite `number`,
+ * `symbol`, or `string`.
  *
  * @category PropertyKey
  * @since 4.0.0
@@ -7516,6 +7722,9 @@ declare const PropertyKey$1: Union<readonly [Finite, Symbol$1, String]>;
  */
 type StringTree$1 = Tree<string | undefined>;
 /**
+ * Recursive tree type whose leaves are `Node` values and whose branches are
+ * readonly arrays or string-keyed records of child trees.
+ *
  * @category Tree
  * @since 4.0.0
  */
@@ -7586,15 +7795,19 @@ declare const Json$1: Codec<Json$1>;
  * metadata to schemas. Annotations control documentation, validation messages,
  * JSON Schema generation, equivalence, arbitrary generation, and more.
  *
+ * **Details**
+ *
  * Use {@link resolveAnnotations} to read the annotations attached to a schema at
  * runtime.
  *
- * @since 4.0.0
+ * @since 3.10.0
  */
 declare namespace Annotations {
   /**
    * This interface is used to define the annotations that can be attached to a
    * schema. You can extend this interface to define your own annotations.
+   *
+   * **Details**
    *
    * Note that both a missing key or `undefined` is used to indicate that the
    * annotation is not present.
@@ -7630,8 +7843,8 @@ declare namespace Annotations {
    * }
    * ```
    *
-   * @category Model
-   * @since 4.0.0
+   * @category models
+   * @since 3.10.0
    */
   interface Annotations {
     readonly [x: string]: unknown;
@@ -7640,9 +7853,21 @@ declare namespace Annotations {
    * Annotations shared by all schema nodes. These map to common JSON Schema /
    * OpenAPI fields: `title`, `description`, `format`, etc.
    *
+   * @category models
    * @since 4.0.0
    */
   interface Augment extends Annotations {
+    /**
+     * Human-readable description of what a value is expected to satisfy.
+     *
+     * **Details**
+     *
+     * For filter and refinement failures, the default formatter uses
+     * `message` first, then `expected`, and finally falls back to `<filter>`.
+     *
+     * Use this to name a failed filter in the default message:
+     * `Expected <expected>, got <actual>`.
+     */
     readonly expected?: string | undefined;
     readonly title?: string | undefined;
     readonly description?: string | undefined;
@@ -7656,6 +7881,7 @@ declare namespace Annotations {
   /**
    * Extends {@link Augment} with type-parametric `default` and `examples` fields.
    *
+   * @category models
    * @since 4.0.0
    */
   interface Documentation<T> extends Augment {
@@ -7667,7 +7893,7 @@ declare namespace Annotations {
    * with an optional `messageMissingKey` to override the error message when
    * the property key is absent during decoding.
    *
-   * @category Model
+   * @category models
    * @since 4.0.0
    */
   interface Key<T> extends Documentation<T> {
@@ -7682,18 +7908,40 @@ declare namespace Annotations {
    * arbitrary generation hooks. {@link Declaration} and other annotation
    * interfaces build on top of this.
    *
-   * @category Model
+   * @category models
    * @since 4.0.0
    */
   interface Bottom<T, TypeParameters extends ReadonlyArray<Top>> extends Documentation<T> {
     /**
-     * The message to use when the value is invalid.
+     * Complete message to use when this schema node reports an issue.
+     *
+     * **Details**
+     *
+     * This replaces the default message for matching issue types instead of
+     * only changing the expected label. For a filter or refinement failure,
+     * annotate the filter with `message` to replace the whole filter failure
+     * message, or `expected` to keep the default
+     * `Expected <expected>, got <actual>` shape.
      */
     readonly message?: string | undefined;
     /**
      * The message to use when a key is unexpected.
      */
     readonly messageUnexpectedKey?: string | undefined;
+    /**
+     * Stable identifier for this schema node.
+     *
+     * **Details**
+     *
+     * Identifiers are used by schema tooling, including JSON Schema
+     * generation, to name references. The default formatter also uses
+     * `identifier` as the expected label for type-level failures, such as
+     * `Expected UserId, got null`.
+     *
+     * `identifier` does not name a failed filter or refinement. If the base
+     * type matches and a filter fails, put `expected` or `message` on the
+     * filter/refinement instead.
+     */
     readonly identifier?: string | undefined;
     readonly parseOptions?: ParseOptions | undefined;
     /**
@@ -7707,15 +7955,25 @@ declare namespace Annotations {
     readonly toArbitrary?: ToArbitrary.Declaration<T, TypeParameters> | undefined;
   }
   /**
+   * Helpers for projecting declaration type-parameter schemas into decoded or
+   * encoded codec arrays used by annotation hooks.
+   *
    * @since 4.0.0
    */
   namespace TypeParameters {
     /**
-     * @since 4.0.0
+     * Maps declaration type-parameter schemas to codecs for their decoded `Type`
+     * values.
+     *
+     * @category utility types
+     * @since 3.10.0
      */
     type Type<TypeParameters extends ReadonlyArray<Top>> = { readonly [K in keyof TypeParameters]: Codec<TypeParameters[K]["Type"]> };
     /**
-     * @since 4.0.0
+     * Maps declaration type-parameter schemas to codecs for their `Encoded` values.
+     *
+     * @category utility types
+     * @since 3.10.0
      */
     type Encoded<TypeParameters extends ReadonlyArray<Top>> = { readonly [K in keyof TypeParameters]: Codec<TypeParameters[K]["Encoded"]> };
   }
@@ -7726,7 +7984,7 @@ declare namespace Annotations {
    * derived capabilities (JSON encoding, property testing, etc.) can be
    * provided for the custom type.
    *
-   * @category Model
+   * @category models
    * @since 4.0.0
    */
   interface Declaration<T, TypeParameters extends ReadonlyArray<Top> = readonly []> extends Bottom<T, TypeParameters> {
@@ -7751,11 +8009,29 @@ declare namespace Annotations {
    * {@link Augment} with an optional error message, identifier, and metadata.
    * Filters are intentionally non-parametric to keep them covariant.
    *
-   * @category Model
-   * @since 4.0.0
+   * @category models
+   * @since 3.10.0
    */
   interface Filter extends Augment {
+    /**
+     * Complete message to use when this filter or refinement fails.
+     *
+     * **Details**
+     *
+     * The default formatter checks filter annotations in this order:
+     * `message`, then `expected`, then `<filter>`.
+     */
     readonly message?: string | undefined;
+    /**
+     * Stable identifier for the schema after this filter is attached.
+     *
+     * **Details**
+     *
+     * This can affect schema tooling such as JSON Schema generation and
+     * type-level failures before the filter runs, but it does not name the
+     * failed filter itself. For filter failure messages, use `expected` or
+     * `message`.
+     */
     readonly identifier?: string | undefined;
     /**
      * Optional metadata used to identify or extend the filter with custom data.
@@ -7767,41 +8043,70 @@ declare namespace Annotations {
      * structure of the container (e.g., array length, object keys) rather than
      * the contents.
      *
+     * **Details**
+     *
      * Example: `minLength` on an array is a structural filter.
      */
     readonly "~structural"?: boolean | undefined;
   }
   /**
+   * Types used by arbitrary-derivation annotations to configure `toArbitrary`
+   * hooks and carry merged fast-check constraints.
+   *
    * @since 4.0.0
    */
   namespace ToArbitrary {
     /**
+     * fast-check string constraints plus optional regular-expression pattern strings
+     * used when deriving string arbitraries from schema checks.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface StringConstraints extends StringSharedConstraints {
       readonly patterns?: readonly [string, ...Array<string>];
     }
     /**
+     * fast-check floating-point constraints plus `isInteger`, which switches
+     * derived number arbitraries to integer generation.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface NumberConstraints extends FloatConstraints {
       readonly isInteger?: boolean;
     }
     /**
+     * fast-check bigint constraints used when deriving arbitraries for bigint
+     * schemas.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface BigIntConstraints extends BigIntConstraints$1 {}
     /**
+     * fast-check array constraints plus an optional comparator used when deriving
+     * unique-array arbitraries.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface ArrayConstraints extends ArrayConstraints$1 {
       readonly comparator?: (a: any, b: any) => boolean;
     }
     /**
+     * fast-check date constraints used when deriving arbitraries for `Date` and
+     * DateTime schemas.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface DateConstraints extends DateConstraints$1 {}
     /**
+     * Grouped arbitrary-generation constraints accumulated from schema checks and
+     * passed to `toArbitrary` derivation.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface Constraint {
@@ -7812,7 +8117,12 @@ declare namespace Annotations {
       readonly date?: DateConstraints | undefined;
     }
     /**
-     * @since 4.0.0
+     * Context passed to arbitrary-derivation hooks, including accumulated
+     * constraints and an `isSuspend` flag used to limit recursion for suspended
+     * schemas.
+     *
+     * @category models
+     * @since 3.10.0
      */
     interface Context {
       /**
@@ -7824,6 +8134,14 @@ declare namespace Annotations {
       readonly constraints?: ToArbitrary.Constraint | undefined;
     }
     /**
+     * Hook signature for declaration schema arbitrary annotations.
+     *
+     * **Details**
+     *
+     * Given arbitraries for any type parameters, returns a function that receives the
+     * fast-check module and derivation context and produces an arbitrary for `T`.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface Declaration<T, TypeParameters extends ReadonlyArray<Top>> {
@@ -7831,10 +8149,20 @@ declare namespace Annotations {
     }
   }
   /**
+   * Types used by formatter annotations to customize formatter derivation for
+   * declaration schemas.
+   *
    * @since 4.0.0
    */
   namespace ToFormatter {
     /**
+     * Hook signature for declaration schema formatter annotations.
+     *
+     * **Details**
+     *
+     * Given formatters for any type parameters, returns a formatter for `T`.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface Declaration<T, TypeParameters extends ReadonlyArray<Top>> {
@@ -7842,10 +8170,20 @@ declare namespace Annotations {
     }
   }
   /**
+   * Types used by equivalence annotations to customize equivalence derivation for
+   * declaration schemas.
+   *
    * @since 4.0.0
    */
   namespace ToEquivalence {
     /**
+     * Hook signature for declaration schema equivalence annotations.
+     *
+     * **Details**
+     *
+     * Given equivalences for any type parameters, returns an `Equivalence` for `T`.
+     *
+     * @category models
      * @since 4.0.0
      */
     interface Declaration<T, TypeParameters extends ReadonlyArray<Top>> {
@@ -7853,15 +8191,27 @@ declare namespace Annotations {
     }
   }
   /**
-   * @category Model
+   * Annotations that can be attached to schema issues.
+   *
+   * **Details**
+   *
+   * The optional `message` field overrides the default issue message.
+   *
+   * @category models
    * @since 4.0.0
    */
   interface Issue extends Annotations {
     readonly message?: string | undefined;
   }
   /**
-   * This MUST NOT be extended with custom meta.
+   * Registry of metadata payloads emitted by built-in schema filters and checks.
    *
+   * **Details**
+   *
+   * Do not augment this interface with custom metadata; extend `MetaDefinitions`
+   * instead.
+   *
+   * @category models
    * @since 4.0.0
    */
   interface BuiltInMetaDefinitions {
@@ -8063,27 +8413,40 @@ declare namespace Annotations {
     };
   }
   /**
+   * Union of all metadata payloads defined by `BuiltInMetaDefinitions`.
+   *
+   * @category utility types
    * @since 4.0.0
    */
   type BuiltInMeta = BuiltInMetaDefinitions[keyof BuiltInMetaDefinitions];
   /**
-   * This MAY be extended with custom meta.
+   * Augmentable registry of schema filter metadata payloads.
    *
+   * **Details**
+   *
+   * Extend this interface to add custom values accepted by annotation `meta`
+   * fields.
+   *
+   * @category models
    * @since 4.0.0
    */
   interface MetaDefinitions extends BuiltInMetaDefinitions {}
   /**
+   * Union of built-in and user-augmented schema filter metadata payloads.
+   *
+   * @category utility types
    * @since 4.0.0
    */
   type Meta = MetaDefinitions[keyof MetaDefinitions];
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Record.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Record.d.ts
 /**
  * Represents a readonly record with keys of type `K` and values of type `A`.
  * This is the foundational type for immutable key-value mappings in Effect.
  *
- * @example
+ * **Example** (Defining a readonly record type)
+ *
  * ```ts
  * import type { Record } from "effect"
  *
@@ -8104,7 +8467,8 @@ type ReadonlyRecord<in out K extends string | symbol, out A> = { readonly [P in 
  * Namespace containing utility types for working with readonly records.
  * These types help with type-level operations on record keys and values.
  *
- * @example
+ * **Example** (Using readonly record helper types)
+ *
  * ```ts
  * import type { Record } from "effect"
  *
@@ -8115,7 +8479,6 @@ type ReadonlyRecord<in out K extends string | symbol, out A> = { readonly [P in 
  * type CommonKeys = Record.ReadonlyRecord.IntersectKeys<"a" | "b", "b" | "c"> // "b"
  * ```
  *
- * @category models
  * @since 2.0.0
  */
 declare namespace ReadonlyRecord {
@@ -8124,7 +8487,8 @@ declare namespace ReadonlyRecord {
    * Represents a type that converts literal string keys to generic string type and symbol keys to generic symbol type.
    * This is useful for maintaining type safety while allowing flexible key types in record operations.
    *
-   * @example
+   * **Example** (Converting literal keys to non-literal keys)
+   *
    * ```ts
    * import type { Record } from "effect"
    *
@@ -8143,7 +8507,8 @@ declare namespace ReadonlyRecord {
    * Represents the intersection of two key types, handling both literal and non-literal string keys.
    * This type is used in record operations that need to compute overlapping keys.
    *
-   * @example
+   * **Example** (Intersecting record keys)
+   *
    * ```ts
    * import type { Record } from "effect"
    *
@@ -8160,21 +8525,27 @@ declare namespace ReadonlyRecord {
   type IntersectKeys<K1 extends string, K2 extends string> = [string] extends [K1 | K2] ? NonLiteralKey<K1> & NonLiteralKey<K2> : K1 & K2;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Effect.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Effect.d.ts
 /**
+ * Type-level identifier for `Effect` values.
+ *
  * @category Type identifiers
- * @since 2.0.0
+ * @since 4.0.0
  */
 type TypeId$5 = "~effect/Effect";
 /**
+ * Runtime identifier used to recognize `Effect` values.
+ *
  * @category Type identifiers
- * @since 2.0.0
+ * @since 4.0.0
  */
 declare const TypeId$5: TypeId$5;
 /**
  * The `Effect` interface defines a value that lazily describes a workflow or
  * job. The workflow requires some context `R`, and may fail with an error of
  * type `E`, or succeed with a value of type `A`.
+ *
+ * **Details**
  *
  * `Effect` values model resourceful interaction with the outside world,
  * including synchronous, asynchronous, concurrent, and parallel interaction.
@@ -8185,28 +8556,8 @@ declare const TypeId$5: TypeId$5;
  * To run an `Effect` value, you need a `Runtime`, which is a type that is
  * capable of executing `Effect` values.
  *
- * @example
- * ```ts
- * import { Data, Effect } from "effect"
- *
- * class TaskError extends Data.TaggedError("TaskError")<{ readonly message: string }> {}
- *
- * // A simple effect that succeeds with a value
- * const success = Effect.succeed(42)
- *
- * // An effect that will always fail
- * const risky = Effect.fail(new TaskError({ message: "Something went wrong" }))
- *
- * // Effects can be composed using generator functions
- * const program = Effect.gen(function*() {
- *   const value = yield* success
- *   console.log(value) // 42
- *   return value * 2
- * })
- * ```
- *
+ * @category models
  * @since 2.0.0
- * @category Models
  */
 interface Effect<out A, out E = never, out R = never> extends Pipeable, Inspectable {
   readonly [TypeId$5]: Variance<A, E, R>;
@@ -8216,16 +8567,10 @@ interface Effect<out A, out E = never, out R = never> extends Pipeable, Inspecta
   [ignoreSymbol]?: {};
 }
 /**
- * @category Models
- * @since 2.0.0
- * @example
- * ```ts
- * import type { Effect } from "effect"
+ * Type-level unification support for `Effect` values.
  *
- * // EffectUnify is used internally for type unification
- * // It enables automatic unification of Effect types in unions
- * declare const unified: Effect.EffectUnify<any>
- * ```
+ * @category models
+ * @since 2.0.0
  */
 interface EffectUnify<A extends {
   [typeSymbol]?: any;
@@ -8235,8 +8580,8 @@ interface EffectUnify<A extends {
 /**
  * Variance interface for Effect, encoding the type parameters' variance.
  *
+ * @category models
  * @since 2.0.0
- * @category Models
  */
 interface Variance<A, E, R> {
   _A: Covariant<A>;
@@ -8244,45 +8589,23 @@ interface Variance<A, E, R> {
   _R: Covariant<R>;
 }
 /**
- * @since 2.0.0
- * @category Models
- * @example
- * ```ts
- * import type { Effect } from "effect"
+ * Extracts the success type from an `Effect`.
  *
- * // Extract the success type from an Effect
- * declare const myEffect: Effect.Effect<string, Error, never>
- * // This type utility extracts the success type A from Effect<A, E, R>
- * ```
+ * @category models
+ * @since 2.0.0
  */
 type Success<T> = T extends Effect<infer _A, infer _E, infer _R> ? _A : never;
 /**
  * Iterator interface for Effect generators, enabling Effect values to work with generator functions.
  *
- * @example
- * ```ts
- * import { Effect } from "effect"
- *
- * // Effects are iterable and work with generator functions
- * const program = Effect.gen(function*() {
- *   const effect: Effect.Effect<number, never, never> = Effect.succeed(42)
- *
- *   // The effect's iterator is used internally by yield*
- *   const result = yield* effect
- *   return result * 2
- * })
- *
- * Effect.runPromise(program).then(console.log) // 84
- * ```
- *
- * @since 2.0.0
- * @category Models
+ * @category models
+ * @since 4.0.0
  */
 interface EffectIterator<T extends Effect<any, any, any>> {
   next(...args: ReadonlyArray<any>): IteratorResult<T, Success<T>>;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Option.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Option.d.ts
 declare const TypeId$4 = "~effect/data/Option";
 /**
  * The `Option` data type represents optional values. An `Option<A>` is either
@@ -8294,28 +8617,11 @@ declare const TypeId$4 = "~effect/data/Option";
  * - Returning from partial functions (not defined for all inputs)
  * - Managing optional fields in data structures
  *
- * **Example** (Creating and matching Options)
- *
- * ```ts
- * import { Option } from "effect"
- *
- * const someValue: Option.Option<number> = Option.some(42)
- * const noneValue: Option.Option<number> = Option.none()
- *
- * const result = Option.match(someValue, {
- *   onNone: () => "No value",
- *   onSome: (value) => `Value is ${value}`
- * })
- *
- * console.log(result)
- * // Output: "Value is 42"
- * ```
- *
  * @see {@link some} for creating a `Some`
  * @see {@link none} for creating a `None`
  * @see {@link match} for pattern matching
  *
- * @category Models
+ * @category models
  * @since 2.0.0
  */
 type Option<A> = None<A> | Some<A>;
@@ -8326,7 +8632,7 @@ type Option<A> = None<A> | Some<A>;
  *
  * - Use as a type guard target when narrowing via {@link isNone}
  *
- * **Behavior**
+ * **Details**
  *
  * - `_tag` is always `"None"`
  * - Implements `Pipeable`, `Inspectable`, and structural equality
@@ -8334,7 +8640,7 @@ type Option<A> = None<A> | Some<A>;
  * @see {@link isNone} to check if an `Option` is `None`
  * @see {@link none} to construct a `None`
  *
- * @category Models
+ * @category models
  * @since 2.0.0
  */
 interface None<out A> extends Pipeable, Inspectable {
@@ -8350,8 +8656,11 @@ interface None<out A> extends Pipeable, Inspectable {
   [ignoreSymbol]?: OptionUnifyIgnore;
 }
 /**
+ * Iterator protocol used to yield an `Option` inside {@link gen}, returning the
+ * contained value type back to the generator.
+ *
+ * @category Generators
  * @since 4.0.0
- * @category Models
  */
 interface OptionIterator<T extends Option<any>> {
   next(...args: ReadonlyArray<any>): IteratorResult<T, Option.Value<T>>;
@@ -8364,7 +8673,7 @@ interface OptionIterator<T extends Option<any>> {
  * - Use as a type guard target when narrowing via {@link isSome}
  * - Access the inner value via `.value`
  *
- * **Behavior**
+ * **Details**
  *
  * - `_tag` is always `"Some"`
  * - `.value` holds the contained value of type `A`
@@ -8373,7 +8682,7 @@ interface OptionIterator<T extends Option<any>> {
  * @see {@link isSome} to check if an `Option` is `Some`
  * @see {@link some} to construct a `Some`
  *
- * @category Models
+ * @category models
  * @since 2.0.0
  */
 interface Some<out A> extends Pipeable, Inspectable {
@@ -8390,10 +8699,15 @@ interface Some<out A> extends Pipeable, Inspectable {
   [ignoreSymbol]?: OptionUnifyIgnore;
 }
 /**
- * Internal unification interface for `Option` types. Used by the Effect
- * library's type system for type-level operations.
+ * Type-level unification support for `Option` values.
  *
- * @category Models
+ * **Details**
+ *
+ * This is used by Effect's `Unify` machinery to preserve the contained value
+ * type when generic code returns or combines `Option` values. Users normally
+ * do not need to reference this interface directly.
+ *
+ * @category models
  * @since 2.0.0
  */
 interface OptionUnify<A extends {
@@ -8404,19 +8718,6 @@ interface OptionUnify<A extends {
 /**
  * Namespace containing utility types for `Option`.
  *
- * **Example** (Extracting the value type)
- *
- * ```ts
- * import type { Option } from "effect"
- *
- * declare const myOption: Option.Option<string>
- *
- * //      ┌─── string
- * //      ▼
- * type MyType = Option.Option.Value<typeof myOption>
- * ```
- *
- * @category Namespaces
  * @since 2.0.0
  */
 declare namespace Option {
@@ -8435,22 +8736,29 @@ declare namespace Option {
    * type MyType = Option.Option.Value<typeof myOption>
    * ```
    *
-   * @since 2.0.0
    * @category Type-level Utils
+   * @since 2.0.0
    */
   type Value<T extends Option<any>> = [T] extends [Option<infer _A>] ? _A : never;
 }
 /**
- * Internal interface for type unification ignore behavior.
+ * Marker interface used by Effect's `Unify` machinery for `Option` values.
  *
- * @category Models
+ * **Details**
+ *
+ * This supports type-level unification behavior for `Option`. Users normally
+ * do not need to reference this interface directly.
+ *
+ * @category models
  * @since 2.0.0
  */
 interface OptionUnifyIgnore {}
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Array.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Array.d.ts
 /**
  * Reference to the global `Array` constructor.
+ *
+ * **When to use**
  *
  * Use this when you need the native `Array` constructor while the `Array`
  * namespace is in scope (e.g. `Array.Array.isArray`, `Array.Array.from`).
@@ -8470,6 +8778,8 @@ interface OptionUnifyIgnore {}
 declare const Array$1: ArrayConstructor;
 /**
  * A readonly array guaranteed to have at least one element.
+ *
+ * **When to use**
  *
  * Use this type when you need to ensure non-emptiness at the type level while
  * preventing mutation. Many Array module functions accept or return this type.
@@ -8493,6 +8803,8 @@ type NonEmptyReadonlyArray<A> = readonly [A, ...Array$1<A>];
 /**
  * A mutable array guaranteed to have at least one element.
  *
+ * **Details**
+ *
  * This is the mutable counterpart of {@link NonEmptyReadonlyArray}. Most Array
  * module functions return `NonEmptyArray` when the result is guaranteed
  * non-empty.
@@ -8514,46 +8826,70 @@ type NonEmptyReadonlyArray<A> = readonly [A, ...Array$1<A>];
  */
 type NonEmptyArray<A> = [A, ...Array$1<A>];
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/unstable/http/HttpMethod.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/unstable/http/HttpMethod.d.ts
 /**
+ * Defines the supported HTTP method literals shared by the unstable HTTP client,
+ * server, and routing APIs.
+ *
+ * Use this module when constructing method-specific requests, matching incoming
+ * requests, validating unknown method values, or deriving method helper names.
+ * Methods are represented as uppercase string literals, so values such as `"get"`
+ * are not accepted as `HttpMethod` values.
+ *
+ * The body classification is intentionally conservative and file-specific:
+ * `GET`, `HEAD`, `OPTIONS`, and `TRACE` are modeled as bodyless methods, while
+ * `POST`, `PUT`, `DELETE`, and `PATCH` are modeled as methods that can carry a
+ * request body. This means `DELETE` is allowed to carry a body even though some
+ * servers and intermediaries may ignore it, and `GET` request bodies are not
+ * represented by these helpers even though the wire protocol does not strictly
+ * forbid them.
+ *
  * @since 4.0.0
  */
 /**
- * @since 4.0.0
+ * Union of supported uppercase HTTP method literals.
+ *
  * @category models
+ * @since 4.0.0
  */
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH" | "HEAD" | "OPTIONS" | "TRACE";
 /**
+ * Namespace containing subtype helpers associated with `HttpMethod`.
+ *
  * @since 4.0.0
- * @category models
  */
 declare namespace HttpMethod {
   /**
-   * @since 4.0.0
+   * HTTP methods that this module treats as not carrying a request body.
+   *
    * @category models
+   * @since 4.0.0
    */
   type NoBody = "GET" | "HEAD" | "OPTIONS" | "TRACE";
   /**
-   * @since 4.0.0
+   * HTTP methods that this module treats as capable of carrying a request body.
+   *
    * @category models
+   * @since 4.0.0
    */
   type WithBody = Exclude<HttpMethod, NoBody>;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/ErrorReporter.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/ErrorReporter.d.ts
 /**
- * Interface that errors can implement to control reporting behavior.
+ * Interface that object errors can implement to control reporting behavior.
  *
- * All three annotation properties are optional:
- * - `[ErrorReporter.ignore]` — when `true`, the error is never reported
- * - `[ErrorReporter.severity]` — overrides the default `"Error"` severity
- * - `[ErrorReporter.attributes]` — extra key/value pairs forwarded to reporters
+ * **Details**
  *
- * The global `Error` interface is augmented with `Reportable`, so these
- * properties are available on all `Error` instances.
+ * All three annotation properties are optional: `[ErrorReporter.ignore]`
+ * prevents reporting when set to `true`, `[ErrorReporter.severity]` overrides
+ * the default `"Info"` severity, and `[ErrorReporter.attributes]` adds extra
+ * key/value pairs forwarded to reporters. The global `Error` interface is
+ * augmented with `Reportable`, so these properties are available on `Error`
+ * instances at the type level.
  *
+ * @category annotations
  * @since 4.0.0
- * @category Annotations
  */
 interface Reportable {
   readonly [ignore]?: boolean;
@@ -8564,31 +8900,31 @@ declare global {
   interface Error extends Reportable {}
 }
 /**
- * Symbol key used to mark an error as unreportable.
+ * String property key used to mark an object error as ignored by error
+ * reporting.
  *
- * Set this property to `true` on any error class to prevent it from being
- * forwarded to reporters. Useful for expected errors such as HTTP 404s.
+ * **Details**
  *
- * @example
- * ```ts
- * import { Data, ErrorReporter } from "effect"
+ * Set this property to `true` on an error class or object error to prevent it
+ * from being forwarded to reporters. This is useful for expected failures such
+ * as HTTP 404 responses.
  *
- * class NotFoundError extends Data.TaggedError("NotFoundError")<{}> {
- *   readonly [ErrorReporter.ignore] = true
- * }
- * ```
- *
+ * @category annotations
  * @since 4.0.0
- * @category Annotations
  */
 type ignore = "~effect/ErrorReporter/ignore";
 /**
- * Symbol key used to mark an error as unreportable.
+ * Runtime property key used to mark an object error as ignored by error
+ * reporting.
  *
- * Set this property to `true` on any error class to prevent it from being
- * forwarded to reporters. Useful for expected errors such as HTTP 404s.
+ * **Details**
  *
- * @example
+ * Set `error[ErrorReporter.ignore]` to `true` to prevent the error from being
+ * forwarded to reporters. This is useful for expected failures such as HTTP 404
+ * responses.
+ *
+ * **Example** (Marking errors as ignored)
+ *
  * ```ts
  * import { Data, ErrorReporter } from "effect"
  *
@@ -8597,38 +8933,32 @@ type ignore = "~effect/ErrorReporter/ignore";
  * }
  * ```
  *
+ * @category annotations
  * @since 4.0.0
- * @category Annotations
  */
 declare const ignore: ignore;
 /**
- * Symbol key used to override the severity level of an error.
+ * String property key used to override the severity level of an object error.
  *
- * When set, the reporter callback receives this value as `severity` instead
- * of the default `"Error"`. Accepted values are the `LogLevel.Severity`
- * literals: `"Trace"`, `"Debug"`, `"Info"`, `"Warn"`, `"Error"`, `"Fatal"`.
+ * **Details**
  *
- * @example
- * ```ts
- * import { Data, ErrorReporter } from "effect"
+ * When set to a valid `LogLevel.Severity`, the reporter callback receives this
+ * value as `severity`. Missing or invalid values fall back to `"Info"`.
  *
- * class DeprecationWarning extends Data.TaggedError("DeprecationWarning")<{}> {
- *   readonly [ErrorReporter.severity] = "Warn" as const
- * }
- * ```
- *
+ * @category annotations
  * @since 4.0.0
- * @category Annotations
  */
 type severity = "~effect/ErrorReporter/severity";
 /**
- * Symbol key used to override the severity level of an error.
+ * Runtime property key used to override the severity level of an object error.
  *
- * When set, the reporter callback receives this value as `severity` instead
- * of the default `"Error"`. Accepted values are the `LogLevel.Severity`
- * literals: `"Trace"`, `"Debug"`, `"Info"`, `"Warn"`, `"Error"`, `"Fatal"`.
+ * **Details**
  *
- * @example
+ * Set `error[ErrorReporter.severity]` to a valid `LogLevel.Severity` value.
+ * Missing or invalid values fall back to `"Info"`.
+ *
+ * **Example** (Setting error severity annotations)
+ *
  * ```ts
  * import { Data, ErrorReporter } from "effect"
  *
@@ -8637,42 +8967,35 @@ type severity = "~effect/ErrorReporter/severity";
  * }
  * ```
  *
+ * @category annotations
  * @since 4.0.0
- * @category Annotations
  */
 declare const severity: severity;
 /**
- * Symbol key used to attach extra key/value metadata to an error report.
+ * String property key used to attach extra key/value metadata to an object
+ * error report.
+ *
+ * **Details**
  *
  * Reporters receive these attributes alongside the error, making it easy to
- * include contextual information such as user IDs, request IDs, or any
- * domain-specific data useful for debugging.
+ * include contextual information such as user IDs, request IDs, or other
+ * domain-specific debugging data.
  *
- * @example
- * ```ts
- * import { Data, ErrorReporter } from "effect"
- *
- * class PaymentError extends Data.TaggedError("PaymentError")<{
- *   readonly orderId: string
- * }> {
- *   readonly [ErrorReporter.attributes] = {
- *     orderId: this.orderId
- *   }
- * }
- * ```
- *
+ * @category annotations
  * @since 4.0.0
- * @category Annotations
  */
 type attributes = "~effect/ErrorReporter/attributes";
 /**
- * Symbol key used to attach extra key/value metadata to an error report.
+ * Runtime property key used to attach extra key/value metadata to an object
+ * error report.
  *
- * Reporters receive these attributes alongside the error, making it easy to
- * include contextual information such as user IDs, request IDs, or any
- * domain-specific data useful for debugging.
+ * **Details**
  *
- * @example
+ * Set `error[ErrorReporter.attributes]` to a record of metadata that should be
+ * forwarded to reporters alongside the error.
+ *
+ * **Example** (Setting error attributes)
+ *
  * ```ts
  * import { Data, ErrorReporter } from "effect"
  *
@@ -8685,19 +9008,22 @@ type attributes = "~effect/ErrorReporter/attributes";
  * }
  * ```
  *
+ * @category annotations
  * @since 4.0.0
- * @category Annotations
  */
 declare const attributes: attributes;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/unstable/http/HttpRouter.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/unstable/http/HttpRouter.d.ts
 /**
- * @since 4.0.0
+ * Path pattern accepted by the router. Routes must use an absolute path
+ * beginning with `/` or the wildcard `*`.
+ *
  * @category PathInput
+ * @since 4.0.0
  */
 type PathInput = `/${string}` | "*";
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/unstable/httpapi/HttpApiSchema.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/unstable/httpapi/HttpApiSchema.d.ts
 declare module "../../Schema.ts" {
   namespace Annotations {
     interface Augment {
@@ -8706,6 +9032,9 @@ declare module "../../Schema.ts" {
   }
 }
 /**
+ * Type of the `NoContent` schema, a void schema annotated with HTTP status code 204.
+ *
+ * @category models
  * @since 4.0.0
  */
 interface NoContent extends Void {}
@@ -8713,17 +9042,19 @@ interface NoContent extends Void {}
  * A void schema with the HTTP status code 204.
  * This is used to represent empty responses with the status code 204.
  *
- * @since 4.0.0
  * @category Empty
+ * @since 4.0.0
  */
 declare const NoContent: NoContent;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/unstable/httpapi/HttpApiMiddleware.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/unstable/httpapi/HttpApiMiddleware.d.ts
 declare const TypeId$3 = "~effect/httpapi/HttpApiMiddleware";
 type ErrorConstraint = Top | ReadonlyArray<Top>;
 /**
- * @since 4.0.0
+ * Type-level identifier carried by middleware services to track provided services, required services, errors, client errors, and client requirements.
+ *
  * @category models
+ * @since 4.0.0
  */
 interface AnyId {
   readonly [TypeId$3]: {
@@ -8735,8 +9066,10 @@ interface AnyId {
   };
 }
 /**
- * @since 4.0.0
+ * Extracts the services provided by a middleware identifier.
+ *
  * @category models
+ * @since 4.0.0
  */
 type Provides<A> = A extends {
   readonly [TypeId$3]: {
@@ -8744,8 +9077,10 @@ type Provides<A> = A extends {
   };
 } ? P : never;
 /**
- * @since 4.0.0
+ * Extracts the services required to run a middleware implementation.
+ *
  * @category models
+ * @since 4.0.0
  */
 type Requires<A> = A extends {
   readonly [TypeId$3]: {
@@ -8753,25 +9088,32 @@ type Requires<A> = A extends {
   };
 } ? R : never;
 /**
- * @since 4.0.0
+ * Applies a middleware's service changes to an existing requirement type by removing services it provides and adding services it requires.
+ *
  * @category models
+ * @since 4.0.0
  */
 type ApplyServices<A extends AnyId, R> = Exclude<R, Provides<A>> | Requires<A>;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/unstable/httpapi/HttpApiGroup.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/unstable/httpapi/HttpApiGroup.d.ts
 declare const TypeId$2 = "~effect/httpapi/HttpApiGroup";
 /**
- * @since 4.0.0
+ * Returns `true` when a value is an `HttpApiGroup`, narrowing the value to the
+ * group interface.
+ *
  * @category guards
+ * @since 4.0.0
  */
 /**
- * An `HttpApiGroup` is a collection of `HttpApiEndpoint`s. You can use an `HttpApiGroup` to
- * represent a portion of your domain.
+ * An `HttpApiGroup` is a named collection of `HttpApiEndpoint`s that represents
+ * a portion of your domain.
  *
- * The endpoints can be implemented later using the `HttpApiBuilder.group` api.
+ * **Details**
  *
- * @since 4.0.0
+ * Endpoint implementations can be provided later with `HttpApiBuilder.group`.
+ *
  * @category models
+ * @since 4.0.0
  */
 interface HttpApiGroup<out Id extends string, out Endpoints extends Any = never, out TopLevel extends boolean = false> extends Pipeable {
   new (_: never): {};
@@ -8791,9 +9133,11 @@ interface HttpApiGroup<out Id extends string, out Endpoints extends Any = never,
    */
   prefix<const Prefix extends PathInput>(prefix: Prefix): HttpApiGroup<Id, AddPrefix<Endpoints, Prefix>, TopLevel>;
   /**
-   * Add an `HttpApiMiddleware` to the `HttpApiGroup`.
+   * Adds an `HttpApiMiddleware` to every endpoint currently in the group.
    *
-   * Endpoints added after this api is called **will not** have the middleware
+   * **Gotchas**
+   *
+   * Endpoints added after this method is called do not have the middleware
    * applied.
    */
   middleware<I extends AnyId, S>(middleware: Key$1<I, S>): HttpApiGroup<Id, AddMiddleware<Endpoints, I>, TopLevel>;
@@ -8806,23 +9150,28 @@ interface HttpApiGroup<out Id extends string, out Endpoints extends Any = never,
    */
   annotate<I, S>(key: Key$1<I, S>, value: S): HttpApiGroup<Id, Endpoints, TopLevel>;
   /**
-   * For each endpoint in an `HttpApiGroup`, update the annotations with a new
-   * Context.
+   * Merges the provided context into every endpoint currently in the group.
    *
-   * Note that this will only update the annotations before this api is called.
+   * **Gotchas**
+   *
+   * Endpoints added after this method is called do not have these annotations.
    */
   annotateEndpointsMerge<I>(annotations: Context$2<I>): HttpApiGroup<Id, Endpoints, TopLevel>;
   /**
-   * For each endpoint in an `HttpApiGroup`, add an annotation.
+   * Adds an annotation to every endpoint currently in the group.
    *
-   * Note that this will only add the annotation to the endpoints before this api
-   * is called.
+   * **Gotchas**
+   *
+   * Endpoints added after this method is called do not have this annotation.
    */
   annotateEndpoints<I, S>(key: Key$1<I, S>, value: S): HttpApiGroup<Id, Endpoints, TopLevel>;
 }
 /**
- * @since 4.0.0
+ * A widened `HttpApiGroup` type used when the concrete group name, endpoints, and
+ * top-level flag are not needed.
+ *
  * @category models
+ * @since 4.0.0
  */
 interface Any$1 {
   readonly [TypeId$2]: typeof TypeId$2;
@@ -8831,25 +9180,35 @@ interface Any$1 {
   readonly endpoints: ReadonlyRecord<string, Any>;
 }
 /**
- * @since 4.0.0
+ * Returns the type of a group after adding the supplied path prefix to each endpoint in the group.
+ *
  * @category models
+ * @since 4.0.0
  */
 type AddPrefix$1<Group, Prefix extends PathInput> = Group extends HttpApiGroup<infer _Name, infer _Endpoints, infer _TopLevel> ? HttpApiGroup<_Name, AddPrefix<_Endpoints, Prefix>, _TopLevel> : never;
 /**
- * @since 4.0.0
+ * Returns the type of a group after applying a middleware identifier to every endpoint in the group.
+ *
  * @category models
+ * @since 4.0.0
  */
 type AddMiddleware$1<Group, Id extends AnyId> = Group extends HttpApiGroup<infer _Name, infer _Endpoints, infer _TopLevel> ? HttpApiGroup<_Name, AddMiddleware<_Endpoints, Id>, _TopLevel> : never;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/unstable/httpapi/HttpApiEndpoint.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/unstable/httpapi/HttpApiEndpoint.d.ts
 declare const TypeId$1 = "~effect/httpapi/HttpApiEndpoint";
 /**
- * @since 4.0.0
+ * Returns `true` when a value is an `HttpApiEndpoint`, narrowing the value to the
+ * endpoint interface.
+ *
  * @category guards
+ * @since 4.0.0
  */
 /**
- * @since 4.0.0
+ * Maps content types to the payload encoding strategy and one or more schemas that
+ * can decode or encode payloads for that content type.
+ *
  * @category models
+ * @since 4.0.0
  */
 type PayloadMap = ReadonlyMap<string, {
   readonly encoding: undefined;
@@ -8859,8 +9218,8 @@ type PayloadMap = ReadonlyMap<string, {
  * Represents an API endpoint. An API endpoint is mapped to a single route on
  * the underlying `HttpRouter`.
  *
- * @since 4.0.0
  * @category models
+ * @since 4.0.0
  */
 interface HttpApiEndpoint<out Name extends string, out Method extends HttpMethod, out Path extends string, out Params extends Top = never, out Query extends Top = never, out Payload extends Top = never, out Headers extends Top = never, out Success extends Top = typeof NoContent, out Error extends Top = never, in out Middleware = never, out MiddlewareR = never> extends Pipeable {
   readonly [TypeId$1]: {
@@ -8901,8 +9260,11 @@ interface HttpApiEndpoint<out Name extends string, out Method extends HttpMethod
   annotateMerge<I>(annotations: Context$2<I>): HttpApiEndpoint<Name, Method, Path, Params, Query, Payload, Headers, Success, Error, Middleware, MiddlewareR>;
 }
 /**
- * @since 4.0.0
+ * A widened `HttpApiEndpoint` type used when the concrete method, path, schemas,
+ * and middleware types are not needed.
+ *
  * @category models
+ * @since 4.0.0
  */
 interface Any extends Pipeable {
   readonly [TypeId$1]: any;
@@ -8911,40 +9273,57 @@ interface Any extends Pipeable {
   readonly ["~Error"]: Top;
 }
 /**
- * @since 4.0.0
+ * Returns an endpoint type with the supplied path prefix prepended while
+ * preserving the endpoint's schemas, method, errors, and middleware.
+ *
  * @category models
+ * @since 4.0.0
  */
 type AddPrefix<Endpoint extends Any, Prefix extends PathInput> = Endpoint extends HttpApiEndpoint<infer _Name, infer _Method, infer _Path, infer _Params, infer _Query, infer _Payload, infer _Headers, infer _Success, infer _Error, infer _M, infer _MR> ? HttpApiEndpoint<_Name, _Method, `${Prefix}${_Path}`, _Params, _Query, _Payload, _Headers, _Success, _Error, _M, _MR> : never;
 /**
- * @since 4.0.0
+ * Returns an endpoint type with additional middleware applied and the endpoint's
+ * middleware service requirements updated accordingly.
+ *
  * @category models
+ * @since 4.0.0
  */
 type AddMiddleware<Endpoint extends Any, M extends AnyId> = Endpoint extends HttpApiEndpoint<infer _Name, infer _Method, infer _Path, infer _Params, infer _Query, infer _Payload, infer _Headers, infer _Success, infer _Error, infer _M, infer _MR> ? HttpApiEndpoint<_Name, _Method, _Path, _Params, _Query, _Payload, _Headers, _Success, _Error, _M | M, ApplyServices<M, _MR>> : never;
 /**
- * @since 4.0.0
+ * A schema codec that decodes and encodes the schema's value type through JSON
+ * transport values.
+ *
  * @category Codecs
+ * @since 4.0.0
  */
 interface Json<S extends Top> extends Codec<S["Type"], Json$1, S["DecodingServices"], S["EncodingServices"]> {}
 /**
- * @since 4.0.0
+ * A schema codec that decodes and encodes the schema's value type through
+ * `Schema.StringTree` transport values.
+ *
  * @category Codecs
+ * @since 4.0.0
  */
 interface StringTree<S extends Top> extends Codec<S["Type"], StringTree$1, S["DecodingServices"], S["EncodingServices"]> {}
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/unstable/httpapi/HttpApi.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/unstable/httpapi/HttpApi.d.ts
 declare const TypeId = "~effect/httpapi/HttpApi";
 /**
- * @since 4.0.0
+ * Returns `true` when a value is an `HttpApi`.
+ *
  * @category guards
+ * @since 4.0.0
  */
 /**
- * An `HttpApi` is a collection of `HttpApiEndpoint`s. You can use an `HttpApi` to
- * represent a portion of your domain.
+ * An `HttpApi` is a collection of HTTP API groups and endpoints that represents a
+ * portion of your domain.
  *
- * The endpoints can be implemented later using the `HttpApiBuilder.make` api.
+ * **When to use**
  *
- * @since 4.0.0
+ * Endpoint implementations can be provided with `HttpApiBuilder.group`, and the
+ * completed API can be registered with `HttpApiBuilder.layer`.
+ *
  * @category models
+ * @since 4.0.0
  */
 interface HttpApi<out Id extends string, out Groups extends Any$1 = never> extends Pipeable {
   new (_: never): {};
@@ -8965,11 +9344,11 @@ interface HttpApi<out Id extends string, out Groups extends Any$1 = never> exten
    */
   prefix<const Prefix extends PathInput>(prefix: Prefix): HttpApi<Id, AddPrefix$1<Groups, Prefix>>;
   /**
-   * Add a middleware to a `HttpApi`. It will be applied to all endpoints in the
-   * `HttpApi`.
+   * Adds a middleware to every endpoint currently in the `HttpApi`.
    *
-   * Note that this will only add the middleware to the endpoints **before** this
-   * api is called.
+   * **Gotchas**
+   *
+   * Endpoints added after this method is called do not receive the middleware.
    */
   middleware<I extends AnyId, S>(middleware: Key$1<I, S>): HttpApi<Id, AddMiddleware$1<Groups, I>>;
   /**
@@ -8982,7 +9361,7 @@ interface HttpApi<out Id extends string, out Groups extends Any$1 = never> exten
   annotateMerge<I>(context: Context$2<I>): HttpApi<Id, Groups>;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/unstable/httpapi/OpenApi.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/unstable/httpapi/OpenApi.d.ts
 /**
  * This model describes the OpenAPI specification (version 3.1.0) returned by
  * {@link fromApi}. It is not intended to describe the entire OpenAPI
@@ -9001,6 +9380,8 @@ interface OpenAPISpec {
   servers?: Array<OpenAPISpecServer>;
 }
 /**
+ * OpenAPI `info` object generated by `fromApi`.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9012,6 +9393,8 @@ interface OpenAPISpecInfo {
   summary?: string;
 }
 /**
+ * OpenAPI tag object generated for an HTTP API group.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9021,6 +9404,8 @@ interface OpenAPISpecTag {
   externalDocs?: OpenAPISpecExternalDocs;
 }
 /**
+ * OpenAPI external documentation metadata.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9029,6 +9414,8 @@ interface OpenAPISpecExternalDocs {
   description?: string;
 }
 /**
+ * OpenAPI license metadata used in the generated `info` object.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9038,6 +9425,8 @@ interface OpenAPISpecLicense {
   [key: string]: unknown;
 }
 /**
+ * OpenAPI server object used in the generated `servers` array.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9047,6 +9436,8 @@ interface OpenAPISpecServer {
   variables?: Record<string, OpenAPISpecServerVariable>;
 }
 /**
+ * OpenAPI variable definition for templated server URLs.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9056,21 +9447,29 @@ interface OpenAPISpecServerVariable {
   description?: string;
 }
 /**
+ * Generated OpenAPI `paths` object, keyed by route path.
+ *
  * @category models
  * @since 4.0.0
  */
 type OpenAPISpecPaths = Record<string, OpenAPISpecPathItem>;
 /**
+ * Lowercase HTTP method names used as keys in generated OpenAPI path items.
+ *
  * @category models
  * @since 4.0.0
  */
 type OpenAPISpecMethodName = "get" | "put" | "post" | "delete" | "options" | "head" | "patch" | "trace";
 /**
+ * Generated OpenAPI path item mapping HTTP methods to operations for a single route path.
+ *
  * @category models
  * @since 4.0.0
  */
 type OpenAPISpecPathItem = { [K in OpenAPISpecMethodName]?: OpenAPISpecOperation };
 /**
+ * Generated OpenAPI parameter object for path, query, header, or cookie parameters.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9082,16 +9481,22 @@ interface OpenAPISpecParameter {
   description?: string;
 }
 /**
+ * Generated OpenAPI responses object, keyed by HTTP status code.
+ *
  * @category models
  * @since 4.0.0
  */
 type OpenAPISpecResponses = Record<number, OpenApiSpecResponse>;
 /**
+ * Generated OpenAPI content object, keyed by media type.
+ *
  * @category models
  * @since 4.0.0
  */
 type OpenApiSpecContent = { [K in string]: OpenApiSpecMediaType };
 /**
+ * Generated OpenAPI response object for an endpoint success or error schema.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9100,6 +9505,8 @@ interface OpenApiSpecResponse {
   content?: OpenApiSpecContent;
 }
 /**
+ * Generated OpenAPI media type object containing the JSON Schema for a request or response body.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9107,6 +9514,8 @@ interface OpenApiSpecMediaType {
   schema: JsonSchema;
 }
 /**
+ * Generated OpenAPI request body object for endpoint payloads.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9115,6 +9524,8 @@ interface OpenAPISpecRequestBody {
   required: true;
 }
 /**
+ * Generated OpenAPI components containing shared schemas and security schemes.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9123,6 +9534,8 @@ interface OpenAPIComponents {
   securitySchemes: Record<string, OpenAPISecurityScheme>;
 }
 /**
+ * Generated OpenAPI HTTP security scheme, such as bearer or basic authentication.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9133,6 +9546,8 @@ interface OpenAPIHTTPSecurityScheme {
   bearerFormat?: string;
 }
 /**
+ * Generated OpenAPI API key security scheme.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9143,16 +9558,22 @@ interface OpenAPIApiKeySecurityScheme {
   description?: string;
 }
 /**
+ * Union of security scheme objects emitted in generated OpenAPI components.
+ *
  * @category models
  * @since 4.0.0
  */
 type OpenAPISecurityScheme = OpenAPIHTTPSecurityScheme | OpenAPIApiKeySecurityScheme;
 /**
+ * Generated OpenAPI security requirement, keyed by security scheme name.
+ *
  * @category models
  * @since 4.0.0
  */
 type OpenAPISecurityRequirement = Record<string, Array<string>>;
 /**
+ * Generated OpenAPI operation object for an HTTP API endpoint.
+ *
  * @category models
  * @since 4.0.0
  */
@@ -9255,7 +9676,6 @@ declare const WorkspaceSchema: Schema.Struct<{
   readonly name: Schema.String;
   readonly slug: Schema.String;
   readonly role: Schema.Literals<readonly ["owner", "admin", "member", "viewer"]>;
-  readonly onboarded_at: Schema.NullOr<Schema.String>;
   readonly current_user_id: Schema.optional<Schema.String>;
   readonly current_user_email: Schema.optional<Schema.String>;
   readonly current_user_name: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -9280,13 +9700,15 @@ declare const ListWorkspacesRequestSchema: Schema.Struct<{
 declare const WorkspaceRequestSchema: Schema.Struct<{
   readonly workspace_id: Schema.String;
 }>;
+declare const UserOnboardingSchema: Schema.Struct<{
+  readonly onboardedAt: Schema.NullOr<Schema.String>;
+}>;
 declare const ListWorkspacesResultSchema: Schema.Struct<{
   readonly data: Schema.$Array<Schema.Struct<{
     readonly id: Schema.String;
     readonly name: Schema.String;
     readonly slug: Schema.String;
     readonly role: Schema.Literals<readonly ["owner", "admin", "member", "viewer"]>;
-    readonly onboarded_at: Schema.NullOr<Schema.String>;
     readonly current_user_id: Schema.optional<Schema.String>;
     readonly current_user_email: Schema.optional<Schema.String>;
     readonly current_user_name: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -9294,6 +9716,9 @@ declare const ListWorkspacesResultSchema: Schema.Struct<{
     readonly created_at: Schema.optional<Schema.String>;
     readonly updated_at: Schema.optional<Schema.String>;
   }>>;
+  readonly user: Schema.Struct<{
+    readonly onboardedAt: Schema.NullOr<Schema.String>;
+  }>;
   readonly total: Schema.optional<Schema.NullOr<Schema.Number>>;
   readonly limit: Schema.Number;
   readonly offset: Schema.Number;
@@ -9308,7 +9733,6 @@ declare const ApiSuccessListWorkspacesResultSchema: Schema.Struct<{
       readonly name: Schema.String;
       readonly slug: Schema.String;
       readonly role: Schema.Literals<readonly ["owner", "admin", "member", "viewer"]>;
-      readonly onboarded_at: Schema.NullOr<Schema.String>;
       readonly current_user_id: Schema.optional<Schema.String>;
       readonly current_user_email: Schema.optional<Schema.String>;
       readonly current_user_name: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -9316,6 +9740,9 @@ declare const ApiSuccessListWorkspacesResultSchema: Schema.Struct<{
       readonly created_at: Schema.optional<Schema.String>;
       readonly updated_at: Schema.optional<Schema.String>;
     }>>;
+    readonly user: Schema.Struct<{
+      readonly onboardedAt: Schema.NullOr<Schema.String>;
+    }>;
     readonly total: Schema.optional<Schema.NullOr<Schema.Number>>;
     readonly limit: Schema.Number;
     readonly offset: Schema.Number;
@@ -9513,7 +9940,6 @@ declare const HarborHttpApi: HttpApi<"HarborApi", HttpApiGroup<"Discovery", Http
       readonly name: Schema.String;
       readonly slug: Schema.String;
       readonly role: Schema.Literals<readonly ["owner", "admin", "member", "viewer"]>;
-      readonly onboarded_at: Schema.NullOr<Schema.String>;
       readonly current_user_id: Schema.optional<Schema.String>;
       readonly current_user_email: Schema.optional<Schema.String>;
       readonly current_user_name: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -9521,6 +9947,9 @@ declare const HarborHttpApi: HttpApi<"HarborApi", HttpApiGroup<"Discovery", Http
       readonly created_at: Schema.optional<Schema.String>;
       readonly updated_at: Schema.optional<Schema.String>;
     }>>;
+    readonly user: Schema.Struct<{
+      readonly onboardedAt: Schema.NullOr<Schema.String>;
+    }>;
     readonly total: Schema.optional<Schema.NullOr<Schema.Number>>;
     readonly limit: Schema.Number;
     readonly offset: Schema.Number;
@@ -9862,5 +10291,5 @@ interface HarborHttpApiOperation {
 declare function collectHarborHttpApiOperations(): readonly HarborHttpApiOperation[];
 declare function assertHarborHttpApiMatchesOperationRegistry(): void;
 //#endregion
-export { ApiFailureSchema, ApiRateLimitFailureSchema, ApiSuccessExecuteResultSchema, ApiSuccessListWorkspacesResultSchema, ApiSuccessWorkspaceDetailSchema, ExecuteInputSchema, ExecuteRequestSchema, ExecuteResultSchema, ExecuteSourceRefSchema, ExecuteWarningSchema, HarborEffectOpenApiOptions, HarborHttpApi, HarborHttpApiOperation, HealthResponseSchema, HealthzResponseSchema, ListWorkspacesRequestSchema, ListWorkspacesResultSchema, OpenApiDocumentSchema, RateLimitInfoSchema, WellKnownHarborSchema, WellKnownIndexSchema, WorkspaceDetailSchema, WorkspaceRequestSchema, WorkspaceSchema, assertHarborHttpApiMatchesOperationRegistry, collectHarborHttpApiOperations, createHarborEffectOpenApiDocument };
+export { ApiFailureSchema, ApiRateLimitFailureSchema, ApiSuccessExecuteResultSchema, ApiSuccessListWorkspacesResultSchema, ApiSuccessWorkspaceDetailSchema, ExecuteInputSchema, ExecuteRequestSchema, ExecuteResultSchema, ExecuteSourceRefSchema, ExecuteWarningSchema, HarborEffectOpenApiOptions, HarborHttpApi, HarborHttpApiOperation, HealthResponseSchema, HealthzResponseSchema, ListWorkspacesRequestSchema, ListWorkspacesResultSchema, OpenApiDocumentSchema, RateLimitInfoSchema, UserOnboardingSchema, WellKnownHarborSchema, WellKnownIndexSchema, WorkspaceDetailSchema, WorkspaceRequestSchema, WorkspaceSchema, assertHarborHttpApiMatchesOperationRegistry, collectHarborHttpApiOperations, createHarborEffectOpenApiDocument };
 //# sourceMappingURL=effect-http-api.d.mts.map

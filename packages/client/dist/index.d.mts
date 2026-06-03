@@ -197,7 +197,6 @@ interface Workspace {
   readonly name: string;
   readonly slug: string;
   readonly role: 'owner' | 'admin' | 'member' | 'viewer';
-  readonly onboarded_at: string | null;
   readonly current_user_id?: string | undefined;
   readonly current_user_email?: string | undefined;
   readonly current_user_name?: string | null | undefined;
@@ -222,8 +221,12 @@ interface ListWorkspacesRequest {
 interface WorkspaceRequest {
   readonly workspace_id: string;
 }
+interface UserOnboarding {
+  readonly onboardedAt: string | null;
+}
 interface ListWorkspacesResult {
   readonly data: readonly Workspace[];
+  readonly user: UserOnboarding;
   readonly total?: number | null | undefined;
   readonly limit: number;
   readonly offset: number;
@@ -662,5 +665,5 @@ declare class HarborAuthError extends Error {
 declare const startHarborDeviceLogin: (options: HarborDeviceLoginOptions) => Promise<HarborDeviceLoginStart>;
 declare const pollHarborDeviceLogin: (options: HarborDeviceLoginPollOptions) => Promise<HarborDeviceLoginPollResult>;
 //#endregion
-export { ApiFailure, ApiRateLimitFailure, ExecuteInput, ExecuteRequest, ExecuteResult, ExecuteResultContent, ExecuteResultJsonContent, ExecuteResultSkillBundleContent, ExecuteResultTextContent, ExecuteSkillBundle, ExecuteSkillBundleFile, ExecuteSourceRef, ExecuteWarning, HarborApiError, HarborApiKeyAuth, HarborApiKeyProviderAuth, HarborAuditClient, HarborAuthError, HarborBearerTokenAuth, HarborBearerTokenProvider, HarborBearerTokenProviderAuth, HarborClient, HarborClientAuth, HarborClientConfigurationError, HarborClientOptions, HarborControlPlaneBody, HarborControlPlaneCall, HarborControlPlaneClients, HarborControlPlaneResult, HarborCredentialsClient, HarborDeviceLoginOptions, HarborDeviceLoginPollOptions, HarborDeviceLoginPollResult, HarborDeviceLoginStart, HarborGeneratedClient, HarborGeneratedClientOptions, HarborJsonRequest, HarborOAuthAuthorizeUrlOptions, HarborOrbitAppsClient, HarborOrbitJobsClient, HarborPluginOAuthClient, HarborPoliciesClient, HarborPromiseClient, HarborPromiseClientOptions, HarborRegistryClient, HarborRequestInit, HarborRunsClient, HarborRuntimeClient, HarborRuntimeExecuteRequest, HarborSourcesClient, HarborToolsClient, HarborTriggersClient, HarborWorkflowsClient, HarborWorkspaceClient, HarborWorkspaceGetRequest, HarborWorkspaceResolutionError, HarborWorkspacesClient, HealthResponse, HealthzResponse, JsonValue, ListWorkspacesRequest, ListWorkspacesResult, RateLimitInfo, TriggerActivateBody, TriggerActivateResponse, TriggerDeliveriesListBody, TriggerDeliveriesListResponse, TriggerDeliveryGetBody, TriggerDeliveryGetResponse, TriggerDeliveryRecord, TriggerDeliveryStatus, TriggerGetBody, TriggerGetResponse, TriggerInspectBody, TriggerInspectResponse, TriggerKind, TriggerLimits, TriggerLimitsGetBody, TriggerLimitsResponse, TriggerLimitsUpdateBody, TriggerListBody, TriggerListResponse, TriggerPauseResumeBody, TriggerRecord, TriggerReplayBody, TriggerStatus, TriggerStatusUpdateResponse, WellKnownHarbor, WellKnownIndex, WellKnownIndexEntry, Workspace, WorkspaceDetail, WorkspaceRequest, createHarborClient, createHarborGeneratedClient, createHarborOAuthAuthorizeUrl, createHarborPromiseClient, pollHarborDeviceLogin, startHarborDeviceLogin };
+export { ApiFailure, ApiRateLimitFailure, ExecuteInput, ExecuteRequest, ExecuteResult, ExecuteResultContent, ExecuteResultJsonContent, ExecuteResultSkillBundleContent, ExecuteResultTextContent, ExecuteSkillBundle, ExecuteSkillBundleFile, ExecuteSourceRef, ExecuteWarning, HarborApiError, HarborApiKeyAuth, HarborApiKeyProviderAuth, HarborAuditClient, HarborAuthError, HarborBearerTokenAuth, HarborBearerTokenProvider, HarborBearerTokenProviderAuth, HarborClient, HarborClientAuth, HarborClientConfigurationError, HarborClientOptions, HarborControlPlaneBody, HarborControlPlaneCall, HarborControlPlaneClients, HarborControlPlaneResult, HarborCredentialsClient, HarborDeviceLoginOptions, HarborDeviceLoginPollOptions, HarborDeviceLoginPollResult, HarborDeviceLoginStart, HarborGeneratedClient, HarborGeneratedClientOptions, HarborJsonRequest, HarborOAuthAuthorizeUrlOptions, HarborOrbitAppsClient, HarborOrbitJobsClient, HarborPluginOAuthClient, HarborPoliciesClient, HarborPromiseClient, HarborPromiseClientOptions, HarborRegistryClient, HarborRequestInit, HarborRunsClient, HarborRuntimeClient, HarborRuntimeExecuteRequest, HarborSourcesClient, HarborToolsClient, HarborTriggersClient, HarborWorkflowsClient, HarborWorkspaceClient, HarborWorkspaceGetRequest, HarborWorkspaceResolutionError, HarborWorkspacesClient, HealthResponse, HealthzResponse, JsonValue, ListWorkspacesRequest, ListWorkspacesResult, RateLimitInfo, TriggerActivateBody, TriggerActivateResponse, TriggerDeliveriesListBody, TriggerDeliveriesListResponse, TriggerDeliveryGetBody, TriggerDeliveryGetResponse, TriggerDeliveryRecord, TriggerDeliveryStatus, TriggerGetBody, TriggerGetResponse, TriggerInspectBody, TriggerInspectResponse, TriggerKind, TriggerLimits, TriggerLimitsGetBody, TriggerLimitsResponse, TriggerLimitsUpdateBody, TriggerListBody, TriggerListResponse, TriggerPauseResumeBody, TriggerRecord, TriggerReplayBody, TriggerStatus, TriggerStatusUpdateResponse, UserOnboarding, WellKnownHarbor, WellKnownIndex, WellKnownIndexEntry, Workspace, WorkspaceDetail, WorkspaceRequest, createHarborClient, createHarborGeneratedClient, createHarborOAuthAuthorizeUrl, createHarborPromiseClient, pollHarborDeviceLogin, startHarborDeviceLogin };
 //# sourceMappingURL=index.d.mts.map

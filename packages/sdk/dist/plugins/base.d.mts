@@ -1,5 +1,30 @@
 import { Context, Effect, Schema } from "effect";
 
+//#region ../core-effect/src/scalars.d.ts
+/**
+ * Normalize an arbitrary free-text string into the lowercase-safe namespace
+ * shape accepted by {@link SourceNamespace}: lowercase, non-alphanumerics
+ * collapsed to `-`, leading/trailing `-` trimmed, capped at 40 chars.
+ *
+ * This is the single source of truth for the namespace slugify algorithm. The
+ * frontend mirror lives in
+ * `apps/web/modules/plugin-registry/namespace-suffix.ts`; the two must stay in
+ * sync. Returns `''` for input that contains no alphanumerics — callers that
+ * need a non-empty result should fall back to a default (e.g. `'source'`),
+ * which is what {@link NormalizedSourceNamespace} does on decode.
+ */
+declare function sanitizeNamespace(input: string): string;
+/**
+ * A request-body namespace field that **sanitizes on decode** rather than
+ * rejecting non-slug input. Any input string is run through
+ * {@link sanitizeNamespace}; if that yields an empty string (input had no
+ * usable alphanumerics) it falls back to `'source'`, matching the frontend
+ * `nextFreeNamespace` default. The decoded value always satisfies
+ * {@link SourceNamespace}. Encoding is identity.
+ */
+declare const NormalizedSourceNamespace: Schema.decodeTo<Schema.String, Schema.String, never, never>;
+type NormalizedSourceNamespace = typeof NormalizedSourceNamespace.Type;
+//#endregion
 //#region ../plugins/src/lifecycle.d.ts
 type LifecycleRegistryEntry = {
   readonly slug: string;
@@ -79,7 +104,7 @@ declare const PluginLifecycle_base: Context.ServiceClass<PluginLifecycle, "Plugi
 declare class PluginLifecycle extends PluginLifecycle_base {}
 //#endregion
 //#region ../plugins/src/index.d.ts
-declare const SourceKind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+declare const SourceKind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
 type SourceKind = typeof SourceKind.Type;
 declare const McpOAuthDiscovery: Schema.Struct<{
   readonly authorization_server: Schema.String;
@@ -310,6 +335,45 @@ declare const ApiSourceConfig: Schema.Struct<{
   }>>;
 }>;
 type ApiSourceConfig = typeof ApiSourceConfig.Type;
+/**
+ * SDK-native Composio source. Unlike a `kind:'mcp'` Composio source (which
+ * speaks MCP over `backend.composio.dev/v3/mcp/...`), a `composio` source
+ * discovers and invokes tools through Composio's REST tool API directly:
+ *
+ *   - discovery  → `GET /api/v3/tools?toolkit_slugs=<toolkit_slug>` returns
+ *                  tool defs carrying strict input AND output JSON Schema.
+ *   - execution  → `POST /api/v3/tools/execute/<tool_slug>` with the
+ *                  persisted `composio_connected_account_id`.
+ *
+ * There is intentionally NO `endpoint` field — execution never touches the
+ * MCP transport. Auth is the same Composio connected account established by
+ * the managed-account OAuth flow (keyed on `composio_auth_config_id`), so
+ * switching an existing MCP-backed Composio source to this kind requires no
+ * re-auth.
+ */
+declare const ComposioSourceConfig: Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">;
+  /**
+   * Composio auth-config id. Drives the managed-account OAuth flow exactly
+   * like the MCP-backed Composio source, and is the key under which the
+   * connected account is created.
+   */
+  readonly composio_auth_config_id: Schema.NonEmptyString; /** Composio toolkit slug to ingest, e.g. `gmail`, `google-calendar`, `slack`. */
+  readonly toolkit_slug: Schema.NonEmptyString; /** Optional Composio tool version pin applied to discovery + execution. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
+  /**
+   * When set, discovery keeps only these tool slugs from the toolkit. Absent
+   * means “all tools in the toolkit”.
+   */
+  readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+  /**
+   * Static HTTP headers reserved for parity with the other source configs.
+   * Composio platform auth (`x-api-key`) is sourced from the Worker env, not
+   * from here.
+   */
+  readonly default_headers: Schema.optional<Schema.$Record<Schema.String, Schema.String>>;
+}>;
+type ComposioSourceConfig = typeof ComposioSourceConfig.Type;
 declare const SourceConfig: Schema.Union<readonly [Schema.Struct<{
   readonly kind: Schema.Literal<"mcp">;
   readonly endpoint: Schema.NonEmptyString;
@@ -458,6 +522,27 @@ declare const SourceConfig: Schema.Union<readonly [Schema.Struct<{
     readonly password_env: Schema.optional<Schema.String>;
     readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
   }>>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">;
+  /**
+   * Composio auth-config id. Drives the managed-account OAuth flow exactly
+   * like the MCP-backed Composio source, and is the key under which the
+   * connected account is created.
+   */
+  readonly composio_auth_config_id: Schema.NonEmptyString; /** Composio toolkit slug to ingest, e.g. `gmail`, `google-calendar`, `slack`. */
+  readonly toolkit_slug: Schema.NonEmptyString; /** Optional Composio tool version pin applied to discovery + execution. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
+  /**
+   * When set, discovery keeps only these tool slugs from the toolkit. Absent
+   * means “all tools in the toolkit”.
+   */
+  readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+  /**
+   * Static HTTP headers reserved for parity with the other source configs.
+   * Composio platform auth (`x-api-key`) is sourced from the Worker env, not
+   * from here.
+   */
+  readonly default_headers: Schema.optional<Schema.$Record<Schema.String, Schema.String>>;
 }>]>;
 type SourceConfig = typeof SourceConfig.Type;
 declare const AuthTemplate: Schema.Union<readonly [Schema.Struct<{
@@ -629,7 +714,7 @@ type SourceLink = typeof SourceLink.Type;
 declare const PluginSource: Schema.Struct<{
   readonly id: Schema.String;
   readonly workspace_id: Schema.String;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
   readonly namespace: Schema.String;
   readonly display_name: Schema.String;
   readonly description: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -719,6 +804,14 @@ interface PluginSourceToolCallabilityInput {
   readonly tool_count?: number | undefined;
   readonly runnable?: boolean | undefined;
 }
+/**
+ * A source "needs setup" when it requires an OAuth/credential connect or is in
+ * a hard error state. These are exactly the per-source statuses whose
+ * connect/reconnect flow the plugins page surfaces via the "Connect" button and
+ * the detail page auto-opens on `?setup=1`. Transient states (no_tools,
+ * discovering, pending, refreshing, ready) are NOT setup.
+ */
+declare function pluginSourceStatusNeedsSetup(status: string | null | undefined): boolean;
 declare function isPluginSourceToolCallable(source: PluginSourceToolCallabilityInput): boolean;
 declare function pluginToolNamespaceSummary(source: PluginSourceToolCallabilityInput): {
   namespace: string;
@@ -868,6 +961,13 @@ declare const CliCommandBinding: Schema.Struct<{
   readonly streaming: Schema.optional<Schema.Boolean>;
 }>;
 type CliCommandBinding = typeof CliCommandBinding.Type;
+declare const ComposioToolBinding: Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">; /** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+  readonly tool_slug: Schema.NonEmptyString; /** Owning toolkit slug, e.g. `gmail`. Mirrors the source config; informational. */
+  readonly toolkit_slug: Schema.optional<Schema.NonEmptyString>; /** Pinned Composio tool version. Forwarded to the execute call when set. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
+}>;
+type ComposioToolBinding = typeof ComposioToolBinding.Type;
 declare const ToolBinding: Schema.Union<readonly [Schema.Struct<{
   readonly kind: Schema.Literal<"mcp">;
   readonly tool_name: Schema.String;
@@ -947,6 +1047,11 @@ declare const ToolBinding: Schema.Union<readonly [Schema.Struct<{
   readonly sand_result_mode: Schema.Literals<readonly ["json_stdout", "stdout_text", "binary_base64", "exit_code_only"]>;
   readonly timeout_ms: Schema.optional<Schema.Number>;
   readonly streaming: Schema.optional<Schema.Boolean>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">; /** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+  readonly tool_slug: Schema.NonEmptyString; /** Owning toolkit slug, e.g. `gmail`. Mirrors the source config; informational. */
+  readonly toolkit_slug: Schema.optional<Schema.NonEmptyString>; /** Pinned Composio tool version. Forwarded to the execute call when set. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
 }>]>;
 type ToolBinding = typeof ToolBinding.Type;
 declare const ToolBindingJson: Schema.fromJsonString<Schema.Union<readonly [Schema.Struct<{
@@ -1028,6 +1133,11 @@ declare const ToolBindingJson: Schema.fromJsonString<Schema.Union<readonly [Sche
   readonly sand_result_mode: Schema.Literals<readonly ["json_stdout", "stdout_text", "binary_base64", "exit_code_only"]>;
   readonly timeout_ms: Schema.optional<Schema.Number>;
   readonly streaming: Schema.optional<Schema.Boolean>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">; /** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+  readonly tool_slug: Schema.NonEmptyString; /** Owning toolkit slug, e.g. `gmail`. Mirrors the source config; informational. */
+  readonly toolkit_slug: Schema.optional<Schema.NonEmptyString>; /** Pinned Composio tool version. Forwarded to the execute call when set. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
 }>]>>;
 type ToolBindingJson = typeof ToolBindingJson.Type;
 declare const SourceConfigJson: Schema.fromJsonString<Schema.Union<readonly [Schema.Struct<{
@@ -1178,6 +1288,27 @@ declare const SourceConfigJson: Schema.fromJsonString<Schema.Union<readonly [Sch
     readonly password_env: Schema.optional<Schema.String>;
     readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
   }>>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">;
+  /**
+   * Composio auth-config id. Drives the managed-account OAuth flow exactly
+   * like the MCP-backed Composio source, and is the key under which the
+   * connected account is created.
+   */
+  readonly composio_auth_config_id: Schema.NonEmptyString; /** Composio toolkit slug to ingest, e.g. `gmail`, `google-calendar`, `slack`. */
+  readonly toolkit_slug: Schema.NonEmptyString; /** Optional Composio tool version pin applied to discovery + execution. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
+  /**
+   * When set, discovery keeps only these tool slugs from the toolkit. Absent
+   * means “all tools in the toolkit”.
+   */
+  readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+  /**
+   * Static HTTP headers reserved for parity with the other source configs.
+   * Composio platform auth (`x-api-key`) is sourced from the Worker env, not
+   * from here.
+   */
+  readonly default_headers: Schema.optional<Schema.$Record<Schema.String, Schema.String>>;
 }>]>>;
 type SourceConfigJson = typeof SourceConfigJson.Type;
 declare const PersistedAuthConfigJson: Schema.fromJsonString<Schema.Struct<{
@@ -1370,7 +1501,7 @@ declare const ExecuteResult: Schema.Struct<{
   readonly workflow_instance_id: Schema.optional<Schema.String>;
 }>;
 type ExecuteResult = typeof ExecuteResult.Type;
-declare const ToolSearchKind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>;
+declare const ToolSearchKind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql", "composio"]>;
 type ToolSearchKind = typeof ToolSearchKind.Type;
 declare const ToolSearchResult: Schema.Struct<{
   readonly tool_id: Schema.String;
@@ -1404,7 +1535,7 @@ declare const ToolSignatureHit: Schema.Struct<{
     readonly example: Schema.String;
   }>>;
   readonly score: Schema.Number;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql", "composio"]>;
 }>;
 type ToolSignatureHit = typeof ToolSignatureHit.Type;
 declare const ToolsSearchResponse: Schema.Struct<{
@@ -1429,8 +1560,32 @@ declare const ToolsSearchResponse: Schema.Struct<{
       readonly example: Schema.String;
     }>>;
     readonly score: Schema.Number;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql", "composio"]>;
   }>>;
+  readonly results: Schema.$Array<Schema.Struct<{
+    readonly tool_id: Schema.String;
+    readonly name: Schema.String;
+    readonly namespace: Schema.String;
+    readonly js_var: Schema.String;
+    readonly js_name: Schema.String;
+    readonly display_name: Schema.String;
+    readonly description: Schema.optional<Schema.String>;
+    readonly signature: Schema.String;
+    readonly input_schema: Schema.optional<Schema.Unknown>;
+    readonly output_schema: Schema.optional<Schema.Unknown>;
+    readonly shared_defs: Schema.optional<Schema.Unknown>;
+    readonly input_type: Schema.optional<Schema.String>;
+    readonly output_type: Schema.optional<Schema.String>;
+    readonly type_definitions: Schema.optional<Schema.String>;
+    readonly call_example: Schema.optional<Schema.String>;
+    readonly call: Schema.optional<Schema.Struct<{
+      readonly expression: Schema.String;
+      readonly example: Schema.String;
+    }>>;
+    readonly score: Schema.Number;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql", "composio"]>;
+  }>>;
+  readonly usage_hint: Schema.String;
 }>;
 type ToolsSearchResponse = typeof ToolsSearchResponse.Type;
 declare const ToolDescribeResponse: Schema.Struct<{
@@ -1453,7 +1608,7 @@ declare const ToolDescribeResponse: Schema.Struct<{
     readonly expression: Schema.String;
     readonly example: Schema.String;
   }>;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql", "composio"]>;
 }>;
 type ToolDescribeResponse = typeof ToolDescribeResponse.Type;
 declare const ToolSchemaResponse: Schema.Struct<{
@@ -1539,7 +1694,7 @@ type AddToolResult = typeof AddToolResult.Type;
 declare const SourceSummary: Schema.Struct<{
   readonly namespace: Schema.String;
   readonly display_name: Schema.String;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
   readonly tool_count: Schema.Number;
   readonly status: Schema.Literals<readonly ["pending", "discovering", "ready", "needs_credentials", "credentials_error", "mcp_disconnected", "spec_error", "refreshing", "requires_oauth", "reconnect_required", "no_tools", "verification_required", "verification_failed"]>;
   readonly category: Schema.optional<Schema.String>;
@@ -1639,7 +1794,7 @@ declare const SourceListResult: Schema.Struct<{
   readonly data: Schema.$Array<Schema.Struct<{
     readonly id: Schema.String;
     readonly workspace_id: Schema.String;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
     readonly namespace: Schema.String;
     readonly display_name: Schema.String;
     readonly description: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -1765,7 +1920,7 @@ declare const RefreshSourceResult: Schema.Struct<{
   readonly source: Schema.Struct<{
     readonly id: Schema.String;
     readonly workspace_id: Schema.String;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
     readonly namespace: Schema.String;
     readonly display_name: Schema.String;
     readonly description: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -1836,8 +1991,8 @@ declare const ToolIdBody: Schema.Struct<{
 type ToolIdBody = typeof ToolIdBody.Type;
 declare const AddSourceBody: Schema.Struct<{
   readonly workspace_id: Schema.String;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
-  readonly namespace: Schema.NonEmptyString;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
+  readonly namespace: Schema.decodeTo<Schema.String, Schema.String, never, never>;
   readonly display_name: Schema.NonEmptyString;
   readonly config: Schema.Unknown;
   readonly auth_config: Schema.optional<Schema.Unknown>;
@@ -1859,7 +2014,7 @@ declare const AddSourceResult: Schema.Struct<{
   readonly source: Schema.Struct<{
     readonly id: Schema.String;
     readonly workspace_id: Schema.String;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
     readonly namespace: Schema.String;
     readonly display_name: Schema.String;
     readonly description: Schema.optional<Schema.NullOr<Schema.String>>;
@@ -1996,7 +2151,7 @@ type SourceVerificationProbeResult = typeof SourceVerificationProbeResult.Type;
 declare const RegistryInstallBody: Schema.Struct<{
   readonly workspace_id: Schema.String;
   readonly slug: Schema.String;
-  readonly namespace: Schema.optional<Schema.String>;
+  readonly namespace: Schema.optional<Schema.decodeTo<Schema.String, Schema.String, never, never>>;
   readonly source_visibility: Schema.optional<Schema.Literals<readonly ["personal", "workspace"]>>;
   readonly secrets_by_env: Schema.optional<Schema.$Record<Schema.String, Schema.NonEmptyString>>; /** @deprecated Use secrets_by_env with env-keyed values. */
   readonly credential_value: Schema.optional<Schema.NonEmptyString>;
@@ -2140,7 +2295,7 @@ declare const ToolsSearchBody: Schema.Struct<{
   readonly query: Schema.NonEmptyString;
   readonly limit: Schema.optional<Schema.Number>;
   readonly source: Schema.optional<Schema.String>;
-  readonly kind: Schema.optional<Schema.$Array<Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql"]>>>;
+  readonly kind: Schema.optional<Schema.$Array<Schema.Literals<readonly ["mcp", "cli_command", "api_request", "api_graphql", "composio"]>>>;
   readonly verbose: Schema.optional<Schema.Boolean>;
   readonly mode: Schema.optional<Schema.Literals<readonly ["auto", "vector", "lexical"]>>;
 }>;
@@ -2387,5 +2542,5 @@ declare const McpProbeResult: Schema.Struct<{
 type McpProbeResult = typeof McpProbeResult.Type;
 declare const PLUGIN_CATEGORY_LABELS: Record<string, string>;
 //#endregion
-export { AWAITING_OAUTH_SOURCE_STATUSES, AddSourceBody, AddSourceResult, AddToolBody, AddToolResult, ApiAuthConfig, ApiGraphqlBinding, ApiRequestBinding, ApiSourceConfig, AuthConfig, AuthTemplate, CliArgTemplateFlag, CliArgTemplateInput, CliArgTemplateLiteral, CliArgTemplateOption, CliArgTemplatePart, CliCommandBinding, CliCwdPolicy, CliLauncher, CliSandResultDefaults, CliSourceConfig, ComposioStaticAuthConfig, ComposioStaticAuthScheme, CredentialCreateBody, CredentialCreateResult, CredentialDeleteResult, CredentialIdBody, CredentialKind, CredentialListItem, CredentialUpsertBody, CredentialUpsertResult, CredentialsListBody, CredentialsListResult, CustomMcpAddConfig, DiscoveryResult, DiscoverySourceMetadata, ExecuteResult, ExecuteResultContent, ExecuteResultJsonContent, ExecuteResultSkillBundleContent, ExecuteResultTextContent, ExecuteSkillBundle, ExecuteSkillBundleFile, ExtractedTool, InvokeResult, InvokeResultContent, InvokeToolBody, InvokerResult, InvokerRuntimeConfig, LifecycleDetectInput, LifecycleDetectResult, LifecycleInstallInput, LifecycleRefreshInput, LifecycleRegistryEntry, LifecycleRemoveInput, LifecycleSourceResult, MCPPromptBinding, MCPResourceReadBinding, MCPResourceTemplateBinding, MCPSourceConfig, MCPToolBinding, McpAnnotations, McpIcon, McpOAuthClientConfig, McpOAuthDiscovery, McpOAuthDiscoveryResult, McpProbeBody, McpProbeResult, McpServerInfo, MetaSearchBody, OAuthCallbackUrlResult, OAuthConfigureBody, OAuthConfigureResult, OAuthDisconnectResult, OAuthFlowStatusBody, OAuthFlowStatusResult, OAuthReconnectBody, OAuthSetupHints, OAuthSetupHintsBody, OAuthSetupHintsRegisterUrlSource, OAuthStartResult, PLUGIN_CATEGORY_LABELS, PersistedAuthConfig, PersistedAuthConfigJson, PluginCredential, PluginInstallJob, PluginInstallJobGetBody, PluginInstallJobListBody, PluginInstallJobListResult, PluginInstallJobStatus, PluginLifecycle, PluginLifecycleShape, PluginSource, PluginSourceCreator, PluginSourceDisplayStatus, PluginSourceDomainAction, PluginSourceDomainView, PluginSourceGroupHealth, PluginSourceToolCallabilityInput, PluginTool, RefreshSourceBody, RefreshSourceResult, RegistryInstallBody, RegistryInstallJobResult, RegistryInstallResult, RegistryInstallSourceResult, RegistryListBody, RemoveSourceResult, ResolvedAuth, SOURCE_STATUSES, SourceAbandonResult, SourceAuthTestBody, SourceAuthTestRedactedRequest, SourceAuthTestResult, SourceCleanupStaleResult, SourceConfig, SourceConfigJson, SourceDiscoverer, SourceIdBody, SourceKind, SourceLink, SourceListBody, SourceListResult, SourceStatus, SourceSummary, SourceVerification, SourceVerificationGetBody, SourceVerificationGetResult, SourceVerificationProbeBody, SourceVerificationProbeResult, SourceVerificationSetBody, SourceVerificationSetResult, SourceVerificationStatus, SourceVerificationSummary, SourceVisibility, SourceVisibilitySetBody, SubmitSourceRequestBody, SubmitSourceRequestResult, ToolBinding, ToolBindingJson, ToolDescribeBody, ToolDescribeResponse, ToolIdBody, ToolIdsBody, ToolInvoker, ToolSchemaResponse, ToolSchemasResponse, ToolSearchKind, ToolSearchMode, ToolSearchResult, ToolSignatureHit, ToolsListBody, ToolsListResult, ToolsReindexBody, ToolsReindexResult, ToolsSearchBody, ToolsSearchResponse, WorkspaceOAuthClient, WorkspaceOAuthClientDeleteBody, WorkspaceOAuthClientDeleteResult, WorkspaceOAuthClientListBody, WorkspaceOAuthClientListResult, WorkspaceOAuthClientSetBody, WorkspaceOAuthClientSetResult, comparePluginSourcesForDisplay, displayPluginSourceStatus, effectivePluginSourceStatus, isPluginSourceAwaitingOauth, isPluginSourceRunnable, isPluginSourceToolCallable, pluginSourceDomainView, pluginSourceNextAction, pluginToolNamespaceSummary, registryAgentSkillSlug, selectRepresentativePluginSource, summarizePluginSourceGroupHealth };
+export { AWAITING_OAUTH_SOURCE_STATUSES, AddSourceBody, AddSourceResult, AddToolBody, AddToolResult, ApiAuthConfig, ApiGraphqlBinding, ApiRequestBinding, ApiSourceConfig, AuthConfig, AuthTemplate, CliArgTemplateFlag, CliArgTemplateInput, CliArgTemplateLiteral, CliArgTemplateOption, CliArgTemplatePart, CliCommandBinding, CliCwdPolicy, CliLauncher, CliSandResultDefaults, CliSourceConfig, ComposioSourceConfig, ComposioStaticAuthConfig, ComposioStaticAuthScheme, ComposioToolBinding, CredentialCreateBody, CredentialCreateResult, CredentialDeleteResult, CredentialIdBody, CredentialKind, CredentialListItem, CredentialUpsertBody, CredentialUpsertResult, CredentialsListBody, CredentialsListResult, CustomMcpAddConfig, DiscoveryResult, DiscoverySourceMetadata, ExecuteResult, ExecuteResultContent, ExecuteResultJsonContent, ExecuteResultSkillBundleContent, ExecuteResultTextContent, ExecuteSkillBundle, ExecuteSkillBundleFile, ExtractedTool, InvokeResult, InvokeResultContent, InvokeToolBody, InvokerResult, InvokerRuntimeConfig, LifecycleDetectInput, LifecycleDetectResult, LifecycleInstallInput, LifecycleRefreshInput, LifecycleRegistryEntry, LifecycleRemoveInput, LifecycleSourceResult, MCPPromptBinding, MCPResourceReadBinding, MCPResourceTemplateBinding, MCPSourceConfig, MCPToolBinding, McpAnnotations, McpIcon, McpOAuthClientConfig, McpOAuthDiscovery, McpOAuthDiscoveryResult, McpProbeBody, McpProbeResult, McpServerInfo, MetaSearchBody, NormalizedSourceNamespace, OAuthCallbackUrlResult, OAuthConfigureBody, OAuthConfigureResult, OAuthDisconnectResult, OAuthFlowStatusBody, OAuthFlowStatusResult, OAuthReconnectBody, OAuthSetupHints, OAuthSetupHintsBody, OAuthSetupHintsRegisterUrlSource, OAuthStartResult, PLUGIN_CATEGORY_LABELS, PersistedAuthConfig, PersistedAuthConfigJson, PluginCredential, PluginInstallJob, PluginInstallJobGetBody, PluginInstallJobListBody, PluginInstallJobListResult, PluginInstallJobStatus, PluginLifecycle, PluginLifecycleShape, PluginSource, PluginSourceCreator, PluginSourceDisplayStatus, PluginSourceDomainAction, PluginSourceDomainView, PluginSourceGroupHealth, PluginSourceToolCallabilityInput, PluginTool, RefreshSourceBody, RefreshSourceResult, RegistryInstallBody, RegistryInstallJobResult, RegistryInstallResult, RegistryInstallSourceResult, RegistryListBody, RemoveSourceResult, ResolvedAuth, SOURCE_STATUSES, SourceAbandonResult, SourceAuthTestBody, SourceAuthTestRedactedRequest, SourceAuthTestResult, SourceCleanupStaleResult, SourceConfig, SourceConfigJson, SourceDiscoverer, SourceIdBody, SourceKind, SourceLink, SourceListBody, SourceListResult, SourceStatus, SourceSummary, SourceVerification, SourceVerificationGetBody, SourceVerificationGetResult, SourceVerificationProbeBody, SourceVerificationProbeResult, SourceVerificationSetBody, SourceVerificationSetResult, SourceVerificationStatus, SourceVerificationSummary, SourceVisibility, SourceVisibilitySetBody, SubmitSourceRequestBody, SubmitSourceRequestResult, ToolBinding, ToolBindingJson, ToolDescribeBody, ToolDescribeResponse, ToolIdBody, ToolIdsBody, ToolInvoker, ToolSchemaResponse, ToolSchemasResponse, ToolSearchKind, ToolSearchMode, ToolSearchResult, ToolSignatureHit, ToolsListBody, ToolsListResult, ToolsReindexBody, ToolsReindexResult, ToolsSearchBody, ToolsSearchResponse, WorkspaceOAuthClient, WorkspaceOAuthClientDeleteBody, WorkspaceOAuthClientDeleteResult, WorkspaceOAuthClientListBody, WorkspaceOAuthClientListResult, WorkspaceOAuthClientSetBody, WorkspaceOAuthClientSetResult, comparePluginSourcesForDisplay, displayPluginSourceStatus, effectivePluginSourceStatus, isPluginSourceAwaitingOauth, isPluginSourceRunnable, isPluginSourceToolCallable, pluginSourceDomainView, pluginSourceNextAction, pluginSourceStatusNeedsSetup, pluginToolNamespaceSummary, registryAgentSkillSlug, sanitizeNamespace, selectRepresentativePluginSource, summarizePluginSourceGroupHealth };
 //# sourceMappingURL=base.d.mts.map

@@ -180,7 +180,6 @@ interface Workspace {
   readonly name: string;
   readonly slug: string;
   readonly role: 'owner' | 'admin' | 'member' | 'viewer';
-  readonly onboarded_at: string | null;
   readonly current_user_id?: string | undefined;
   readonly current_user_email?: string | undefined;
   readonly current_user_name?: string | null | undefined;
@@ -205,8 +204,12 @@ interface ListWorkspacesRequest {
 interface WorkspaceRequest {
   readonly workspace_id: string;
 }
+interface UserOnboarding {
+  readonly onboardedAt: string | null;
+}
 interface ListWorkspacesResult {
   readonly data: readonly Workspace[];
+  readonly user: UserOnboarding;
   readonly total?: number | null | undefined;
   readonly limit: number;
   readonly offset: number;

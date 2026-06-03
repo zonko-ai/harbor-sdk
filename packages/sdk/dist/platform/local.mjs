@@ -97,6 +97,7 @@ const RuntimeCapabilityKind = Schema.Literals([
 	"secret",
 	"host",
 	"state",
+	"git",
 	"artifact",
 	"job",
 	"workflow_step"
@@ -1004,7 +1005,6 @@ const workspaceSummary = (workspace) => ({
 	name: workspace.name,
 	slug: workspace.slug,
 	role: "owner",
-	onboarded_at: null,
 	created_at: workspace.createdAt,
 	updated_at: workspace.updatedAt
 });
@@ -1071,6 +1071,7 @@ const createLocalHarborFetch = (options) => {
 		});
 		return apiSuccess({
 			data: list.data.map(workspaceSummary),
+			user: { onboardedAt: null },
 			total: list.total,
 			limit: list.limit,
 			offset: list.offset,

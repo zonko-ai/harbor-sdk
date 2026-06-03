@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Schema, SchemaGetter } from "effect";
 //#region ../core-effect/src/scalars.ts
 const Timestamp = Schema.String;
 Schema.NullOr(Timestamp);
@@ -8,6 +8,25 @@ Schema.NonEmptyString;
 Schema.String.check(Schema.isUUID());
 const SourceId = Schema.NonEmptyString;
 const SourceNamespace = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/));
+/**
+* Normalize an arbitrary free-text string into the lowercase-safe namespace
+* shape accepted by {@link SourceNamespace}: lowercase, non-alphanumerics
+* collapsed to `-`, leading/trailing `-` trimmed, capped at 40 chars.
+*
+* This is the single source of truth for the namespace slugify algorithm. The
+* frontend mirror lives in
+* `apps/web/modules/plugin-registry/namespace-suffix.ts`; the two must stay in
+* sync. Returns `''` for input that contains no alphanumerics — callers that
+* need a non-empty result should fall back to a default (e.g. `'source'`),
+* which is what {@link NormalizedSourceNamespace} does on decode.
+*/
+function sanitizeNamespace(input) {
+	return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+Schema.String.pipe(Schema.decodeTo(SourceNamespace, {
+	decode: SchemaGetter.transform((s) => sanitizeNamespace(s) || "source"),
+	encode: SchemaGetter.passthrough()
+}));
 const RegistrySlug = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 const CatalogSlug = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 const AdapterId = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_./][a-z0-9]+)*$/));
@@ -21,7 +40,8 @@ Schema.Record(Schema.String, Schema.Unknown);
 const SourceKind = Schema.Literals([
 	"mcp",
 	"cli",
-	"api"
+	"api",
+	"composio"
 ]);
 const SourceAuthMode = Schema.Literals([
 	"none",
@@ -134,7 +154,8 @@ const TOOL_BINDING_KINDS = [
 	"mcp_resource_template",
 	"cli_command",
 	"api_request",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ];
 const ToolBindingKind = Schema.Literals(TOOL_BINDING_KINDS);
 const SourceRuntimeTransport = Schema.Literals([
@@ -142,7 +163,8 @@ const SourceRuntimeTransport = Schema.Literals([
 	"mcp_sse",
 	"cli",
 	"api_http",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 const SourceAvailabilityCode = Schema.Literals([
 	"sse_only",

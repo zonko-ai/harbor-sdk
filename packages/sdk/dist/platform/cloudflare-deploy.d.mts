@@ -1,15 +1,20 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
 
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Types.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Types.d.ts
 /**
  * Function-type alias encoding covariant variance for a phantom type
  * parameter.
  *
- * - Use as a phantom field type to make a type parameter covariant
- *   (output position).
- * - `Covariant<A>` is assignable to `Covariant<B>` when `A extends B`
- *   (subtype direction).
+ * **When to use**
+ *
+ * Use as a phantom field type to make a type parameter covariant in output
+ * position.
+ *
+ * **Details**
+ *
+ * `Covariant<A>` is assignable to `Covariant<B>` when `A extends B`, following
+ * the subtype direction.
  *
  * **Example** (Covariant phantom type)
  *
@@ -26,15 +31,14 @@ import * as Cloudflare from "alchemy/Cloudflare";
  * @see {@link Contravariant}
  * @see {@link Invariant}
  *
- * @since 2.0.0
  * @category models
+ * @since 2.0.0
  */
 type Covariant<A> = (_: never) => A;
 /**
  * Namespace for {@link Covariant}-related utilities.
  *
  * @since 3.9.0
- * @category models
  */
 declare namespace Covariant {
   /**
@@ -51,24 +55,26 @@ declare namespace Covariant {
    *
    * @see {@link Covariant}
    *
-   * @since 3.9.0
    * @category models
+   * @since 3.9.0
    */
   type Type<A> = A extends Covariant<infer U> ? U : never;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Inspectable.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Inspectable.d.ts
 /**
  * Interface for objects that can be inspected and provide custom string representations.
+ *
+ * **Details**
  *
  * Objects implementing this interface can control how they appear in debugging contexts,
  * JSON serialization, and Node.js inspection. This is particularly useful for creating
  * custom data types that display meaningful information during development.
  *
- * @example
+ * **Example** (Implementing inspectable objects)
+ *
  * ```ts
- * import { Inspectable } from "effect"
- * import { format } from "effect/Formatter"
+ * import { Formatter, Inspectable } from "effect"
  *
  * class Result implements Inspectable.Inspectable {
  *   constructor(
@@ -77,7 +83,7 @@ declare namespace Covariant {
  *   ) {}
  *
  *   toString(): string {
- *     return format(this.toJSON())
+ *     return Formatter.format(this.toJSON())
  *   }
  *
  *   toJSON() {
@@ -93,8 +99,8 @@ declare namespace Covariant {
  * console.log(success.toString()) // Pretty formatted JSON
  * ```
  *
- * @since 2.0.0
  * @category models
+ * @since 2.0.0
  */
 interface Inspectable {
   toString(): string;
@@ -102,14 +108,41 @@ interface Inspectable {
   [NodeInspectSymbol](): unknown;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Pipeable.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Pipeable.d.ts
 /**
+ * The `Pipeable` module defines the shared interface and implementation helpers
+ * for values that support Effect-style method chaining with `.pipe(...)`.
+ *
+ * A `Pipeable` value can pass itself through a sequence of unary functions from
+ * left to right, so code can be written as `value.pipe(f, g, h)` instead of
+ * deeply nesting calls. This is the method form used by many Effect data types
+ * to compose transformations, validations, and effectful operations while
+ * keeping the original value as the starting point of the pipeline.
+ *
+ * **Common tasks**
+ *
+ * - Type values that expose a `.pipe(...)` method with the {@link Pipeable} interface
+ * - Implement a custom `.pipe(...)` method with {@link pipeArguments}
+ * - Reuse the standard implementation through {@link Prototype}, {@link Class}, or {@link Mixin}
+ *
+ * **Gotchas**
+ *
+ * - Each function receives the result of the previous function, not the original value
+ * - The overloads preserve precise types for long pipelines, but very long chains may be easier to read when split
+ *
  * @since 2.0.0
  */
 /**
- * @since 2.0.0
- * @category models
- * @example
+ * Interface for values that support method-style `pipe` composition.
+ *
+ * **Details**
+ *
+ * Calling `value.pipe(f, g, h)` passes the value through each function from
+ * left to right, returning the final result. Many Effect data types implement
+ * this so operations can be chained without nesting function calls.
+ *
+ * **Example** (Chaining operations with pipe)
+ *
  * ```ts
  * import { Effect } from "effect"
  *
@@ -120,6 +153,9 @@ interface Inspectable {
  *   Effect.tap((x) => Effect.log(`Result: ${x}`))
  * )
  * ```
+ *
+ * @category models
+ * @since 2.0.0
  */
 interface Pipeable {
   pipe<A>(this: A): A;
@@ -146,156 +182,121 @@ interface Pipeable {
   pipe<A, B = never, C = never, D = never, E = never, F = never, G = never, H = never, I = never, J = never, K = never, L = never, M = never, N = never, O = never, P = never, Q = never, R = never, S = never, T = never, U = never>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R, rs: (_: R) => S, st: (_: S) => T, tu: (_: T) => U): U;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Unify.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Unify.d.ts
 /**
+ * The `Unify` module contains the type-level protocol Effect uses to normalize
+ * unions of data types that opt in to unification. It is primarily a library
+ * authoring tool: data types expose hidden symbol properties describing how
+ * their variants should be widened, and {@link Unify} turns those protocol
+ * entries into the user-facing union type that TypeScript should infer.
+ *
+ * Most application code does not need to interact with these symbols directly.
+ * The main runtime helper, {@link unify}, is an identity function that preserves
+ * values and functions at runtime while applying {@link Unify} to the relevant
+ * static type. This is useful when authoring APIs that return branded or
+ * protocol-enabled values and need inference to collapse to the public Effect
+ * data type rather than exposing implementation details.
+ *
  * @since 2.0.0
  */
 /**
  * A unique symbol used to identify unification behavior in Effect types.
  *
+ * **Details**
+ *
  * This symbol is used internally by the Effect type system to enable automatic
  * unification of Effect types in unions and complex type operations.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The unifySymbol is used internally in Effect types
- * // to enable automatic type unification
- * declare const effect: {
- *   readonly [Unify.unifySymbol]?: any
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 declare const unifySymbol: unique symbol;
 /**
  * The type of the unifySymbol.
  *
+ * **Details**
+ *
  * This type represents the unique symbol used for identifying unification
  * behavior in Effect types. It's typically used in type-level operations
  * to enable automatic type unification.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The unifySymbol type is used in type declarations
- * // to enable unification behavior
- * type UnifyableType = {
- *   [Unify.unifySymbol]?: any
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 type unifySymbol = typeof unifySymbol;
 /**
  * A unique symbol used to identify the type information for unification.
  *
+ * **Details**
+ *
  * This symbol is used internally by the Effect type system to store type
  * information that can be used during type unification operations.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The typeSymbol is used internally in Effect types
- * // to store type information for unification
- * declare const effect: {
- *   readonly [Unify.typeSymbol]?: any
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 declare const typeSymbol: unique symbol;
 /**
  * The type of the typeSymbol.
  *
+ * **Details**
+ *
  * This type represents the unique symbol used for storing type information
  * in types that support unification. It's used in type-level operations
  * to access and manipulate type information.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The typeSymbol type is used in type declarations
- * // to store type information for unification
- * type TypedValue = {
- *   [Unify.typeSymbol]?: string
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 type typeSymbol = typeof typeSymbol;
 /**
  * A unique symbol used to specify types that should be ignored during unification.
  *
+ * **Details**
+ *
  * This symbol is used internally by the Effect type system to mark types
  * that should be excluded from the unification process, allowing for more
  * precise type handling in complex scenarios.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The ignoreSymbol is used internally in Effect types
- * // to mark types that should be ignored during unification
- * declare const effect: {
- *   readonly [Unify.ignoreSymbol]?: any
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 declare const ignoreSymbol: unique symbol;
 /**
  * The type of the ignoreSymbol.
  *
+ * **Details**
+ *
  * This type represents the unique symbol used for marking types that should
  * be ignored during unification operations. It's used in type-level operations
  * to exclude specific types from the unification process.
  *
- * @example
- * ```ts
- * import type { Unify } from "effect"
- *
- * // The ignoreSymbol type is used in type declarations
- * // to mark types that should be ignored during unification
- * type IgnorableType = {
- *   [Unify.ignoreSymbol]?: unknown
- * }
- * ```
- *
- * @since 2.0.0
  * @category symbols
+ * @since 2.0.0
  */
 type ignoreSymbol = typeof ignoreSymbol;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Effect.d.ts
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Effect.d.ts
 /**
+ * Type-level identifier for `Effect` values.
+ *
  * @category Type identifiers
- * @since 2.0.0
+ * @since 4.0.0
  */
 type TypeId = "~effect/Effect";
 /**
+ * Runtime identifier used to recognize `Effect` values.
+ *
  * @category Type identifiers
- * @since 2.0.0
+ * @since 4.0.0
  */
 declare const TypeId: TypeId;
 /**
  * The `Effect` interface defines a value that lazily describes a workflow or
  * job. The workflow requires some context `R`, and may fail with an error of
  * type `E`, or succeed with a value of type `A`.
+ *
+ * **Details**
  *
  * `Effect` values model resourceful interaction with the outside world,
  * including synchronous, asynchronous, concurrent, and parallel interaction.
@@ -306,28 +307,8 @@ declare const TypeId: TypeId;
  * To run an `Effect` value, you need a `Runtime`, which is a type that is
  * capable of executing `Effect` values.
  *
- * @example
- * ```ts
- * import { Data, Effect } from "effect"
- *
- * class TaskError extends Data.TaggedError("TaskError")<{ readonly message: string }> {}
- *
- * // A simple effect that succeeds with a value
- * const success = Effect.succeed(42)
- *
- * // An effect that will always fail
- * const risky = Effect.fail(new TaskError({ message: "Something went wrong" }))
- *
- * // Effects can be composed using generator functions
- * const program = Effect.gen(function*() {
- *   const value = yield* success
- *   console.log(value) // 42
- *   return value * 2
- * })
- * ```
- *
+ * @category models
  * @since 2.0.0
- * @category Models
  */
 interface Effect<out A, out E = never, out R = never> extends Pipeable, Inspectable {
   readonly [TypeId]: Variance<A, E, R>;
@@ -337,16 +318,10 @@ interface Effect<out A, out E = never, out R = never> extends Pipeable, Inspecta
   [ignoreSymbol]?: {};
 }
 /**
- * @category Models
- * @since 2.0.0
- * @example
- * ```ts
- * import type { Effect } from "effect"
+ * Type-level unification support for `Effect` values.
  *
- * // EffectUnify is used internally for type unification
- * // It enables automatic unification of Effect types in unions
- * declare const unified: Effect.EffectUnify<any>
- * ```
+ * @category models
+ * @since 2.0.0
  */
 interface EffectUnify<A extends {
   [typeSymbol]?: any;
@@ -356,8 +331,8 @@ interface EffectUnify<A extends {
 /**
  * Variance interface for Effect, encoding the type parameters' variance.
  *
+ * @category models
  * @since 2.0.0
- * @category Models
  */
 interface Variance<A, E, R> {
   _A: Covariant<A>;
@@ -365,39 +340,17 @@ interface Variance<A, E, R> {
   _R: Covariant<R>;
 }
 /**
- * @since 2.0.0
- * @category Models
- * @example
- * ```ts
- * import type { Effect } from "effect"
+ * Extracts the success type from an `Effect`.
  *
- * // Extract the success type from an Effect
- * declare const myEffect: Effect.Effect<string, Error, never>
- * // This type utility extracts the success type A from Effect<A, E, R>
- * ```
+ * @category models
+ * @since 2.0.0
  */
 type Success<T> = T extends Effect<infer _A, infer _E, infer _R> ? _A : never;
 /**
  * Iterator interface for Effect generators, enabling Effect values to work with generator functions.
  *
- * @example
- * ```ts
- * import { Effect } from "effect"
- *
- * // Effects are iterable and work with generator functions
- * const program = Effect.gen(function*() {
- *   const effect: Effect.Effect<number, never, never> = Effect.succeed(42)
- *
- *   // The effect's iterator is used internally by yield*
- *   const result = yield* effect
- *   return result * 2
- * })
- *
- * Effect.runPromise(program).then(console.log) // 84
- * ```
- *
- * @since 2.0.0
- * @category Models
+ * @category models
+ * @since 4.0.0
  */
 interface EffectIterator<T extends Effect<any, any, any>> {
   next(...args: ReadonlyArray<any>): IteratorResult<T, Success<T>>;

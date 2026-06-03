@@ -2,10 +2,6 @@
 
 Python client SDK for Harbor's workspace-scoped control plane.
 
-Install from this repository while the package is pre-release:
-
-    python3 -m pip install -e packages/python
-
 The package is split into two layers:
 
 - `harbor_sdk`: hand-authored public client facade for application developers.
@@ -53,14 +49,11 @@ there is no hidden workspace lookup.
 
 ## Regeneration
 
-This directory is the publish-shaped Python package artifact. The generated
-layer is refreshed in the Harbor monorepo, then copied into this repository
-with the rest of the SDK publish artifacts:
+The generated layer is refreshed from the repo root:
 
 ```bash
 HARBOR_STAINFUL_BIN=tmp/protocol/python/.venv/bin/stainful bun run protocol:generate:python
 ```
 
-Do not edit `harbor_sdk_generated` by hand here. Change the shared
-OpenAPI/Stainless inputs or generator script in the Harbor monorepo instead,
-then refresh this package and rerun `bun run python:sdk:test`.
+Do not edit `harbor_sdk_generated` by hand. Change the shared OpenAPI/Stainless
+inputs or the generator script instead.

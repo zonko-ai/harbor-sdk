@@ -1,6 +1,6 @@
 {
   "name": "@hrbr/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": false,
   "description": "Promise-first Harbor API client with an explicit Effect-native subpath.",
   "license": "MIT",
@@ -63,7 +63,7 @@
   ],
   "dependencies": {},
   "peerDependencies": {
-    "effect": "4.0.0-beta.66"
+    "effect": "4.0.0-beta.70"
   },
   "peerDependenciesMeta": {
     "effect": {

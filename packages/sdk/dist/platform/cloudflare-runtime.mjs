@@ -12,6 +12,7 @@ const RuntimeCapabilityKind = Schema.Literals([
 	"secret",
 	"host",
 	"state",
+	"git",
 	"artifact",
 	"job",
 	"workflow_step"

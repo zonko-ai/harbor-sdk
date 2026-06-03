@@ -1,4 +1,4 @@
-import { Schema } from "effect";
+import { Schema, SchemaGetter } from "effect";
 //#region ../core-effect/src/scalars.ts
 const Timestamp = Schema.String;
 Schema.NullOr(Timestamp);
@@ -8,6 +8,33 @@ Schema.NonEmptyString;
 const RunId = Schema.String.check(Schema.isUUID());
 const SourceId = Schema.NonEmptyString;
 const SourceNamespace = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/));
+/**
+* Normalize an arbitrary free-text string into the lowercase-safe namespace
+* shape accepted by {@link SourceNamespace}: lowercase, non-alphanumerics
+* collapsed to `-`, leading/trailing `-` trimmed, capped at 40 chars.
+*
+* This is the single source of truth for the namespace slugify algorithm. The
+* frontend mirror lives in
+* `apps/web/modules/plugin-registry/namespace-suffix.ts`; the two must stay in
+* sync. Returns `''` for input that contains no alphanumerics — callers that
+* need a non-empty result should fall back to a default (e.g. `'source'`),
+* which is what {@link NormalizedSourceNamespace} does on decode.
+*/
+function sanitizeNamespace(input) {
+	return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+/**
+* A request-body namespace field that **sanitizes on decode** rather than
+* rejecting non-slug input. Any input string is run through
+* {@link sanitizeNamespace}; if that yields an empty string (input had no
+* usable alphanumerics) it falls back to `'source'`, matching the frontend
+* `nextFreeNamespace` default. The decoded value always satisfies
+* {@link SourceNamespace}. Encoding is identity.
+*/
+const NormalizedSourceNamespace = Schema.String.pipe(Schema.decodeTo(SourceNamespace, {
+	decode: SchemaGetter.transform((s) => sanitizeNamespace(s) || "source"),
+	encode: SchemaGetter.passthrough()
+}));
 const RegistrySlug = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_./][a-z0-9]+)*$/));
@@ -283,7 +310,8 @@ Schema.Struct({
 const SourceKind = Schema.Literals([
 	"mcp",
 	"cli",
-	"api"
+	"api",
+	"composio"
 ]);
 const SourceAuthMode = Schema.Literals([
 	"none",
@@ -395,14 +423,16 @@ const ToolBindingKind$1 = Schema.Literals([
 	"mcp_resource_template",
 	"cli_command",
 	"api_request",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 const SourceRuntimeTransport = Schema.Literals([
 	"mcp_http",
 	"mcp_sse",
 	"cli",
 	"api_http",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 const SourceAvailabilityCode = Schema.Literals([
 	"sse_only",
@@ -546,7 +576,8 @@ const ToolBindingKind = Schema.Literals([
 	"mcp_resource_template",
 	"cli_command",
 	"api_request",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 Schema.Struct({
 	kind: ToolBindingKind,
@@ -728,6 +759,12 @@ const PluginSource = Schema.Struct({
 	mcp_resource_count: Schema.optional(Schema.Number),
 	mcp_resource_template_count: Schema.optional(Schema.Number),
 	generated_types: Schema.optional(Schema.NullOr(Schema.String)),
+	/**
+	* Composio connected account id (`ca_...`) persisted after the
+	* managed-account OAuth flow. Reused by SDK-native `kind:'composio'`
+	* execution so tool calls run against the already-authorized account.
+	*/
+	composio_connected_account_id: Schema.optional(Schema.NullOr(Schema.String)),
 	created_by: Schema.optional(Schema.NullOr(Schema.String)),
 	created_by_user: Schema.optional(Schema.NullOr(PluginSourceCreator)),
 	source_visibility: Schema.optional(SourceVisibility),
@@ -831,6 +868,15 @@ const CliCommandBinding = Schema.Struct({
 	timeout_ms: Schema.optional(Schema.Number),
 	streaming: Schema.optional(Schema.Boolean)
 });
+const ComposioToolBinding = Schema.Struct({
+	kind: Schema.Literal("composio"),
+	/** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+	tool_slug: Schema.NonEmptyString,
+	/** Owning toolkit slug, e.g. `gmail`. Informational; mirrors the source config. */
+	toolkit_slug: Schema.optional(Schema.NonEmptyString),
+	/** Pinned Composio tool version. Forwarded to the execute call when set. */
+	version: Schema.optional(Schema.NonEmptyString)
+});
 const ProviderToolBinding = Schema.Union([
 	MCPToolBinding,
 	MCPPromptBinding,
@@ -838,7 +884,8 @@ const ProviderToolBinding = Schema.Union([
 	MCPResourceTemplateBinding,
 	ApiRequestBinding,
 	ApiGraphqlBinding,
-	CliCommandBinding
+	CliCommandBinding,
+	ComposioToolBinding
 ]);
 const InvokeResultContent = Schema.Struct({
 	type: Schema.Literals([
@@ -908,6 +955,7 @@ Schema.Struct({
 const ToolSearchKind = Schema.Literals([
 	"mcp",
 	"cli_command",
+	"composio",
 	"api_request",
 	"api_graphql"
 ]);
@@ -944,7 +992,11 @@ const ToolSignatureHit = Schema.Struct({
 	score: Schema.Number,
 	kind: ToolSearchKind
 });
-Schema.Struct({ hits: Schema.Array(ToolSignatureHit) });
+Schema.Struct({
+	hits: Schema.Array(ToolSignatureHit),
+	results: Schema.Array(ToolSignatureHit),
+	usage_hint: Schema.String
+});
 Schema.Struct({
 	tool_id: Schema.String,
 	name: Schema.String,
@@ -1254,7 +1306,7 @@ Schema.Struct({
 Schema.Struct({
 	workspace_id: WorkspaceId,
 	kind: SourceKind,
-	namespace: Schema.NonEmptyString,
+	namespace: NormalizedSourceNamespace,
 	display_name: Schema.NonEmptyString,
 	config: Schema.Unknown,
 	auth_config: Schema.optional(Schema.Unknown),
@@ -1313,7 +1365,7 @@ Schema.Struct({
 Schema.Struct({
 	workspace_id: WorkspaceId,
 	slug: RegistrySlug,
-	namespace: Schema.optional(SourceNamespace),
+	namespace: Schema.optional(NormalizedSourceNamespace),
 	source_visibility: Schema.optional(SourceVisibility),
 	secrets_by_env: Schema.optional(Schema.Record(SecretName, Schema.NonEmptyString)),
 	credential_value: Schema.optional(Schema.NonEmptyString)
@@ -1800,6 +1852,18 @@ const PluginRegistryCliConfig = Schema.Struct({
 	})),
 	sand_runtime_constraints: Schema.optional(SandRuntimeConstraints)
 });
+/**
+* Registry config for an SDK-native Composio source. Mirrors the source-side
+* `ComposioSourceConfig` (kind `composio`) without an MCP endpoint: discovery
+* and execution happen over Composio's REST tool API, keyed on
+* `composio_auth_config_id`, scoped to a single `toolkit_slug`.
+*/
+const PluginRegistryComposioConfig = Schema.Struct({
+	composio_auth_config_id: Schema.NonEmptyString,
+	toolkit_slug: Schema.NonEmptyString,
+	version: Schema.optional(Schema.NonEmptyString),
+	allowed_tools: Schema.optional(Schema.Array(Schema.NonEmptyString))
+});
 const PluginRegistryApiConfig = Schema.Struct({
 	api_protocol: Schema.optional(Schema.Literals([
 		"openapi",
@@ -1834,6 +1898,12 @@ const PluginRegistryEntry = Schema.Union([
 		kind: Schema.Literal("api"),
 		api_setup: PluginRegistryApiSetup,
 		config: PluginRegistryApiConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
+	}),
+	Schema.Struct({
+		...PluginRegistryEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig,
 		manifest: Schema.optional(PluginRegistryManifest)
 	})
 ]);
@@ -1876,6 +1946,12 @@ const PluginRegistryPublicEntry = Schema.Union([
 		api_setup: PluginRegistryApiSetup,
 		config: PluginRegistryApiConfig,
 		manifest: Schema.optional(PluginRegistryManifest)
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
 	})
 ]);
 const PluginRegistryListResult = Schema.Struct({
@@ -1902,6 +1978,11 @@ const PluginRegistryPublicEntryWithoutManifest = Schema.Union([
 		kind: Schema.Literal("api"),
 		api_setup: PluginRegistryApiSetup,
 		config: PluginRegistryApiConfig
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig
 	})
 ]);
 const PluginRegistryListResultWithoutManifest = Schema.Struct({
@@ -1914,6 +1995,6 @@ const PluginRegistryListResultWithoutManifest = Schema.Struct({
 const RegistrySourceKind = SourceKind;
 const RegistryToolBinding = ProviderToolBinding;
 //#endregion
-export { CATEGORY_LABELS, CATEGORY_SLUGS, PluginCategory, PluginRegistryApiConfig, PluginRegistryApiSetup, PluginRegistryApiSetupVerifyProbe, PluginRegistryAuth, PluginRegistryCliConfig, PluginRegistryCliSetup, PluginRegistryCliSetupFailureHint, PluginRegistryCliSetupFailureMatcher, PluginRegistryCliSetupRequiredSecret, PluginRegistryCliSetupRunnableRequirement, PluginRegistryCliSetupVerifyProbe, PluginRegistryEntry, PluginRegistryEntryAvailability, PluginRegistryListResult, PluginRegistryListResultWithoutManifest, PluginRegistryManifest, PluginRegistryManifestTool, PluginRegistryManifestToolBinding, PluginRegistryMcpConfig, PluginRegistryOAuthClientSeed, PluginRegistryPublicEntry, PluginRegistryPublicEntryWithoutManifest, PluginRegistrySkill, RegistrySourceKind, RegistryToolBinding };
+export { CATEGORY_LABELS, CATEGORY_SLUGS, PluginCategory, PluginRegistryApiConfig, PluginRegistryApiSetup, PluginRegistryApiSetupVerifyProbe, PluginRegistryAuth, PluginRegistryCliConfig, PluginRegistryCliSetup, PluginRegistryCliSetupFailureHint, PluginRegistryCliSetupFailureMatcher, PluginRegistryCliSetupRequiredSecret, PluginRegistryCliSetupRunnableRequirement, PluginRegistryCliSetupVerifyProbe, PluginRegistryComposioConfig, PluginRegistryEntry, PluginRegistryEntryAvailability, PluginRegistryListResult, PluginRegistryListResultWithoutManifest, PluginRegistryManifest, PluginRegistryManifestTool, PluginRegistryManifestToolBinding, PluginRegistryMcpConfig, PluginRegistryOAuthClientSeed, PluginRegistryPublicEntry, PluginRegistryPublicEntryWithoutManifest, PluginRegistrySkill, RegistrySourceKind, RegistryToolBinding };
 
 //# sourceMappingURL=registry.mjs.map

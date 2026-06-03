@@ -73,7 +73,7 @@ declare const WorkflowUserSummarySchema: Schema.Struct<{
 type WorkflowUserSummaryWire = typeof WorkflowUserSummarySchema.Type;
 declare const WorkflowPluginRequirement: Schema.Struct<{
   readonly slug: Schema.String;
-  readonly kind: Schema.optional<Schema.Literals<readonly ["mcp", "cli", "api"]>>;
+  readonly kind: Schema.optional<Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>>;
   readonly optional: Schema.optional<Schema.Boolean>;
 }>;
 type WorkflowPluginRequirement = typeof WorkflowPluginRequirement.Type;
@@ -197,7 +197,7 @@ declare const WorkflowCatalogEntry: Schema.Struct<{
   readonly updated_at: Schema.String;
   readonly plugin_requirements: Schema.$Array<Schema.Struct<{
     readonly slug: Schema.String;
-    readonly kind: Schema.optional<Schema.Literals<readonly ["mcp", "cli", "api"]>>;
+    readonly kind: Schema.optional<Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>>;
     readonly optional: Schema.optional<Schema.Boolean>;
   }>>;
   readonly source_bindings: Schema.$Array<Schema.Struct<{
@@ -249,7 +249,7 @@ declare const WorkflowListResponse: Schema.Struct<{
     readonly updated_at: Schema.String;
     readonly plugin_requirements: Schema.$Array<Schema.Struct<{
       readonly slug: Schema.String;
-      readonly kind: Schema.optional<Schema.Literals<readonly ["mcp", "cli", "api"]>>;
+      readonly kind: Schema.optional<Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>>;
       readonly optional: Schema.optional<Schema.Boolean>;
     }>>;
     readonly source_bindings: Schema.$Array<Schema.Struct<{
@@ -302,7 +302,7 @@ declare const WorkflowGetResponse: Schema.Struct<{
   readonly updated_at: Schema.String;
   readonly plugin_requirements: Schema.$Array<Schema.Struct<{
     readonly slug: Schema.String;
-    readonly kind: Schema.optional<Schema.Literals<readonly ["mcp", "cli", "api"]>>;
+    readonly kind: Schema.optional<Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>>;
     readonly optional: Schema.optional<Schema.Boolean>;
   }>>;
   readonly source_bindings: Schema.$Array<Schema.Struct<{

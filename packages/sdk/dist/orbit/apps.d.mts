@@ -93,6 +93,7 @@ declare const OrbitAppSummary: Schema.Struct<{
   readonly status: Schema.Union<readonly [Schema.Literal<"ready">, Schema.Literal<"disabled">, Schema.Literal<"failed">]>;
   readonly url: Schema.NullOr<Schema.String>;
   readonly access: Schema.Union<readonly [Schema.Literal<"public">, Schema.Literal<"workspace_member">]>;
+  readonly created_at: Schema.String;
 }>;
 type OrbitAppSummary = typeof OrbitAppSummary.Type;
 declare const OrbitAppVersionRecord: Schema.Struct<{
@@ -170,6 +171,7 @@ declare const OrbitAppListResponse: Schema.Struct<{
     readonly status: Schema.Union<readonly [Schema.Literal<"ready">, Schema.Literal<"disabled">, Schema.Literal<"failed">]>;
     readonly url: Schema.NullOr<Schema.String>;
     readonly access: Schema.Union<readonly [Schema.Literal<"public">, Schema.Literal<"workspace_member">]>;
+    readonly created_at: Schema.String;
   }>>;
   readonly count: Schema.Number;
 }>;

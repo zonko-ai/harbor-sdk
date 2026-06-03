@@ -1,13 +1,40 @@
-import { Context, Schema } from "effect";
+import { Context, Schema, SchemaGetter } from "effect";
 //#region ../core-effect/src/scalars.ts
 const Timestamp = Schema.String;
 Schema.NullOr(Timestamp);
 const WorkspaceId = Schema.String.check(Schema.isUUID());
-Schema.NonEmptyString;
-Schema.NonEmptyString;
+const UserId = Schema.NonEmptyString;
+const AgentId = Schema.NonEmptyString;
 const RunId = Schema.String.check(Schema.isUUID());
 const SourceId = Schema.NonEmptyString;
 const SourceNamespace = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/));
+/**
+* Normalize an arbitrary free-text string into the lowercase-safe namespace
+* shape accepted by {@link SourceNamespace}: lowercase, non-alphanumerics
+* collapsed to `-`, leading/trailing `-` trimmed, capped at 40 chars.
+*
+* This is the single source of truth for the namespace slugify algorithm. The
+* frontend mirror lives in
+* `apps/web/modules/plugin-registry/namespace-suffix.ts`; the two must stay in
+* sync. Returns `''` for input that contains no alphanumerics — callers that
+* need a non-empty result should fall back to a default (e.g. `'source'`),
+* which is what {@link NormalizedSourceNamespace} does on decode.
+*/
+function sanitizeNamespace(input) {
+	return input.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+}
+/**
+* A request-body namespace field that **sanitizes on decode** rather than
+* rejecting non-slug input. Any input string is run through
+* {@link sanitizeNamespace}; if that yields an empty string (input had no
+* usable alphanumerics) it falls back to `'source'`, matching the frontend
+* `nextFreeNamespace` default. The decoded value always satisfies
+* {@link SourceNamespace}. Encoding is identity.
+*/
+const NormalizedSourceNamespace = Schema.String.pipe(Schema.decodeTo(SourceNamespace, {
+	decode: SchemaGetter.transform((s) => sanitizeNamespace(s) || "source"),
+	encode: SchemaGetter.passthrough()
+}));
 const RegistrySlug$1 = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
 Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:[-_./][a-z0-9]+)*$/));
@@ -262,7 +289,7 @@ const SandboxRuntime = Schema.Literals([
 	"node",
 	"bun"
 ]);
-Schema.Struct({
+const SandboxRequest = Schema.Struct({
 	workspace_id: WorkspaceId,
 	runtime: SandboxRuntime,
 	entrypoint: Schema.NonEmptyString,
@@ -271,7 +298,7 @@ Schema.Struct({
 	secrets: Schema.optional(Schema.Array(SecretName)),
 	timeout_ms: Schema.optional(Schema.Number)
 });
-Schema.Struct({
+const SandboxResult = Schema.Struct({
 	ok: Schema.Boolean,
 	stdout: Schema.String,
 	stderr: Schema.String,
@@ -283,7 +310,8 @@ Schema.Struct({
 const SourceKind$1 = Schema.Literals([
 	"mcp",
 	"cli",
-	"api"
+	"api",
+	"composio"
 ]);
 const SourceAuthMode = Schema.Literals([
 	"none",
@@ -395,14 +423,16 @@ const ToolBindingKind$1 = Schema.Literals([
 	"mcp_resource_template",
 	"cli_command",
 	"api_request",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 const SourceRuntimeTransport = Schema.Literals([
 	"mcp_http",
 	"mcp_sse",
 	"cli",
 	"api_http",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 const SourceAvailabilityCode = Schema.Literals([
 	"sse_only",
@@ -546,7 +576,8 @@ const ToolBindingKind = Schema.Literals([
 	"mcp_resource_template",
 	"cli_command",
 	"api_request",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 Schema.Struct({
 	kind: ToolBindingKind,
@@ -728,6 +759,12 @@ const PluginSource$1 = Schema.Struct({
 	mcp_resource_count: Schema.optional(Schema.Number),
 	mcp_resource_template_count: Schema.optional(Schema.Number),
 	generated_types: Schema.optional(Schema.NullOr(Schema.String)),
+	/**
+	* Composio connected account id (`ca_...`) persisted after the
+	* managed-account OAuth flow. Reused by SDK-native `kind:'composio'`
+	* execution so tool calls run against the already-authorized account.
+	*/
+	composio_connected_account_id: Schema.optional(Schema.NullOr(Schema.String)),
 	created_by: Schema.optional(Schema.NullOr(Schema.String)),
 	created_by_user: Schema.optional(Schema.NullOr(PluginSourceCreator$1)),
 	source_visibility: Schema.optional(SourceVisibility$1),
@@ -831,6 +868,15 @@ const CliCommandBinding$1 = Schema.Struct({
 	timeout_ms: Schema.optional(Schema.Number),
 	streaming: Schema.optional(Schema.Boolean)
 });
+const ComposioToolBinding$1 = Schema.Struct({
+	kind: Schema.Literal("composio"),
+	/** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+	tool_slug: Schema.NonEmptyString,
+	/** Owning toolkit slug, e.g. `gmail`. Informational; mirrors the source config. */
+	toolkit_slug: Schema.optional(Schema.NonEmptyString),
+	/** Pinned Composio tool version. Forwarded to the execute call when set. */
+	version: Schema.optional(Schema.NonEmptyString)
+});
 Schema.Union([
 	MCPToolBinding$1,
 	MCPPromptBinding$1,
@@ -838,7 +884,8 @@ Schema.Union([
 	MCPResourceTemplateBinding$1,
 	ApiRequestBinding$1,
 	ApiGraphqlBinding$1,
-	CliCommandBinding$1
+	CliCommandBinding$1,
+	ComposioToolBinding$1
 ]);
 const InvokeResultContent$1 = Schema.Struct({
 	type: Schema.Literals([
@@ -908,6 +955,7 @@ Schema.Struct({
 const ToolSearchKind$1 = Schema.Literals([
 	"mcp",
 	"cli_command",
+	"composio",
 	"api_request",
 	"api_graphql"
 ]);
@@ -944,7 +992,11 @@ const ToolSignatureHit$1 = Schema.Struct({
 	score: Schema.Number,
 	kind: ToolSearchKind$1
 });
-Schema.Struct({ hits: Schema.Array(ToolSignatureHit$1) });
+Schema.Struct({
+	hits: Schema.Array(ToolSignatureHit$1),
+	results: Schema.Array(ToolSignatureHit$1),
+	usage_hint: Schema.String
+});
 Schema.Struct({
 	tool_id: Schema.String,
 	name: Schema.String,
@@ -1254,7 +1306,7 @@ Schema.Struct({
 Schema.Struct({
 	workspace_id: WorkspaceId,
 	kind: SourceKind$1,
-	namespace: Schema.NonEmptyString,
+	namespace: NormalizedSourceNamespace,
 	display_name: Schema.NonEmptyString,
 	config: Schema.Unknown,
 	auth_config: Schema.optional(Schema.Unknown),
@@ -1313,7 +1365,7 @@ Schema.Struct({
 Schema.Struct({
 	workspace_id: WorkspaceId,
 	slug: RegistrySlug$1,
-	namespace: Schema.optional(SourceNamespace),
+	namespace: Schema.optional(NormalizedSourceNamespace),
 	source_visibility: Schema.optional(SourceVisibility$1),
 	secrets_by_env: Schema.optional(Schema.Record(SecretName, Schema.NonEmptyString)),
 	credential_value: Schema.optional(Schema.NonEmptyString)
@@ -1564,6 +1616,2370 @@ Schema.Struct({
 	server_name: Schema.NullOr(Schema.String),
 	oauth: Schema.NullOr(McpOAuthDiscoveryResult$1)
 });
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	after: Schema.optional(Schema.Number),
+	timeout_ms: Schema.optional(Schema.Number)
+});
+Schema.Struct({ workspace_id: WorkspaceId });
+const WorkspaceActivityEvent = Schema.Struct({
+	version: Schema.Number,
+	topic: Schema.String,
+	payload: Schema.Unknown,
+	created_at: Schema.String
+});
+Schema.Struct({
+	version: Schema.Number,
+	events: Schema.Array(WorkspaceActivityEvent),
+	timed_out: Schema.Boolean,
+	truncated: Schema.Boolean
+});
+Schema.Struct({ version: Schema.Number });
+const WorkspaceNotification = Schema.Struct({
+	id: Schema.String,
+	workspace_id: Schema.String,
+	version: Schema.Number,
+	topic: Schema.String,
+	payload: Schema.Unknown,
+	created_at: Schema.String,
+	read_at: Schema.NullOr(Schema.String)
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	limit: Schema.optional(Schema.Number.check(Schema.isInt(), Schema.isBetween({
+		minimum: 1,
+		maximum: 100
+	}))),
+	offset: Schema.optional(Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)))
+});
+Schema.Struct({
+	notifications: Schema.Array(WorkspaceNotification),
+	unread_count: Schema.Number
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	notification_id: Schema.String
+});
+Schema.Struct({ workspace_id: WorkspaceId });
+Schema.Struct({ marked: Schema.Number });
+//#endregion
+//#region ../core-effect/src/agent.ts
+const OriginConfidence = Schema.Literals([
+	"high",
+	"pid",
+	"none"
+]);
+Schema.Struct({
+	id: AgentId,
+	workspace_id: WorkspaceId,
+	machine_id: Schema.String,
+	agent_family: Schema.String,
+	origin_confidence: OriginConfidence,
+	origin_source: Schema.String,
+	first_seen_at: Schema.String,
+	last_seen_at: Schema.String,
+	is_online: Schema.Boolean,
+	display_name: Schema.NullOr(Schema.String),
+	tags: Schema.String,
+	metadata: Schema.String,
+	created_by: Schema.String,
+	created_at: Schema.String,
+	updated_at: Schema.String
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	machine_id: Schema.NonEmptyString,
+	agent_family: Schema.NonEmptyString,
+	origin_confidence: OriginConfidence,
+	origin_source: Schema.String,
+	metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown))
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	agent_id: AgentId
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	agent_id: AgentId,
+	display_name: Schema.optional(Schema.String),
+	tags: Schema.optional(Schema.Array(Schema.String)),
+	metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown))
+});
+const AgentIconStyle = Schema.Literals(["color", "mono"]);
+const AgentIconSpec = Schema.Struct({
+	path: Schema.String,
+	darkPath: Schema.optional(Schema.String),
+	style: AgentIconStyle
+});
+const AgentCatalogKind = Schema.Literals(["local", "mcp"]);
+const AgentInstallInstructionKind = Schema.Literals([
+	"handoff",
+	"mcp-shell",
+	"markdown"
+]);
+const AgentInstallInstruction = Schema.Struct({
+	id: Schema.String,
+	label: Schema.String,
+	kind: AgentInstallInstructionKind,
+	command: Schema.optional(Schema.String),
+	next: Schema.optional(Schema.String),
+	instructions: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	slug: Schema.String,
+	label: Schema.String,
+	kind: AgentCatalogKind,
+	icon: AgentIconSpec,
+	iconPath: Schema.String,
+	iconPathDark: Schema.String,
+	envVars: Schema.Array(Schema.Struct({ name: Schema.String })),
+	command: Schema.optional(Schema.String),
+	description: Schema.optional(Schema.String),
+	aliases: Schema.optional(Schema.Array(Schema.String)),
+	installInstructions: Schema.optional(Schema.Array(AgentInstallInstruction))
+});
+const AgentConnectionStatus = Schema.Literals(["connected", "disconnected"]);
+Schema.Struct({
+	id: Schema.String,
+	family: Schema.String,
+	alias: Schema.String,
+	label: Schema.String,
+	icon: AgentIconSpec,
+	status: AgentConnectionStatus,
+	last_seen_at: Schema.String,
+	origin_confidence: OriginConfidence,
+	hostname: Schema.optional(Schema.String)
+});
+const InstallGuideTab = Schema.Struct({
+	id: Schema.String,
+	label: Schema.String,
+	instructions: Schema.String
+});
+const InstallAgentGuide = Schema.Struct({
+	id: Schema.String,
+	name: Schema.String,
+	icon: Schema.String,
+	image_url: Schema.String,
+	tabs: Schema.Array(InstallGuideTab)
+});
+Schema.Struct({
+	workflow: Schema.NullOr(Schema.String),
+	agents: Schema.Array(InstallAgentGuide)
+});
+Schema.Literals([
+	"owner",
+	"admin",
+	"member",
+	"viewer"
+]);
+Schema.Struct({
+	id: Schema.String,
+	name: Schema.String,
+	slug: Schema.String,
+	role: Schema.optional(Schema.String),
+	created_at: Schema.optional(Schema.String),
+	updated_at: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	id: Schema.String,
+	email: Schema.String,
+	role: Schema.String,
+	workspace_id: Schema.String,
+	invited_by: Schema.optional(Schema.String),
+	created_at: Schema.optional(Schema.String),
+	expires_at: Schema.optional(Schema.String),
+	status: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	workspace_id: Schema.String,
+	slug: Schema.String,
+	client_id: Schema.String,
+	redirect_uri: Schema.optional(Schema.String),
+	scope: Schema.optional(Schema.String),
+	updated_at: Schema.optional(Schema.String),
+	created_by: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	clientName: Schema.NonEmptyString,
+	clientVersion: Schema.NonEmptyString,
+	machineId: Schema.optional(Schema.String),
+	agentFamily: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	id: Schema.String,
+	action: Schema.String,
+	resource_type: Schema.String,
+	resource_id: Schema.NullOr(Schema.String),
+	actor_id: Schema.String,
+	actor_name: Schema.NullOr(Schema.String),
+	metadata: Schema.NullOr(Schema.Unknown),
+	created_at: Schema.String
+});
+const EventType = Schema.Literals([
+	"run.started",
+	"run.step",
+	"run.tool_call",
+	"run.tool_result",
+	"run.output",
+	"run.error",
+	"run.completed",
+	"run.failed"
+]);
+const EventItem = Schema.Struct({
+	event_type: EventType,
+	payload: Schema.optional(Schema.Unknown)
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	run_id: Schema.String.check(Schema.isUUID()),
+	events: Schema.Array(EventItem)
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	run_id: Schema.optional(Schema.String.check(Schema.isUUID())),
+	event_type: Schema.optional(EventType),
+	limit: Schema.optional(Schema.Number.check(Schema.isInt(), Schema.isBetween({
+		minimum: 1,
+		maximum: 500
+	})))
+});
+Schema.Struct({
+	id: Schema.String,
+	run_id: Schema.String,
+	workspace_id: Schema.String,
+	event_type: Schema.String,
+	payload: Schema.NullOr(Schema.Unknown),
+	created_at: Schema.String
+});
+Schema.Struct({
+	success: Schema.Literal(false),
+	error: Schema.String,
+	issues: Schema.optional(Schema.Array(Schema.String))
+});
+Schema.Struct({
+	limit: Schema.optional(Schema.Number.check(Schema.isInt(), Schema.isBetween({
+		minimum: 1,
+		maximum: 200
+	}))),
+	offset: Schema.optional(Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0))),
+	cursor: Schema.optional(Schema.String),
+	include_total: Schema.optional(Schema.Boolean)
+});
+//#endregion
+//#region ../core-effect/src/trigger.ts
+const TriggerId = Schema.NonEmptyString;
+const TriggerDeliveryId = Schema.NonEmptyString;
+const TriggerSourceKind = Schema.Literals([
+	"schedule.cron",
+	"schedule.once",
+	"webhook.http"
+]);
+const TriggerKind = TriggerSourceKind;
+const TriggerStatus = Schema.Literals([
+	"draft",
+	"active",
+	"paused",
+	"disabled",
+	"failed"
+]);
+const TriggerDeliveryStatus = Schema.Literals([
+	"queued",
+	"claimed",
+	"running",
+	"completed",
+	"failed",
+	"skipped",
+	"cancelled",
+	"dead_lettered"
+]);
+Schema.Literals([
+	"started",
+	"completed",
+	"failed",
+	"retry_scheduled",
+	"abandoned"
+]);
+const TriggerSetupKind = Schema.Literals([
+	"webhook_url",
+	"source_authorization",
+	"secret",
+	"schedule",
+	"policy"
+]);
+const TriggerCheckStatus = Schema.Literals([
+	"pass",
+	"warn",
+	"fail"
+]);
+const TriggerScheduleCatchUp = Schema.Literals([
+	"none",
+	"one",
+	"all"
+]);
+const TriggerMisfireStrategy = Schema.Literals([
+	"skip",
+	"coalesce_latest",
+	"enqueue"
+]);
+const TriggerConcurrencyOverflow = Schema.Literals([
+	"queue",
+	"skip",
+	"coalesce_latest",
+	"fail"
+]);
+const TriggerConcurrencyScope = Schema.Literals([
+	"global",
+	"workspace",
+	"trigger",
+	"job",
+	"custom"
+]);
+const TriggerErrorReason = Schema.Literals([
+	"invalid_trigger_kind",
+	"invalid_config",
+	"target_job_not_found",
+	"target_version_not_ready",
+	"target_not_triggerable",
+	"input_mapping_invalid",
+	"schedule_invalid",
+	"webhook_verification_unavailable",
+	"source_authorization_missing",
+	"quota_exceeded",
+	"policy_denied",
+	"receipt_expired",
+	"receipt_consumed",
+	"idempotency_conflict",
+	"concurrency_limit_exceeded"
+]);
+Schema.Struct({
+	cron: Schema.NonEmptyString,
+	timezone: Schema.optional(Schema.String),
+	min_interval_seconds: Schema.optional(Schema.Number),
+	catch_up: Schema.optional(TriggerScheduleCatchUp),
+	misfire_strategy: Schema.optional(TriggerMisfireStrategy)
+});
+const TriggerOnceScheduleSpec = Schema.Struct({
+	kind: Schema.Literal("schedule.once"),
+	fire_at: Schema.NonEmptyString,
+	timezone: Schema.optional(Schema.String)
+});
+const TriggerWebhookSignedPayloadPart = Schema.Union([
+	Schema.Struct({ type: Schema.Literal("raw_body") }),
+	Schema.Struct({
+		type: Schema.Literal("header"),
+		header: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		type: Schema.Literal("json_path"),
+		path: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		type: Schema.Literal("static"),
+		value: Schema.String
+	})
+]);
+const TriggerWebhookVerification = Schema.Union([
+	Schema.Struct({ mode: Schema.Literal("none") }),
+	Schema.Struct({
+		mode: Schema.Literal("shared_secret_header"),
+		header: Schema.NonEmptyString,
+		secret_sha256: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		mode: Schema.Literal("hmac_sha256"),
+		signature_header: Schema.NonEmptyString,
+		secret: Schema.NonEmptyString,
+		encoding: Schema.optional(Schema.Literals(["hex", "base64"])),
+		prefix: Schema.optional(Schema.String),
+		signed_payload: Schema.optional(Schema.Struct({
+			separator: Schema.optional(Schema.String),
+			parts: Schema.Array(TriggerWebhookSignedPayloadPart)
+		})),
+		tolerance_seconds: Schema.optional(Schema.Number),
+		timestamp_header: Schema.optional(Schema.NonEmptyString)
+	}),
+	Schema.Struct({
+		mode: Schema.Literal("standard_webhooks"),
+		secret: Schema.NonEmptyString,
+		tolerance_seconds: Schema.optional(Schema.Number)
+	})
+]);
+const TriggerWebhookIdempotency = Schema.Union([
+	Schema.Struct({ mode: Schema.Literal("body_sha256") }),
+	Schema.Struct({
+		mode: Schema.Literal("header"),
+		header: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		mode: Schema.Literal("json_path"),
+		path: Schema.NonEmptyString
+	}),
+	Schema.Struct({ mode: Schema.Literal("standard_webhooks_id") })
+]);
+const TriggerWebhookEventType = Schema.Union([
+	Schema.Struct({ mode: Schema.Literal("none") }),
+	Schema.Struct({
+		mode: Schema.Literal("static"),
+		value: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		mode: Schema.Literal("header"),
+		header: Schema.NonEmptyString
+	}),
+	Schema.Struct({
+		mode: Schema.Literal("json_path"),
+		path: Schema.NonEmptyString
+	})
+]);
+const TriggerWebhookSpec = Schema.Struct({
+	kind: Schema.Literal("webhook.http"),
+	event: Schema.optional(Schema.String),
+	secret_ref: Schema.optional(Schema.String),
+	max_event_bytes: Schema.optional(Schema.Number),
+	verification: Schema.optional(TriggerWebhookVerification),
+	idempotency: Schema.optional(TriggerWebhookIdempotency),
+	event_type: Schema.optional(TriggerWebhookEventType)
+});
+const TriggerScheduleSpecWithKind = Schema.Struct({
+	kind: Schema.Literal("schedule.cron"),
+	cron: Schema.NonEmptyString,
+	timezone: Schema.optional(Schema.String),
+	min_interval_seconds: Schema.optional(Schema.Number),
+	catch_up: Schema.optional(TriggerScheduleCatchUp),
+	misfire_strategy: Schema.optional(TriggerMisfireStrategy)
+});
+const TriggerSourceConfig = Schema.Union([
+	TriggerScheduleSpecWithKind,
+	TriggerOnceScheduleSpec,
+	TriggerWebhookSpec
+]);
+const TriggerInputPassthroughMapping = Schema.Struct({ mode: Schema.Literal("passthrough") });
+const TriggerInputSourceEventMapping = Schema.Struct({
+	mode: Schema.Literal("source_event"),
+	schema: Schema.NonEmptyString
+});
+const TriggerInputDeclarativeMapping = Schema.Struct({
+	mode: Schema.Literal("declarative"),
+	fields: Schema.Record(Schema.String, Schema.NonEmptyString)
+});
+const TriggerInputMapping = Schema.Union([
+	TriggerInputPassthroughMapping,
+	TriggerInputSourceEventMapping,
+	TriggerInputDeclarativeMapping
+]);
+const TriggerIdempotencyPolicy = Schema.Struct({
+	key: Schema.Array(Schema.NonEmptyString),
+	ttl_seconds: Schema.optional(Schema.Number)
+});
+const TriggerConcurrencyPolicy = Schema.Struct({
+	scope: Schema.optional(TriggerConcurrencyScope),
+	key: Schema.Array(Schema.NonEmptyString),
+	limit: Schema.Number,
+	overflow: TriggerConcurrencyOverflow,
+	ttl_seconds: Schema.optional(Schema.Number)
+});
+const TriggerRetryPolicy = Schema.Struct({
+	max_attempts: Schema.optional(Schema.Number),
+	backoff: Schema.optional(Schema.Literals([
+		"none",
+		"fixed",
+		"exponential"
+	]))
+});
+const TriggerRetentionPolicy = Schema.Struct({
+	event_ttl_seconds: Schema.optional(Schema.Number),
+	delivery_ttl_seconds: Schema.optional(Schema.Number)
+});
+const TriggerLimitCount = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1));
+const TriggerLimitEventBytes = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1024));
+const TriggerLimits = Schema.Struct({
+	max_active_triggers: Schema.optional(TriggerLimitCount),
+	max_active_schedules: Schema.optional(TriggerLimitCount),
+	max_due_per_tick: Schema.optional(TriggerLimitCount),
+	max_concurrent_deliveries: Schema.optional(TriggerLimitCount),
+	max_concurrent_cron_deliveries: Schema.optional(TriggerLimitCount),
+	max_concurrent_webhook_deliveries: Schema.optional(TriggerLimitCount),
+	min_cron_interval_seconds: Schema.optional(TriggerLimitCount),
+	max_event_bytes: Schema.optional(TriggerLimitEventBytes)
+});
+const TriggerableJobEventBinding = Schema.Struct({
+	source_kind: TriggerSourceKind,
+	event: Schema.optional(Schema.NonEmptyString),
+	input_mapping: TriggerInputMapping,
+	idempotency: Schema.optional(TriggerIdempotencyPolicy),
+	concurrency: Schema.optional(TriggerConcurrencyPolicy),
+	retry: Schema.optional(TriggerRetryPolicy),
+	retention: Schema.optional(TriggerRetentionPolicy),
+	metadata: Schema.optional(Schema.Record(Schema.String, Schema.Unknown))
+});
+const TriggerableJobManifest = Schema.Struct({
+	version: Schema.optional(Schema.Literal(1)),
+	events: Schema.Array(TriggerableJobEventBinding)
+});
+const TriggerTargetJobRef = Schema.Struct({
+	job: Schema.NonEmptyString,
+	version: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	source: TriggerSourceConfig,
+	target: TriggerTargetJobRef,
+	input_mapping: Schema.optional(TriggerInputMapping),
+	limits: Schema.optional(TriggerLimits),
+	activation: Schema.optional(Schema.Struct({
+		name: Schema.optional(Schema.String),
+		description: Schema.optional(Schema.String)
+	}))
+});
+const TriggerCheck = Schema.Struct({
+	code: Schema.NonEmptyString,
+	status: TriggerCheckStatus,
+	message: Schema.String,
+	data: Schema.optional(Schema.Unknown)
+});
+const TriggerRequiredSetup = Schema.Struct({
+	kind: TriggerSetupKind,
+	status: Schema.Literals([
+		"ready",
+		"required",
+		"missing"
+	]),
+	data: Schema.optional(Schema.Unknown)
+});
+const TriggerActivationDraft = Schema.Struct({
+	source: TriggerSourceConfig,
+	target: TriggerTargetJobRef,
+	input_mapping: Schema.optional(TriggerInputMapping),
+	limits: Schema.optional(TriggerLimits)
+});
+const TriggerActivateBody = Schema.Struct({
+	workspace_id: WorkspaceId,
+	inspect_receipt_id: Schema.NonEmptyString,
+	name: Schema.NonEmptyString,
+	description: Schema.optional(Schema.String),
+	status: Schema.optional(Schema.Literals(["active", "paused"]))
+});
+Schema.Struct({
+	ok: Schema.Boolean,
+	receipt_id: Schema.NonEmptyString,
+	expires_at: Schema.String,
+	normalized: TriggerActivationDraft,
+	target: Schema.Struct({
+		job: Schema.NonEmptyString,
+		version: Schema.String,
+		compatible: Schema.Boolean,
+		manifest: Schema.optional(TriggerableJobManifest)
+	}),
+	checks: Schema.Array(TriggerCheck),
+	required_setup: Schema.Array(TriggerRequiredSetup),
+	activation_body: Schema.optional(TriggerActivateBody),
+	errors: Schema.optional(Schema.Array(Schema.Struct({
+		reason: TriggerErrorReason,
+		message: Schema.String,
+		path: Schema.optional(Schema.String)
+	})))
+});
+const TriggerRecord = Schema.Struct({
+	id: TriggerId,
+	workspace_id: WorkspaceId,
+	name: Schema.String,
+	description: Schema.NullOr(Schema.String),
+	kind: TriggerKind,
+	status: TriggerStatus,
+	target_job_name: Schema.String,
+	target_version_name: Schema.String,
+	trigger_manifest: Schema.optional(Schema.NullOr(TriggerableJobManifest)),
+	created_at: Schema.String,
+	updated_at: Schema.String,
+	activated_at: Schema.NullOr(Schema.String),
+	paused_at: Schema.NullOr(Schema.String),
+	disabled_at: Schema.NullOr(Schema.String)
+});
+const TriggerDeliveryRecord = Schema.Struct({
+	id: TriggerDeliveryId,
+	workspace_id: WorkspaceId,
+	trigger_id: TriggerId,
+	kind: TriggerKind,
+	status: TriggerDeliveryStatus,
+	scheduled_for: Schema.NullOr(Schema.String),
+	source_delivery_id: Schema.NullOr(Schema.String),
+	idempotency_key: Schema.String,
+	run_id: Schema.NullOr(Schema.String),
+	job_invocation_id: Schema.NullOr(Schema.String),
+	attempt_count: Schema.Number,
+	next_attempt_at: Schema.NullOr(Schema.String),
+	error_reason: Schema.NullOr(Schema.String),
+	error_message: Schema.NullOr(Schema.String),
+	created_at: Schema.String,
+	updated_at: Schema.String,
+	finished_at: Schema.NullOr(Schema.String)
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	delivery_id: TriggerDeliveryId,
+	reason: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	trigger_id: TriggerId
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	status: Schema.optional(TriggerStatus),
+	kind: Schema.optional(TriggerKind),
+	limit: Schema.optional(Schema.Number),
+	offset: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	triggers: Schema.Array(TriggerRecord),
+	count: Schema.Number
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	trigger_id: TriggerId
+});
+Schema.Struct({ trigger: TriggerRecord });
+Schema.Struct({ trigger: TriggerRecord });
+Schema.Struct({ trigger: TriggerRecord });
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	trigger_id: Schema.optional(TriggerId),
+	status: Schema.optional(TriggerDeliveryStatus),
+	limit: Schema.optional(Schema.Number),
+	offset: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	deliveries: Schema.Array(TriggerDeliveryRecord),
+	count: Schema.Number
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	delivery_id: TriggerDeliveryId
+});
+Schema.Struct({ delivery: TriggerDeliveryRecord });
+Schema.Struct({ workspace_id: WorkspaceId });
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	limits: TriggerLimits
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	limits: TriggerLimits
+});
+//#endregion
+//#region ../core-effect/src/orbit.ts
+const OrbitWorkspaceId = WorkspaceId;
+Schema.Literals([
+	"kv",
+	"blob",
+	"log",
+	"job",
+	"app"
+]);
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	run_id: Schema.optional(RunId)
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	key: Schema.NonEmptyString,
+	content_type: Schema.optional(Schema.String),
+	size_bytes: Schema.optional(Schema.Number)
+});
+const OrbitStorageKey = Schema.NonEmptyString.check(Schema.isMaxLength(512), Schema.isPattern(/^(?![\\/])(?!.*\.\.).+$/));
+const OrbitStorageEncoding = Schema.Union([
+	Schema.Literal("auto"),
+	Schema.Literal("metadata"),
+	Schema.Literal("text"),
+	Schema.Literal("json"),
+	Schema.Literal("base64")
+]);
+const OrbitStorageObject = Schema.Struct({
+	key: OrbitStorageKey,
+	size: Schema.Number,
+	uploaded: Schema.String,
+	content_type: Schema.String,
+	download_url: Schema.String,
+	expires_at: Schema.String,
+	expires_in_seconds: Schema.Number
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	prefix: Schema.optional(Schema.String),
+	limit: Schema.optional(Schema.Number),
+	cursor: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	objects: Schema.Array(OrbitStorageObject),
+	truncated: Schema.Boolean,
+	cursor: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	key: OrbitStorageKey,
+	data: Schema.Unknown,
+	content_type: Schema.optional(Schema.String),
+	encoding: Schema.optional(Schema.Union([
+		Schema.Literal("text"),
+		Schema.Literal("json"),
+		Schema.Literal("base64")
+	]))
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	key: OrbitStorageKey,
+	encoding: Schema.optional(OrbitStorageEncoding)
+});
+Schema.NullOr(Schema.Struct({
+	...OrbitStorageObject.fields,
+	encoding: Schema.Union([
+		Schema.Literal("metadata"),
+		Schema.Literal("text"),
+		Schema.Literal("json"),
+		Schema.Literal("base64")
+	]),
+	data: Schema.optional(Schema.Unknown)
+}));
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	key: OrbitStorageKey
+});
+Schema.Struct({
+	key: OrbitStorageKey,
+	download_url: Schema.String,
+	expires_at: Schema.String,
+	expires_in_seconds: Schema.Number
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	key: OrbitStorageKey
+});
+Schema.Struct({
+	deleted: Schema.Boolean,
+	key: OrbitStorageKey
+});
+const OrbitAiModelTask = Schema.Union([
+	Schema.Literal("text-generation"),
+	Schema.Literal("text-embeddings"),
+	Schema.Literal("classification"),
+	Schema.Literal("rerank"),
+	Schema.Literal("summarization")
+]);
+const OrbitAiModel = Schema.Struct({
+	id: Schema.String,
+	name: Schema.String,
+	task: OrbitAiModelTask,
+	provider: Schema.optional(Schema.String),
+	fast: Schema.optional(Schema.Boolean),
+	reasoning: Schema.optional(Schema.Boolean),
+	vision: Schema.optional(Schema.Boolean)
+});
+const OrbitAiModelsResultInfo = Schema.Struct({
+	count: Schema.optional(Schema.Number),
+	page: Schema.optional(Schema.Number),
+	per_page: Schema.optional(Schema.Number),
+	total_count: Schema.optional(Schema.Number),
+	total_pages: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	models: Schema.Array(OrbitAiModel),
+	workspace_allowed: Schema.optional(Schema.NullOr(Schema.Array(Schema.String))),
+	source: Schema.optional(Schema.String),
+	fallback_reason: Schema.optional(Schema.String),
+	result_info: Schema.optional(OrbitAiModelsResultInfo)
+});
+Schema.Struct({
+	model: Schema.optional(Schema.String),
+	temperature: Schema.optional(Schema.Number),
+	max_tokens: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	model: Schema.optional(Schema.String),
+	input: Schema.Unknown,
+	temperature: Schema.optional(Schema.Number),
+	max_tokens: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	model: Schema.String,
+	text: Schema.String,
+	raw: Schema.Unknown
+});
+Schema.Struct({
+	model: Schema.String,
+	summary: Schema.String,
+	raw: Schema.Unknown
+});
+Schema.Struct({
+	model: Schema.String,
+	embeddings: Schema.Array(Schema.Array(Schema.Number)),
+	raw: Schema.Unknown
+});
+Schema.Struct({
+	model: Schema.String,
+	label: Schema.String,
+	raw: Schema.Unknown
+});
+Schema.Struct({
+	model: Schema.String,
+	ranking: Schema.Unknown,
+	raw: Schema.Unknown
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	run_id: Schema.optional(Schema.String),
+	operation: Schema.optional(Schema.String),
+	limit: Schema.optional(Schema.Number),
+	offset: Schema.optional(Schema.Number)
+});
+const OrbitUsageRow = Schema.Struct({
+	id: Schema.String,
+	run_id: Schema.NullOr(Schema.String),
+	workspace_id: OrbitWorkspaceId,
+	operation: Schema.String,
+	key: Schema.NullOr(Schema.String),
+	model: Schema.NullOr(Schema.String),
+	size_bytes: Schema.NullOr(Schema.Number),
+	duration_ms: Schema.NullOr(Schema.Number),
+	error: Schema.NullOr(Schema.String),
+	created_at: Schema.String
+});
+Schema.Struct({
+	data: Schema.Array(OrbitUsageRow),
+	limit: Schema.Number,
+	offset: Schema.Number
+});
+const OrbitJobName = Schema.NonEmptyString.check(Schema.isMaxLength(128), Schema.isPattern(/^[a-z][a-z0-9-]{0,127}$/));
+const OrbitJobVersion = Schema.NonEmptyString.check(Schema.isMaxLength(32), Schema.isPattern(/^v[1-9][0-9]*$/));
+const OrbitJobStatus = Schema.Union([
+	Schema.Literal("ready"),
+	Schema.Literal("disabled"),
+	Schema.Literal("failed")
+]);
+const OrbitJobVersionStatus = Schema.Union([
+	Schema.Literal("validating"),
+	Schema.Literal("ready"),
+	Schema.Literal("failed"),
+	Schema.Literal("disabled")
+]);
+const OrbitJobExecutionLane = Schema.Union([
+	Schema.Literal("dynamic_worker"),
+	Schema.Literal("worker_platform"),
+	Schema.Literal("container"),
+	Schema.Literal("local_host")
+]);
+const OrbitJobRunLane = Schema.Literal("worker_platform");
+const OrbitJobCapability = Schema.Union([
+	Schema.Literal("storage"),
+	Schema.Literal("cache"),
+	Schema.Literal("ai"),
+	Schema.Literal("plugins"),
+	Schema.Literal("memory"),
+	Schema.Literal("data"),
+	Schema.Literal("workflow"),
+	Schema.Literal("sessions"),
+	Schema.Literal("socket")
+]);
+const OrbitJobKind = Schema.Union([
+	Schema.Literal("query"),
+	Schema.Literal("mutation"),
+	Schema.Literal("task")
+]);
+const OrbitJobIdempotency = Schema.Struct({
+	required: Schema.optional(Schema.Boolean),
+	key: Schema.optional(Schema.Union([Schema.String, Schema.Array(Schema.String)])),
+	ttl_seconds: Schema.optional(Schema.Number)
+});
+const OrbitJobRetryPolicy = Schema.Struct({
+	max_attempts: Schema.optional(Schema.Number),
+	backoff: Schema.optional(Schema.Union([
+		Schema.Literal("none"),
+		Schema.Literal("fixed"),
+		Schema.Literal("exponential")
+	]))
+});
+const OrbitJobRetentionPolicy = Schema.Struct({
+	run_ttl_seconds: Schema.optional(Schema.Number),
+	artifact_ttl_seconds: Schema.optional(Schema.Number)
+});
+const OrbitJobPublishRuntime = Schema.Union([
+	Schema.Literal("classic"),
+	Schema.Literal("bundled"),
+	Schema.Literal("define_job")
+]);
+const OrbitJobPublishBundle = Schema.Struct({
+	code: Schema.NonEmptyString,
+	sourcemap: Schema.optional(Schema.String),
+	hash: Schema.NonEmptyString,
+	bytes: Schema.Number
+});
+const OrbitJsonSchema = Schema.Record(Schema.String, Schema.Unknown);
+const OrbitJobArtifactRef = Schema.Struct({
+	id: Schema.String,
+	kind: Schema.String,
+	url: Schema.optional(Schema.String)
+});
+const OrbitJobDeploymentProvider = Schema.Union([
+	Schema.Literal("cloudflare_wfp"),
+	Schema.Literal("cloudflare_container"),
+	Schema.Literal("local")
+]);
+const OrbitJobDeploymentStatus = Schema.Union([
+	Schema.Literal("promoting"),
+	Schema.Literal("ready"),
+	Schema.Literal("failed"),
+	Schema.Literal("disabled")
+]);
+const OrbitJobSummary = Schema.Struct({
+	name: OrbitJobName,
+	description: Schema.NullOr(Schema.String),
+	latest_version: Schema.NullOr(OrbitJobVersion),
+	status: OrbitJobStatus,
+	kind: Schema.optional(OrbitJobKind),
+	tags: Schema.optional(Schema.Array(Schema.String)),
+	lane: Schema.optional(Schema.NullOr(OrbitJobExecutionLane)),
+	capabilities: Schema.Array(OrbitJobCapability),
+	deployment_id: Schema.optional(Schema.NullOr(Schema.String)),
+	deployment_provider: Schema.optional(Schema.NullOr(OrbitJobDeploymentProvider)),
+	deployment_status: Schema.optional(Schema.NullOr(OrbitJobDeploymentStatus)),
+	deployed_at: Schema.optional(Schema.NullOr(Schema.String)),
+	created_at: Schema.String
+});
+const OrbitJobVersionRecord = Schema.Struct({
+	version: OrbitJobVersion,
+	status: OrbitJobVersionStatus,
+	lane: OrbitJobExecutionLane,
+	capabilities: Schema.Array(OrbitJobCapability),
+	trigger_manifest: Schema.optional(Schema.NullOr(TriggerableJobManifest)),
+	deployment_id: Schema.optional(Schema.NullOr(Schema.String)),
+	deployment_provider: Schema.optional(Schema.NullOr(OrbitJobDeploymentProvider)),
+	deployment_status: Schema.optional(Schema.NullOr(OrbitJobDeploymentStatus)),
+	deployed_at: Schema.optional(Schema.NullOr(Schema.String)),
+	created_at: Schema.String,
+	error_message: Schema.NullOr(Schema.String)
+});
+const OrbitJobDetail = Schema.Struct({
+	name: OrbitJobName,
+	description: Schema.NullOr(Schema.String),
+	latest_version: Schema.NullOr(OrbitJobVersion),
+	status: OrbitJobStatus,
+	kind: Schema.optional(OrbitJobKind),
+	tags: Schema.optional(Schema.Array(Schema.String)),
+	lane: Schema.optional(Schema.NullOr(OrbitJobExecutionLane)),
+	capabilities: Schema.Array(OrbitJobCapability),
+	deployment_id: Schema.optional(Schema.NullOr(Schema.String)),
+	deployment_provider: Schema.optional(Schema.NullOr(OrbitJobDeploymentProvider)),
+	deployment_status: Schema.optional(Schema.NullOr(OrbitJobDeploymentStatus)),
+	deployed_at: Schema.optional(Schema.NullOr(Schema.String)),
+	input_schema: Schema.NullOr(OrbitJsonSchema),
+	output_schema: Schema.NullOr(OrbitJsonSchema),
+	trigger_manifest: Schema.optional(Schema.NullOr(TriggerableJobManifest)),
+	versions: Schema.Array(OrbitJobVersionRecord)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	limit: Schema.optional(Schema.Number),
+	offset: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	jobs: Schema.Array(OrbitJobSummary),
+	count: Schema.Number
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitJobName,
+	version: Schema.optional(OrbitJobVersion)
+});
+Schema.Struct({ job: OrbitJobDetail });
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitJobName,
+	description: Schema.optional(Schema.String),
+	kind: Schema.optional(OrbitJobKind),
+	tags: Schema.optional(Schema.Array(Schema.String)),
+	input_binding: Schema.optional(Schema.String),
+	input_schema: Schema.optional(OrbitJsonSchema),
+	output_schema: Schema.optional(OrbitJsonSchema),
+	capabilities: Schema.optional(Schema.Array(OrbitJobCapability)),
+	timeout_ms: Schema.optional(Schema.Number),
+	idempotency: Schema.optional(OrbitJobIdempotency),
+	retry: Schema.optional(OrbitJobRetryPolicy),
+	retention: Schema.optional(OrbitJobRetentionPolicy),
+	trigger_manifest: Schema.optional(TriggerableJobManifest),
+	compatibility_date: Schema.optional(Schema.String),
+	code: Schema.NonEmptyString,
+	runtime: Schema.optional(OrbitJobPublishRuntime),
+	bundle: Schema.optional(OrbitJobPublishBundle),
+	idempotency_key: Schema.optional(Schema.String),
+	allow_generic_schema: Schema.optional(Schema.Boolean)
+});
+Schema.Struct({
+	job: Schema.Struct({
+		name: OrbitJobName,
+		version: OrbitJobVersion,
+		status: OrbitJobVersionStatus,
+		lane: Schema.optional(OrbitJobExecutionLane),
+		deployment_id: Schema.optional(Schema.String),
+		capabilities: Schema.Array(OrbitJobCapability)
+	}),
+	timing: Schema.optional(Schema.Struct({
+		validate_ms: Schema.optional(Schema.Number),
+		schema_normalize_ms: Schema.optional(Schema.Number),
+		source_store_ms: Schema.optional(Schema.Number),
+		wfp_upload_ms: Schema.optional(Schema.Number),
+		deploy_ping_ms: Schema.optional(Schema.Number),
+		total_ms: Schema.Number
+	}))
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitJobName,
+	version: Schema.optional(OrbitJobVersion),
+	input: Schema.optional(Schema.Unknown),
+	timeout_ms: Schema.optional(Schema.Number),
+	lane: Schema.optional(OrbitJobRunLane),
+	idempotency_key: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	ok: Schema.Boolean,
+	job: OrbitJobName,
+	version: OrbitJobVersion,
+	run_id: Schema.String,
+	duration_ms: Schema.Number,
+	output: Schema.Unknown,
+	artifacts: Schema.Array(OrbitJobArtifactRef),
+	lane_used: Schema.optional(OrbitJobExecutionLane),
+	deployment_id: Schema.optional(Schema.NullOr(Schema.String))
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitJobName
+});
+Schema.Struct({
+	name: OrbitJobName,
+	versions: Schema.Array(OrbitJobVersionRecord)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitJobName,
+	version: Schema.optional(OrbitJobVersion)
+});
+Schema.Struct({
+	name: OrbitJobName,
+	version: Schema.NullOr(OrbitJobVersion),
+	disabled: Schema.Boolean
+});
+const OrbitJobInvocationStatus = Schema.Union([
+	Schema.Literal("running"),
+	Schema.Literal("completed"),
+	Schema.Literal("failed"),
+	Schema.Literal("cancelled")
+]);
+const OrbitJobCallerKind = Schema.Union([
+	Schema.Literal("user"),
+	Schema.Literal("agent"),
+	Schema.Literal("workflow"),
+	Schema.Literal("system"),
+	Schema.Literal("trigger")
+]);
+const OrbitJobInvocationSummary = Schema.Struct({
+	id: Schema.String,
+	job: OrbitJobName,
+	version: OrbitJobVersion,
+	status: OrbitJobInvocationStatus,
+	caller_kind: OrbitJobCallerKind,
+	caller_id: Schema.NullOr(Schema.String),
+	lane_used: Schema.NullOr(OrbitJobExecutionLane),
+	deployment_id: Schema.NullOr(Schema.String),
+	run_id: Schema.NullOr(Schema.String),
+	duration_ms: Schema.NullOr(Schema.Number),
+	error_code: Schema.NullOr(Schema.String),
+	error_message: Schema.NullOr(Schema.String),
+	created_at: Schema.String,
+	finished_at: Schema.NullOr(Schema.String)
+});
+const OrbitJobInvocationDetail = Schema.Struct({
+	...OrbitJobInvocationSummary.fields,
+	input: Schema.Unknown,
+	output: Schema.Unknown,
+	output_ref: Schema.NullOr(Schema.String)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: Schema.optional(OrbitJobName),
+	version: Schema.optional(OrbitJobVersion),
+	status: Schema.optional(OrbitJobInvocationStatus),
+	caller_kind: Schema.optional(OrbitJobCallerKind),
+	since: Schema.optional(Schema.String),
+	before: Schema.optional(Schema.String),
+	limit: Schema.optional(Schema.Number),
+	cursor: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	invocations: Schema.Array(OrbitJobInvocationSummary),
+	next_cursor: Schema.NullOr(Schema.String)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	invocation_id: Schema.NonEmptyString
+});
+Schema.Struct({ invocation: OrbitJobInvocationDetail });
+const OrbitAppName = Schema.NonEmptyString.check(Schema.isMaxLength(128), Schema.isPattern(/^[a-z][a-z0-9-]{0,127}$/));
+const OrbitAppVersion = Schema.NonEmptyString.check(Schema.isMaxLength(32), Schema.isPattern(/^v[1-9][0-9]*$/));
+const OrbitAppStatus = Schema.Union([
+	Schema.Literal("ready"),
+	Schema.Literal("disabled"),
+	Schema.Literal("failed")
+]);
+const OrbitAppVersionStatus = Schema.Union([
+	Schema.Literal("validating"),
+	Schema.Literal("ready"),
+	Schema.Literal("failed"),
+	Schema.Literal("disabled")
+]);
+const OrbitAppRouteMethod = Schema.Union([
+	Schema.Literal("GET"),
+	Schema.Literal("POST"),
+	Schema.Literal("PUT"),
+	Schema.Literal("PATCH"),
+	Schema.Literal("DELETE"),
+	Schema.Literal("OPTIONS")
+]);
+const OrbitAppRouteAuth = Schema.Union([
+	Schema.Literal("public"),
+	Schema.Literal("workspace_member"),
+	Schema.Literal("signed_link"),
+	Schema.Literal("service")
+]);
+const OrbitAppAccess = Schema.Union([Schema.Literal("public"), Schema.Literal("workspace_member")]);
+const OrbitAppInputAdapter = Schema.Union([
+	Schema.Literal("none"),
+	Schema.Literal("query"),
+	Schema.Literal("json"),
+	Schema.Literal("form"),
+	Schema.Literal("raw")
+]);
+const OrbitAppOutputAdapter = Schema.Union([
+	Schema.Literal("html"),
+	Schema.Literal("json"),
+	Schema.Literal("text"),
+	Schema.Literal("redirect"),
+	Schema.Literal("passthrough")
+]);
+const OrbitAppRoutePermission = Schema.Struct({
+	action: Schema.String,
+	resource: Schema.optional(Schema.String)
+});
+const OrbitAppTransform = Schema.Struct({
+	kind: Schema.Union([
+		Schema.Literal("none"),
+		Schema.Literal("template"),
+		Schema.Literal("jsonpath")
+	]),
+	value: Schema.optional(Schema.String)
+});
+const OrbitAppRateLimit = Schema.Struct({
+	window_seconds: Schema.Number,
+	max: Schema.Number
+});
+const OrbitAppJobRef = Schema.Struct({
+	name: OrbitJobName,
+	version: Schema.optional(OrbitJobVersion),
+	input_schema: Schema.optional(OrbitJsonSchema),
+	output_schema: Schema.optional(OrbitJsonSchema),
+	description: Schema.optional(Schema.String)
+});
+const OrbitAppRoute = Schema.Struct({
+	method: OrbitAppRouteMethod,
+	path: Schema.NonEmptyString,
+	id: Schema.optional(Schema.String),
+	title: Schema.optional(Schema.String),
+	tags: Schema.optional(Schema.Array(Schema.String)),
+	auth: OrbitAppRouteAuth,
+	permissions: Schema.optional(Schema.Array(OrbitAppRoutePermission)),
+	input: OrbitAppInputAdapter,
+	output: OrbitAppOutputAdapter,
+	input_transform: Schema.optional(OrbitAppTransform),
+	output_transform: Schema.optional(OrbitAppTransform),
+	job: Schema.optional(Schema.NonEmptyString),
+	static_html: Schema.optional(Schema.NonEmptyString),
+	rate_limit: Schema.optional(OrbitAppRateLimit)
+});
+const OrbitAppTheme = Schema.Struct({
+	title: Schema.optional(Schema.String),
+	description: Schema.optional(Schema.String),
+	accent: Schema.optional(Schema.String)
+});
+const OrbitAppPublishRuntime = Schema.Union([Schema.Literal("classic"), Schema.Literal("bundled")]);
+const OrbitAppPublishBundle = Schema.Struct({
+	code: Schema.NonEmptyString,
+	sourcemap: Schema.optional(Schema.String),
+	hash: Schema.NonEmptyString,
+	bytes: Schema.Number
+});
+const OrbitAppSummary = Schema.Struct({
+	name: OrbitAppName,
+	description: Schema.NullOr(Schema.String),
+	latest_version: Schema.NullOr(OrbitAppVersion),
+	status: OrbitAppStatus,
+	url: Schema.NullOr(Schema.String),
+	access: OrbitAppAccess,
+	created_at: Schema.String
+});
+const OrbitAppVersionRecord = Schema.Struct({
+	version: OrbitAppVersion,
+	status: OrbitAppVersionStatus,
+	route_count: Schema.Number,
+	job_count: Schema.Number,
+	created_at: Schema.String,
+	error_message: Schema.NullOr(Schema.String)
+});
+const OrbitAppDetail = Schema.Struct({
+	name: OrbitAppName,
+	description: Schema.NullOr(Schema.String),
+	latest_version: Schema.NullOr(OrbitAppVersion),
+	status: OrbitAppStatus,
+	url: Schema.NullOr(Schema.String),
+	access: OrbitAppAccess,
+	routes: Schema.Array(OrbitAppRoute),
+	jobs: Schema.Record(Schema.String, OrbitAppJobRef),
+	versions: Schema.Array(OrbitAppVersionRecord)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	limit: Schema.optional(Schema.Number),
+	offset: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	apps: Schema.Array(OrbitAppSummary),
+	count: Schema.Number
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitAppName,
+	version: Schema.optional(OrbitAppVersion)
+});
+Schema.Struct({ app: OrbitAppDetail });
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitAppName,
+	description: Schema.optional(Schema.String),
+	code: Schema.NonEmptyString,
+	runtime: Schema.optional(OrbitAppPublishRuntime),
+	bundle: Schema.optional(OrbitAppPublishBundle),
+	routes: Schema.Array(OrbitAppRoute),
+	jobs: Schema.Record(Schema.String, OrbitAppJobRef),
+	theme: Schema.optional(OrbitAppTheme),
+	allowed_origins: Schema.optional(Schema.Array(Schema.String)),
+	idempotency_key: Schema.optional(Schema.String)
+});
+Schema.Struct({ app: Schema.Struct({
+	name: OrbitAppName,
+	version: OrbitAppVersion,
+	status: OrbitAppVersionStatus,
+	url: Schema.String
+}) });
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitAppName,
+	version: Schema.optional(OrbitAppVersion)
+});
+Schema.Struct({
+	name: OrbitAppName,
+	version: Schema.NullOr(OrbitAppVersion),
+	disabled: Schema.Boolean
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitAppName,
+	access: OrbitAppAccess
+});
+Schema.Struct({
+	name: OrbitAppName,
+	access: OrbitAppAccess,
+	routes_updated: Schema.Number
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitAppName,
+	path: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	name: OrbitAppName,
+	url: Schema.String
+});
+const OrbitAppInvocationStatus = Schema.Union([
+	Schema.Literal("running"),
+	Schema.Literal("completed"),
+	Schema.Literal("failed"),
+	Schema.Literal("denied"),
+	Schema.Literal("rate_limited")
+]);
+const OrbitAppActorKind = Schema.Union([
+	Schema.Literal("anonymous"),
+	Schema.Literal("workspace_user"),
+	Schema.Literal("signed_link"),
+	Schema.Literal("service")
+]);
+const OrbitAppJobCallStatus = Schema.Union([
+	Schema.Literal("running"),
+	Schema.Literal("completed"),
+	Schema.Literal("failed")
+]);
+const OrbitAppInvocationSummary = Schema.Struct({
+	id: Schema.String,
+	app: OrbitAppName,
+	version: OrbitAppVersion,
+	deployment_id: Schema.NullOr(Schema.String),
+	method: Schema.String,
+	path: Schema.String,
+	route_job: Schema.NullOr(Schema.String),
+	actor_kind: OrbitAppActorKind,
+	actor_id: Schema.NullOr(Schema.String),
+	status: OrbitAppInvocationStatus,
+	status_code: Schema.NullOr(Schema.Number),
+	duration_ms: Schema.NullOr(Schema.Number),
+	error_message: Schema.NullOr(Schema.String),
+	created_at: Schema.String,
+	finished_at: Schema.NullOr(Schema.String),
+	job_call_count: Schema.Number
+});
+const OrbitAppJobCallSummary = Schema.Struct({
+	id: Schema.String,
+	job_invocation_id: Schema.NullOr(Schema.String),
+	job_name: Schema.String,
+	job_version: Schema.NullOr(Schema.String),
+	route_job: Schema.NullOr(Schema.String),
+	status: OrbitAppJobCallStatus,
+	error_message: Schema.NullOr(Schema.String),
+	duration_ms: Schema.NullOr(Schema.Number),
+	run_id: Schema.NullOr(Schema.String),
+	created_at: Schema.String,
+	finished_at: Schema.NullOr(Schema.String)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: Schema.optional(OrbitAppName),
+	version: Schema.optional(OrbitAppVersion),
+	route_job: Schema.optional(Schema.String),
+	status: Schema.optional(OrbitAppInvocationStatus),
+	actor_kind: Schema.optional(OrbitAppActorKind),
+	since: Schema.optional(Schema.String),
+	before: Schema.optional(Schema.String),
+	limit: Schema.optional(Schema.Number),
+	cursor: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	invocations: Schema.Array(OrbitAppInvocationSummary),
+	next_cursor: Schema.NullOr(Schema.String)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	invocation_id: Schema.NonEmptyString
+});
+Schema.Struct({
+	invocation: OrbitAppInvocationSummary,
+	job_calls: Schema.Array(OrbitAppJobCallSummary)
+});
+const OrbitAppActivityKind = Schema.Union([
+	Schema.Literal("invocation"),
+	Schema.Literal("version_change"),
+	Schema.Literal("admin_change")
+]);
+const OrbitAppActivityRow = Schema.Struct({
+	id: Schema.String,
+	kind: OrbitAppActivityKind,
+	type: Schema.String,
+	activity: Schema.String,
+	created_at: Schema.String
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	name: OrbitAppName,
+	limit: Schema.optional(Schema.Number),
+	cursor: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	activity: Schema.Array(OrbitAppActivityRow),
+	next_cursor: Schema.NullOr(Schema.String)
+});
+const OrbitSocketChannel = Schema.NonEmptyString.check(Schema.isMaxLength(128), Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/));
+const OrbitSocketPermission = Schema.Union([Schema.Literal("receive"), Schema.Literal("send")]);
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	channel: OrbitSocketChannel,
+	permissions: Schema.optional(Schema.Array(OrbitSocketPermission)),
+	expires_in_seconds: Schema.optional(Schema.Number),
+	allowed_origins: Schema.optional(Schema.Array(Schema.String))
+});
+Schema.Struct({
+	channel: OrbitSocketChannel,
+	url: Schema.String,
+	expires_at: Schema.String
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	channel: OrbitSocketChannel,
+	event: Schema.Unknown
+});
+Schema.Struct({
+	channel: OrbitSocketChannel,
+	delivered: Schema.Number
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	channel: OrbitSocketChannel
+});
+Schema.Struct({
+	channel: OrbitSocketChannel,
+	connections: Schema.Number
+});
+const OrbitDbTableName = Schema.NonEmptyString.check(Schema.isMaxLength(128), Schema.isPattern(/^[a-zA-Z_][a-zA-Z0-9_-]{0,127}$/));
+const OrbitDbTableSummary = Schema.Struct({
+	name: OrbitDbTableName,
+	type: Schema.Union([Schema.Literal("table"), Schema.Literal("view")]),
+	row_count: Schema.NullOr(Schema.Number),
+	columns: Schema.Array(Schema.Struct({
+		name: Schema.String,
+		type: Schema.String,
+		notnull: Schema.Boolean,
+		pk: Schema.Boolean
+	}))
+});
+Schema.Struct({ workspace_id: OrbitWorkspaceId });
+Schema.Struct({
+	workspace_database_id: Schema.NullOr(Schema.String),
+	workspace_database_name: Schema.NullOr(Schema.String),
+	status: Schema.Union([
+		Schema.Literal("ready"),
+		Schema.Literal("creating"),
+		Schema.Literal("failed"),
+		Schema.Literal("disabled")
+	]),
+	tables: Schema.Array(OrbitDbTableSummary)
+});
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	table: OrbitDbTableName,
+	limit: Schema.optional(Schema.Number),
+	offset: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	table: OrbitDbTableName,
+	columns: Schema.Array(Schema.String),
+	rows: Schema.Array(Schema.Record(Schema.String, Schema.Unknown)),
+	truncated: Schema.Boolean,
+	total_rows: Schema.NullOr(Schema.Number)
+});
+const OrbitReadinessSubjectKind = Schema.Union([
+	Schema.Literal("orbit_job_version"),
+	Schema.Literal("orbit_app_version"),
+	Schema.Literal("plugin_tool")
+]);
+Schema.Union([
+	Schema.Literal("deploy_ping"),
+	Schema.Literal("schema"),
+	Schema.Literal("risk"),
+	Schema.Literal("quality"),
+	Schema.Literal("smoke")
+]);
+const OrbitReadinessStatus = Schema.Union([
+	Schema.Literal("queued"),
+	Schema.Literal("running"),
+	Schema.Literal("healthy"),
+	Schema.Literal("degraded"),
+	Schema.Literal("broken"),
+	Schema.Literal("skipped")
+]);
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	subject_kind: OrbitReadinessSubjectKind,
+	subject_id: Schema.String,
+	status: OrbitReadinessStatus,
+	summary: Schema.Record(Schema.String, Schema.Unknown),
+	last_check_id: Schema.NullOr(Schema.String),
+	checked_at: Schema.NullOr(Schema.String),
+	changed_at: Schema.String,
+	updated_at: Schema.String
+});
+const OrbitBrandName = Schema.NonEmptyString.check(Schema.isMaxLength(128));
+const OrbitBrandLogoUrl = Schema.NonEmptyString.check(Schema.isMaxLength(2048));
+const OrbitBrandColor = Schema.NonEmptyString.check(Schema.isMaxLength(64), Schema.isPattern(/^\d*\.?\d+\s+\d*\.?\d+\s+\d*\.?\d+$/));
+const OrbitBrandFontFamily = Schema.NonEmptyString.check(Schema.isMaxLength(256));
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	brand_name: Schema.optional(OrbitBrandName),
+	brand_logo_url: Schema.optional(OrbitBrandLogoUrl),
+	primary_color: Schema.optional(OrbitBrandColor),
+	accent_color: Schema.optional(OrbitBrandColor),
+	font_family: Schema.optional(OrbitBrandFontFamily),
+	dark_mode_default: Schema.Boolean,
+	created_at: Schema.String,
+	updated_at: Schema.String,
+	updated_by: Schema.optional(Schema.String)
+});
+const ORBIT_PRIMITIVE_KEYS = [
+	"storage_put",
+	"storage_get",
+	"storage_list",
+	"storage_delete",
+	"storage_url",
+	"cache_get",
+	"cache_set",
+	"cache_delete",
+	"socket_url",
+	"socket_broadcast",
+	"socket_stats",
+	"tools_search",
+	"tools_describe",
+	"tools_namespaces",
+	"db_exec",
+	"db_query",
+	"db_first",
+	"db_batch",
+	"ai_run",
+	"ai_generate",
+	"ai_summarize",
+	"ai_embed",
+	"ai_classify",
+	"ai_rerank",
+	"ai_models"
+];
+const WFP_NATIVE_PRIMITIVE_KEYS = [
+	"db_exec",
+	"db_query",
+	"db_first",
+	"db_batch"
+];
+ORBIT_PRIMITIVE_KEYS.filter((key) => !WFP_NATIVE_PRIMITIVE_KEYS.includes(key));
+//#endregion
+//#region ../core-effect/src/rate-limit.ts
+const NonNegativeInteger = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0));
+const PositiveInteger = Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(1));
+const RateLimitScope = Schema.Literals([
+	"workspace",
+	"user",
+	"agent",
+	"ip",
+	"public"
+]);
+Schema.Struct({
+	id: Schema.String,
+	scope: RateLimitScope,
+	windowMs: PositiveInteger,
+	max: PositiveInteger,
+	costUnit: Schema.optional(Schema.String)
+});
+const RateLimitBucketSnapshot = Schema.Struct({
+	windowStartMs: NonNegativeInteger,
+	count: NonNegativeInteger
+});
+const RateLimitInfo = Schema.Struct({
+	policy_id: Schema.String,
+	scope: RateLimitScope,
+	limit: PositiveInteger,
+	window_ms: PositiveInteger,
+	remaining: NonNegativeInteger,
+	reset_at_ms: PositiveInteger
+});
+Schema.Struct({
+	allowed: Schema.Boolean,
+	retryAfterSec: NonNegativeInteger,
+	remaining: NonNegativeInteger,
+	resetAtMs: PositiveInteger,
+	bucket: RateLimitBucketSnapshot,
+	info: RateLimitInfo
+});
+Schema.Struct({
+	success: Schema.Literal(false),
+	error: Schema.String,
+	retry_after_sec: PositiveInteger,
+	rate_limit: RateLimitInfo
+});
+Context.Service("@hrbr/core/RateLimiter");
+//#endregion
+//#region ../core-effect/src/registry.ts
+const PluginCategory = Schema.Literals([
+	"search",
+	"ai",
+	"comms",
+	"dev",
+	"data",
+	"web",
+	"media",
+	"infra",
+	"observability",
+	"analytics",
+	"storage",
+	"other"
+]);
+const PluginRegistryManifestToolBinding = Schema.Union([
+	MCPToolBinding$1,
+	CliCommandBinding$1,
+	ApiRequestBinding$1,
+	ApiGraphqlBinding$1
+]);
+const PluginRegistryManifestTool = Schema.Struct({
+	tool_id: RegistryToolIdentifier$1,
+	name: RegistryToolIdentifier$1,
+	display_name: Schema.NonEmptyString,
+	description: Schema.optional(Schema.String),
+	title: Schema.optional(Schema.String),
+	input_schema: Schema.optional(Schema.Unknown),
+	output_schema: Schema.optional(Schema.Unknown),
+	annotations: Schema.optional(Schema.Unknown),
+	icons: Schema.optional(Schema.Unknown),
+	binding: PluginRegistryManifestToolBinding,
+	tags: Schema.optional(Schema.Array(Schema.NonEmptyString))
+});
+const PluginRegistryManifest = Schema.Struct({
+	tools: Schema.Array(PluginRegistryManifestTool),
+	shared_defs: Schema.optional(Schema.Unknown)
+});
+const PluginRegistryCliSetupRequiredSecret = Schema.Struct({
+	env: SecretName,
+	display_name: Schema.NonEmptyString,
+	description: Schema.NonEmptyString,
+	required: Schema.Boolean
+});
+const PluginRegistryCliSetupRunnableRequirement = Schema.Struct({
+	summary: Schema.NonEmptyString,
+	required_programs: Schema.Array(Schema.NonEmptyString)
+});
+const PluginRegistryCliSetupVerifyProbe = Schema.Struct({
+	args: Schema.Array(Schema.NonEmptyString),
+	success_message: Schema.NonEmptyString
+});
+const PluginRegistryCliSetupFailureMatcher = Schema.Struct({
+	kind: Schema.Literals(["substring", "regex"]),
+	pattern: Schema.NonEmptyString,
+	flags: Schema.optional(Schema.NonEmptyString)
+});
+const PluginRegistryCliSetupFailureHint = Schema.Struct({
+	matchers: Schema.Array(PluginRegistryCliSetupFailureMatcher),
+	message: Schema.NonEmptyString
+});
+const PluginRegistryCliSetup = Schema.Struct({
+	links: Schema.Array(SourceLink$1),
+	required_secrets: Schema.Array(PluginRegistryCliSetupRequiredSecret),
+	runnable: PluginRegistryCliSetupRunnableRequirement,
+	verify_probe: PluginRegistryCliSetupVerifyProbe,
+	failure_hints: Schema.Array(PluginRegistryCliSetupFailureHint)
+});
+const PluginRegistryApiSetupVerifyProbe = Schema.Union([Schema.Struct({
+	kind: Schema.Literal("request"),
+	method: Schema.Literals([
+		"GET",
+		"POST",
+		"PUT",
+		"PATCH",
+		"DELETE",
+		"HEAD"
+	]),
+	path: Schema.NonEmptyString,
+	query: Schema.optional(Schema.Record(Schema.NonEmptyString, Schema.String)),
+	headers: Schema.optional(Schema.Record(Schema.NonEmptyString, Schema.String)),
+	expected_status: Schema.optional(Schema.Number),
+	success_message: Schema.NonEmptyString
+}), Schema.Struct({
+	kind: Schema.Literal("graphql"),
+	method: Schema.Literal("POST"),
+	path: Schema.NonEmptyString,
+	document: Schema.NonEmptyString,
+	operation_name: Schema.optional(Schema.NonEmptyString),
+	variables_template: Schema.optional(Schema.Unknown),
+	headers: Schema.optional(Schema.Record(Schema.NonEmptyString, Schema.String)),
+	expected_status: Schema.optional(Schema.Number),
+	success_message: Schema.NonEmptyString
+})]);
+const PluginRegistryApiSetup = Schema.Struct({
+	links: Schema.Array(SourceLink$1),
+	base_url: Schema.NonEmptyString,
+	auth_mode: Schema.Literals([
+		"header",
+		"bearer",
+		"query",
+		"none",
+		"basic"
+	]),
+	required_secrets: Schema.Array(PluginRegistryCliSetupRequiredSecret),
+	verify_probe: PluginRegistryApiSetupVerifyProbe,
+	failure_hints: Schema.Array(PluginRegistryCliSetupFailureHint),
+	spec_url: Schema.optional(Schema.NonEmptyString),
+	graphql_endpoint: Schema.optional(Schema.NonEmptyString),
+	graphql_schema_url: Schema.optional(Schema.NonEmptyString),
+	default_headers: Schema.optional(Schema.Record(Schema.NonEmptyString, Schema.String)),
+	timeout_ms: Schema.optional(Schema.Number)
+});
+const PluginRegistryAuthTest = Schema.Struct({
+	method: Schema.Literals([
+		"GET",
+		"POST",
+		"PUT",
+		"PATCH",
+		"DELETE",
+		"HEAD"
+	]),
+	url: Schema.optional(Schema.NonEmptyString),
+	path: Schema.optional(Schema.NonEmptyString),
+	headers: Schema.optional(Schema.Record(Schema.NonEmptyString, Schema.String)),
+	body: Schema.optional(Schema.Unknown),
+	expected_status: Schema.optional(Schema.Number),
+	auth_template: AuthTemplate$1
+});
+const PluginRegistryAuth = Schema.Struct({
+	method: Schema.Literals([
+		"header",
+		"bearer",
+		"query",
+		"none",
+		"basic"
+	]),
+	header_name: Schema.optional(Schema.NonEmptyString),
+	query_param: Schema.optional(Schema.NonEmptyString),
+	prefix: Schema.optional(Schema.String),
+	required_secrets: Schema.Array(SecretName)
+});
+const PluginRegistryOAuthClientSeed = Schema.Struct({
+	client_id: Schema.optional(Schema.NonEmptyString),
+	client_secret: Schema.optional(Schema.NonEmptyString),
+	redirect_uri: Schema.optional(Schema.NonEmptyString),
+	scope: Schema.optional(Schema.NonEmptyString)
+});
+const PluginRegistrySkill = Schema.Struct({ slug: Schema.optional(RegistrySlug$1) });
+const PluginRegistryEntryFields = {
+	slug: RegistrySlug$1,
+	display_name: Schema.NonEmptyString,
+	description: Schema.NonEmptyString,
+	category: PluginCategory,
+	auth: PluginRegistryAuth,
+	oauth_client: Schema.optional(PluginRegistryOAuthClientSeed),
+	auth_test: Schema.optional(PluginRegistryAuthTest),
+	links: Schema.optional(Schema.Array(SourceLink$1)),
+	icon_url: Schema.optional(Schema.NonEmptyString),
+	skill: Schema.optional(PluginRegistrySkill),
+	default_namespace: SourceNamespace,
+	popularity: Schema.optional(Schema.Number),
+	is_oauth_client_configured: Schema.optional(Schema.Boolean)
+};
+const PluginRegistryMcpConfig = Schema.Struct({
+	mcp_endpoint: Schema.NonEmptyString,
+	mcp_transport: Schema.Literals(["http", "sse"]),
+	oauth_discovery: Schema.optional(OAuthDiscovery),
+	mcp_default_headers: Schema.optional(Schema.Record(Schema.NonEmptyString, Schema.String)),
+	composio_auth_config_id: Schema.optional(Schema.NonEmptyString)
+});
+const PluginRegistryCliConfig = Schema.Struct({
+	cli_launcher: Schema.Literals([
+		"binary",
+		"npx",
+		"uvx",
+		"bunx"
+	]),
+	cli_command: Schema.NonEmptyString,
+	cli_args: Schema.optional(Schema.Array(Schema.String)),
+	cli_cwd_policy: Schema.Literals([
+		"workspace",
+		"configured",
+		"call"
+	]),
+	cli_cwd: Schema.optional(Schema.String),
+	cli_allowed_env_keys: Schema.optional(Schema.Array(SecretName)),
+	sand_sandbox_policy: Schema.optional(SandIsolationPolicy),
+	sand_secret_bindings: Schema.optional(Schema.Array(SandSecretBinding)),
+	sand_runtime: Schema.optional(SandRuntimeSpec),
+	cli_result_defaults: Schema.optional(Schema.Struct({
+		sand_stdin_mode: Schema.optional(Schema.Literals([
+			"none",
+			"json",
+			"text"
+		])),
+		sand_result_mode: Schema.Literals([
+			"json_stdout",
+			"stdout_text",
+			"binary_base64",
+			"exit_code_only"
+		]),
+		streaming: Schema.optional(Schema.Boolean),
+		timeout_ms: Schema.optional(Schema.Number)
+	})),
+	sand_runtime_constraints: Schema.optional(SandRuntimeConstraints)
+});
+/**
+* Registry config for an SDK-native Composio source. Mirrors the source-side
+* `ComposioSourceConfig` (kind `composio`) without an MCP endpoint: discovery
+* and execution happen over Composio's REST tool API, keyed on
+* `composio_auth_config_id`, scoped to a single `toolkit_slug`.
+*/
+const PluginRegistryComposioConfig = Schema.Struct({
+	composio_auth_config_id: Schema.NonEmptyString,
+	toolkit_slug: Schema.NonEmptyString,
+	version: Schema.optional(Schema.NonEmptyString),
+	allowed_tools: Schema.optional(Schema.Array(Schema.NonEmptyString))
+});
+const PluginRegistryApiConfig = Schema.Struct({
+	api_protocol: Schema.optional(Schema.Literals([
+		"openapi",
+		"graphql",
+		"http"
+	])),
+	api_base_url: Schema.NonEmptyString,
+	api_allowed_hosts: Schema.optional(Schema.Array(Schema.NonEmptyString)),
+	api_spec_url: Schema.optional(Schema.NonEmptyString),
+	api_graphql_endpoint: Schema.optional(Schema.NonEmptyString),
+	api_graphql_schema_url: Schema.optional(Schema.NonEmptyString),
+	api_default_headers: Schema.optional(Schema.Record(Schema.NonEmptyString, Schema.String)),
+	api_timeout_ms: Schema.optional(Schema.Number),
+	api_auth: Schema.optional(ApiAuthConfig$1)
+});
+Schema.Union([
+	Schema.Struct({
+		...PluginRegistryEntryFields,
+		kind: Schema.Literal("mcp"),
+		config: PluginRegistryMcpConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
+	}),
+	Schema.Struct({
+		...PluginRegistryEntryFields,
+		kind: Schema.Literal("cli"),
+		cli_setup: PluginRegistryCliSetup,
+		config: PluginRegistryCliConfig,
+		manifest: PluginRegistryManifest
+	}),
+	Schema.Struct({
+		...PluginRegistryEntryFields,
+		kind: Schema.Literal("api"),
+		api_setup: PluginRegistryApiSetup,
+		config: PluginRegistryApiConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
+	}),
+	Schema.Struct({
+		...PluginRegistryEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
+	})
+]);
+const PluginRegistryEntryAvailability = Schema.Struct({
+	status: Schema.Literals(["active", "coming_soon"]),
+	selectable: Schema.Boolean,
+	hiddenInOnboarding: Schema.Boolean,
+	label: Schema.optional(Schema.String),
+	reason: Schema.optional(Schema.String),
+	code: Schema.optional(Schema.Literals([
+		"sse_only",
+		"manual_oauth_setup",
+		"requires_client_secret",
+		"install_verification_pending",
+		"known_broken",
+		"superseded_by_kind"
+	]))
+});
+const PluginRegistryPublicEntryFields = {
+	...PluginRegistryEntryFields,
+	availability: PluginRegistryEntryAvailability
+};
+const PluginRegistryPublicEntry = Schema.Union([
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("mcp"),
+		config: PluginRegistryMcpConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("cli"),
+		cli_setup: PluginRegistryCliSetup,
+		config: PluginRegistryCliConfig,
+		manifest: PluginRegistryManifest
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("api"),
+		api_setup: PluginRegistryApiSetup,
+		config: PluginRegistryApiConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig,
+		manifest: Schema.optional(PluginRegistryManifest)
+	})
+]);
+Schema.Struct({
+	data: Schema.Array(PluginRegistryPublicEntry),
+	total: Schema.Number,
+	limit: Schema.Number,
+	offset: Schema.Number,
+	hasMore: Schema.Boolean
+});
+const PluginRegistryPublicEntryWithoutManifest = Schema.Union([
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("mcp"),
+		config: PluginRegistryMcpConfig
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("cli"),
+		cli_setup: PluginRegistryCliSetup,
+		config: PluginRegistryCliConfig
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("api"),
+		api_setup: PluginRegistryApiSetup,
+		config: PluginRegistryApiConfig
+	}),
+	Schema.Struct({
+		...PluginRegistryPublicEntryFields,
+		kind: Schema.Literal("composio"),
+		config: PluginRegistryComposioConfig
+	})
+]);
+Schema.Struct({
+	data: Schema.Array(PluginRegistryPublicEntryWithoutManifest),
+	total: Schema.Number,
+	limit: Schema.Number,
+	offset: Schema.Number,
+	hasMore: Schema.Boolean
+});
+//#endregion
+//#region ../core-effect/src/run.ts
+const RunStatus = Schema.Literals([
+	"queued",
+	"running",
+	"completed",
+	"failed",
+	"cancelled"
+]);
+const RunSource = Schema.Literals([
+	"api",
+	"cli",
+	"worker"
+]);
+const SpanStatus = Schema.Literals([
+	"pending",
+	"success",
+	"error",
+	"warning"
+]);
+const SpanKind = Schema.Literals([
+	"run",
+	"mcp.tool_call",
+	"mcp.prompts_get",
+	"mcp.resources_read",
+	"mcp.notification",
+	"mcp.reconnect",
+	"api.request",
+	"api.graphql",
+	"cli.command",
+	"orbit.storage",
+	"orbit.cache",
+	"orbit.ai",
+	"orbit.db",
+	"orbit.fetch",
+	"orbit.job_invoke",
+	"secret.resolve",
+	"retry",
+	"agent.step",
+	"workflow.step",
+	"workflow.sleep",
+	"workflow.wait_event",
+	"log"
+]);
+const SpanError = Schema.Struct({
+	message: Schema.String,
+	code: Schema.optional(Schema.Union([Schema.String, Schema.Number])),
+	data: Schema.optional(Schema.Unknown)
+});
+const Span = Schema.Struct({
+	id: Schema.String,
+	run_id: Schema.String,
+	parent_id: Schema.NullOr(Schema.String),
+	agent_id: Schema.NullOr(Schema.String),
+	kind: SpanKind,
+	status: SpanStatus,
+	title: Schema.NullOr(Schema.String),
+	source_id: Schema.NullOr(Schema.String),
+	source_namespace: Schema.NullOr(Schema.String),
+	source_display_name: Schema.NullOr(Schema.String),
+	source_icon_url: Schema.NullOr(Schema.String),
+	tool_id: Schema.NullOr(Schema.String),
+	tool_name: Schema.NullOr(Schema.String),
+	tool_display_name: Schema.NullOr(Schema.String),
+	tool_description: Schema.NullOr(Schema.String),
+	tool_icons: Schema.optional(Schema.Unknown),
+	input_schema: Schema.optional(Schema.Unknown),
+	output_schema: Schema.optional(Schema.Unknown),
+	input: Schema.optional(Schema.Unknown),
+	output: Schema.optional(Schema.Unknown),
+	content_type: Schema.NullOr(Schema.String),
+	upstream_status: Schema.NullOr(Schema.Number),
+	error: Schema.NullOr(SpanError),
+	tokens_in: Schema.NullOr(Schema.Number),
+	tokens_out: Schema.NullOr(Schema.Number),
+	cost_usd: Schema.NullOr(Schema.Number),
+	started_at: Schema.String,
+	finished_at: Schema.NullOr(Schema.String),
+	duration_ms: Schema.NullOr(Schema.Number),
+	started_offset_ms: Schema.Number,
+	metadata: Schema.Unknown
+});
+const Run = Schema.Struct({
+	id: Schema.String,
+	workspace_id: Schema.String,
+	agent_id: Schema.String,
+	status: RunStatus,
+	source: RunSource,
+	trigger: Schema.NullOr(Schema.String),
+	input: Schema.optional(Schema.Unknown),
+	output: Schema.optional(Schema.Unknown),
+	error_message: Schema.NullOr(Schema.String),
+	error_code: Schema.NullOr(Schema.String),
+	exit_code: Schema.NullOr(Schema.Number),
+	duration_ms: Schema.NullOr(Schema.Number),
+	artifact_count: Schema.Number,
+	workflow_instance_id: Schema.optional(Schema.NullOr(Schema.String)),
+	started_at: Schema.NullOr(Schema.String),
+	finished_at: Schema.NullOr(Schema.String),
+	created_at: Schema.String,
+	sources: Schema.optional(Schema.Array(Schema.String))
+});
+Schema.Struct({
+	id: Schema.String,
+	name: Schema.String,
+	mime_type: Schema.String,
+	size_bytes: Schema.Number,
+	storage_key: Schema.NullOr(Schema.String),
+	created_at: Schema.String
+});
+const RunSummary = Schema.Struct({
+	span_count: Schema.Number,
+	error_count: Schema.Number,
+	retry_count: Schema.Number,
+	total_tokens_in: Schema.NullOr(Schema.Number),
+	total_tokens_out: Schema.NullOr(Schema.Number),
+	total_cost_usd: Schema.NullOr(Schema.Number)
+});
+Schema.Struct({
+	run: Run,
+	spans: Schema.Array(Span),
+	next_cursor: Schema.NullOr(Schema.String),
+	summary: RunSummary
+});
+Schema.Struct({
+	workspace_id: Schema.String.check(Schema.isUUID()),
+	run_id: Schema.String.check(Schema.isUUID())
+});
+Schema.Struct({
+	workspace_id: Schema.String.check(Schema.isUUID()),
+	run_id: Schema.String.check(Schema.isUUID()),
+	cursor: Schema.optional(Schema.String),
+	since_offset_ms: Schema.optional(Schema.Number)
+});
+Schema.Struct({
+	workspace_id: Schema.String.check(Schema.isUUID()),
+	agent_id: Schema.optional(Schema.String.check(Schema.isUUID())),
+	source: Schema.optional(Schema.String),
+	created_after: Schema.optional(Schema.String),
+	created_before: Schema.optional(Schema.String),
+	offset: Schema.optional(Schema.Number),
+	limit: Schema.optional(Schema.Number),
+	cursor: Schema.optional(Schema.String),
+	include_total: Schema.optional(Schema.Boolean)
+});
+Schema.Struct({
+	data: Schema.Array(Run),
+	total: Schema.optional(Schema.NullOr(Schema.Number)),
+	limit: Schema.Number,
+	offset: Schema.Number,
+	hasMore: Schema.Boolean,
+	nextCursor: Schema.optional(Schema.NullOr(Schema.String)),
+	source_options: Schema.optional(Schema.Array(Schema.String))
+});
+Schema.Struct({
+	workspace_id: Schema.String.check(Schema.isUUID()),
+	agent_id: Schema.optional(Schema.String.check(Schema.isUUID())),
+	input: Schema.optional(Schema.Unknown),
+	trigger: Schema.optional(Schema.String)
+});
+//#endregion
+//#region ../core-effect/src/runtime.ts
+const RuntimeExecutionKind = Schema.Literals([
+	"exec",
+	"tool_invocation",
+	"workflow"
+]);
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	kind: RuntimeExecutionKind,
+	run_id: Schema.optional(RunId),
+	payload: Schema.Unknown,
+	low_level: Schema.optional(SandboxRequest)
+});
+Schema.Struct({
+	ok: Schema.Boolean,
+	run_id: Schema.optional(RunId),
+	output: Schema.optional(Schema.Unknown),
+	error: Schema.optional(Schema.String),
+	low_level: Schema.optional(SandboxResult)
+});
+Context.Service("@hrbr/core/WorkspaceAuthorizer");
+Context.Service("@hrbr/core/RunStore");
+Context.Service("@hrbr/core/CredentialStore");
+Context.Service("@hrbr/core/SourceRegistry");
+Context.Service("@hrbr/core/McpSessionPool");
+Context.Service("@hrbr/core/RuntimeExecutor");
+Context.Service("@hrbr/core/ArtifactStore");
+Context.Service("@hrbr/core/ToolCatalog");
+Schema.Struct({ name: Schema.String.check(Schema.isTrimmed(), Schema.isMinLength(1), Schema.isMaxLength(100)) });
+Schema.Struct({
+	id: Schema.String,
+	email: Schema.String,
+	name: Schema.NullOr(Schema.String),
+	avatar_url: Schema.NullOr(Schema.String),
+	created_at: Schema.String,
+	default_workspace_id: Schema.NullOr(Schema.String)
+});
+Schema.Struct({
+	id: Schema.String,
+	name: Schema.String
+});
+Schema.Struct({ workspace_id: Schema.NullOr(Schema.NonEmptyString) });
+Schema.Struct({ default_workspace_id: Schema.NullOr(Schema.String) });
+Schema.Struct({ device_code: Schema.NonEmptyString });
+Schema.Struct({ workspace_id: WorkspaceId });
+Schema.Struct({ workspace_id: WorkspaceId });
+const WorkspaceRole = Schema.Literals([
+	"owner",
+	"admin",
+	"member",
+	"viewer"
+]);
+const ROLES = [
+	"owner",
+	"admin",
+	"member",
+	"viewer"
+];
+const Role = Schema.Literals(ROLES);
+const AssignableRole = Schema.Literals([
+	"admin",
+	"member",
+	"viewer"
+]);
+new Set(ROLES);
+const WorkspaceSlug = Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:-[a-z0-9]+)*$/));
+const Workspace = Schema.Struct({
+	id: Schema.String,
+	name: Schema.String,
+	slug: WorkspaceSlug,
+	role: Role,
+	current_user_id: Schema.optional(Schema.String),
+	current_user_email: Schema.optional(Schema.String),
+	current_user_name: Schema.optional(Schema.NullOr(Schema.String)),
+	current_user_avatar: Schema.optional(Schema.NullOr(Schema.String)),
+	created_at: Schema.optional(Schema.String),
+	updated_at: Schema.optional(Schema.String)
+});
+Schema.Struct({
+	name: Schema.NonEmptyString,
+	slug: WorkspaceSlug
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	name: Schema.optional(Schema.NonEmptyString),
+	slug: Schema.optional(WorkspaceSlug)
+});
+Schema.Struct({
+	limit: Schema.optional(Schema.Number),
+	offset: Schema.optional(Schema.Number),
+	cursor: Schema.optional(Schema.String),
+	include_total: Schema.optional(Schema.Boolean)
+});
+/**
+* Per-user onboarding state. Onboarding is a property of the human, not of
+* any single workspace membership, so it is exposed as a top-level block on
+* the workspaces listing rather than denormalized onto each workspace.
+*/
+const UserOnboarding = Schema.Struct({ onboardedAt: Schema.NullOr(Schema.String) });
+Schema.Struct({
+	data: Schema.Array(Workspace),
+	user: UserOnboarding,
+	total: Schema.optional(Schema.NullOr(Schema.Number)),
+	limit: Schema.Number,
+	offset: Schema.Number,
+	hasMore: Schema.Boolean,
+	nextCursor: Schema.optional(Schema.NullOr(Schema.String))
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	user_id: UserId,
+	role: WorkspaceRole,
+	created_at: Timestamp
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	member_id: WorkspaceId
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	member_id: WorkspaceId,
+	role: AssignableRole
+});
+Schema.Struct({
+	id: Schema.String,
+	user_id: Schema.String,
+	name: Schema.NullOr(Schema.String),
+	email: Schema.String,
+	avatar_url: Schema.NullOr(Schema.String),
+	role: Role,
+	joined_at: Schema.String,
+	is_current_user: Schema.optional(Schema.Boolean)
+});
+const InviteStatus = Schema.Literals([
+	"pending",
+	"accepted",
+	"revoked"
+]);
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	invite_id: WorkspaceId
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	email: Schema.NonEmptyString,
+	role: AssignableRole
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	invite_id: WorkspaceId
+});
+Schema.Struct({ invite_token: Schema.NonEmptyString });
+Schema.Struct({
+	id: Schema.String,
+	email: Schema.String,
+	role: Role,
+	invited_by_name: Schema.NullOr(Schema.String),
+	status: InviteStatus,
+	expires_at: Schema.NullOr(Schema.String),
+	created_at: Schema.String,
+	invite_token: Schema.optional(Schema.NullOr(Schema.String))
+});
+//#endregion
+//#region ../core-effect/src/workflow.ts
+const WorkflowId = Schema.NonEmptyString;
+Schema.Literals(["tool", "input"]);
+const WorkflowToolSlot = Schema.Struct({
+	kind: Schema.Literal("tool"),
+	slug: Schema.String
+});
+const WorkflowInputSlot = Schema.Struct({
+	kind: Schema.Literal("input"),
+	slug: Schema.String
+});
+const WorkflowSlot = Schema.Union([WorkflowToolSlot, WorkflowInputSlot]);
+const WorkflowOrGroup = Schema.Array(WorkflowSlot);
+Schema.Struct({
+	id: WorkflowId,
+	title: Schema.String,
+	description: Schema.String,
+	category: Schema.String,
+	defaultTools: Schema.Array(WorkflowToolSlot),
+	orGroups: Schema.Array(WorkflowOrGroup),
+	optionalTools: Schema.Array(WorkflowToolSlot),
+	bodyMarkdown: Schema.String,
+	contentHash: Schema.String
+});
+const WorkflowOwnerKind = Schema.Literals(["system", "workspace"]);
+const WorkflowUserSummary = Schema.Struct({
+	id: Schema.String,
+	name: Schema.NullOr(Schema.String),
+	email: Schema.NullOr(Schema.String),
+	avatar_url: Schema.NullOr(Schema.String)
+});
+const WorkflowUserSummarySchema = Schema.Struct({
+	id: Schema.String,
+	name: Schema.optional(Schema.NullOr(Schema.String)),
+	email: Schema.optional(Schema.NullOr(Schema.String)),
+	avatar_url: Schema.optional(Schema.NullOr(Schema.String))
+});
+const WorkflowPluginRequirement = Schema.Struct({
+	slug: Schema.String,
+	kind: Schema.optional(SourceKind$1),
+	optional: Schema.optional(Schema.Boolean)
+});
+const WorkflowSourceBinding = Schema.Struct({
+	slug: Schema.optional(Schema.String),
+	namespace: Schema.optional(Schema.String),
+	source_id: Schema.optional(Schema.String)
+});
+const WorkflowEntryShape = {
+	id: Schema.String,
+	title: Schema.String,
+	description: Schema.String,
+	category: Schema.optional(Schema.String),
+	content_hash: Schema.String,
+	owner_kind: WorkflowOwnerKind,
+	workspace_id: Schema.NullOr(Schema.String),
+	updated_by_user: Schema.NullOr(WorkflowUserSummarySchema),
+	version_name: Schema.NullOr(Schema.String),
+	version_number: Schema.NullOr(Schema.Number),
+	updated_at: Schema.optional(Schema.String),
+	default_tools: Schema.Array(Schema.Unknown),
+	or_groups: Schema.Array(Schema.Unknown),
+	optional_tools: Schema.Array(Schema.Unknown)
+};
+const WorkflowListEntrySchema = Schema.Struct(WorkflowEntryShape);
+Schema.Struct({ workflows: Schema.Array(WorkflowListEntrySchema) });
+Schema.Struct({
+	...WorkflowEntryShape,
+	body_markdown: Schema.optional(Schema.String)
+});
+Schema.Struct({ workspace_id: WorkspaceId });
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	workflow_id: WorkflowId
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	workflow_id: WorkflowId
+});
+Schema.Struct({
+	workspace_id: WorkspaceId,
+	workflow_id: WorkflowId
+});
+const WorkflowCatalogEntry = Schema.Struct({
+	id: Schema.String,
+	title: Schema.String,
+	description: Schema.String,
+	category: Schema.String,
+	content_hash: Schema.String,
+	owner_kind: WorkflowOwnerKind,
+	workspace_id: Schema.NullOr(Schema.String),
+	updated_by_user: Schema.NullOr(WorkflowUserSummary),
+	latest_version_id: Schema.NullOr(Schema.String),
+	version_name: Schema.NullOr(Schema.String),
+	version_number: Schema.NullOr(Schema.Number),
+	version_sequence: Schema.Number,
+	last_published_at: Schema.NullOr(Schema.String),
+	last_published_by: Schema.NullOr(Schema.String),
+	created_by: Schema.NullOr(Schema.String),
+	updated_by: Schema.NullOr(Schema.String),
+	created_at: Schema.String,
+	updated_at: Schema.String,
+	plugin_requirements: Schema.Array(WorkflowPluginRequirement),
+	source_bindings: Schema.Array(WorkflowSourceBinding),
+	default_tools: Schema.Array(WorkflowToolSlot),
+	or_groups: Schema.Array(WorkflowOrGroup),
+	optional_tools: Schema.Array(WorkflowToolSlot)
+});
+Schema.Struct({ workflows: Schema.Array(WorkflowCatalogEntry) });
+Schema.Struct({
+	...WorkflowCatalogEntry.fields,
+	body_markdown: Schema.String
+});
 //#endregion
 //#region ../plugins/src/lifecycle.ts
 var PluginLifecycle = class extends Context.Service()("PluginLifecycle") {};
@@ -1739,10 +4155,51 @@ const ApiSourceConfig = Schema.Struct({
 	timeout_ms: Schema.optional(Schema.Number),
 	auth: Schema.optional(ApiAuthConfig)
 });
+/**
+* SDK-native Composio source. Unlike a `kind:'mcp'` Composio source (which
+* speaks MCP over `backend.composio.dev/v3/mcp/...`), a `composio` source
+* discovers and invokes tools through Composio's REST tool API directly:
+*
+*   - discovery  → `GET /api/v3/tools?toolkit_slugs=<toolkit_slug>` returns
+*                  tool defs carrying strict input AND output JSON Schema.
+*   - execution  → `POST /api/v3/tools/execute/<tool_slug>` with the
+*                  persisted `composio_connected_account_id`.
+*
+* There is intentionally NO `endpoint` field — execution never touches the
+* MCP transport. Auth is the same Composio connected account established by
+* the managed-account OAuth flow (keyed on `composio_auth_config_id`), so
+* switching an existing MCP-backed Composio source to this kind requires no
+* re-auth.
+*/
+const ComposioSourceConfig = Schema.Struct({
+	kind: Schema.Literal("composio"),
+	/**
+	* Composio auth-config id. Drives the managed-account OAuth flow exactly
+	* like the MCP-backed Composio source, and is the key under which the
+	* connected account is created.
+	*/
+	composio_auth_config_id: Schema.NonEmptyString,
+	/** Composio toolkit slug to ingest, e.g. `gmail`, `google-calendar`, `slack`. */
+	toolkit_slug: Schema.NonEmptyString,
+	/** Optional Composio tool version pin applied to discovery + execution. */
+	version: Schema.optional(Schema.NonEmptyString),
+	/**
+	* When set, discovery keeps only these tool slugs from the toolkit. Absent
+	* means “all tools in the toolkit”.
+	*/
+	allowed_tools: Schema.optional(Schema.Array(Schema.NonEmptyString)),
+	/**
+	* Static HTTP headers reserved for parity with the other source configs.
+	* Composio platform auth (`x-api-key`) is sourced from the Worker env, not
+	* from here.
+	*/
+	default_headers: Schema.optional(Schema.Record(Schema.String, Schema.String))
+});
 const SourceConfig = Schema.Union([
 	MCPSourceConfig,
 	CliSourceConfig,
-	ApiSourceConfig
+	ApiSourceConfig,
+	ComposioSourceConfig
 ]);
 const AuthTemplate = AuthTemplate$1;
 const AuthConfig = Schema.Struct({
@@ -1979,6 +4436,16 @@ function registryAgentSkillSlug(entry, fallbackSlug) {
 	const slug = skill["slug"] ?? skill["skill_slug"] ?? skill["id"] ?? fallbackSlug;
 	return typeof slug === "string" && slug.length > 0 ? slug : null;
 }
+/**
+* A source "needs setup" when it requires an OAuth/credential connect or is in
+* a hard error state. These are exactly the per-source statuses whose
+* connect/reconnect flow the plugins page surfaces via the "Connect" button and
+* the detail page auto-opens on `?setup=1`. Transient states (no_tools,
+* discovering, pending, refreshing, ready) are NOT setup.
+*/
+function pluginSourceStatusNeedsSetup(status) {
+	return status === "requires_oauth" || status === "reconnect_required" || status === "needs_credentials" || status === "spec_error" || status === "credentials_error" || status === "mcp_disconnected" || status === "verification_failed" || status === "verification_required";
+}
 function isPluginSourceToolCallable(source) {
 	const status = source.effective_status ?? source.caller_status ?? source.status;
 	if (status === "requires_oauth" || status === "reconnect_required") return false;
@@ -2138,6 +4605,15 @@ const CliCommandBinding = Schema.Struct({
 	timeout_ms: Schema.optional(Schema.Number),
 	streaming: Schema.optional(Schema.Boolean)
 });
+const ComposioToolBinding = Schema.Struct({
+	kind: Schema.Literal("composio"),
+	/** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+	tool_slug: Schema.NonEmptyString,
+	/** Owning toolkit slug, e.g. `gmail`. Mirrors the source config; informational. */
+	toolkit_slug: Schema.optional(Schema.NonEmptyString),
+	/** Pinned Composio tool version. Forwarded to the execute call when set. */
+	version: Schema.optional(Schema.NonEmptyString)
+});
 const ToolBinding = Schema.Union([
 	MCPToolBinding,
 	MCPPromptBinding,
@@ -2145,7 +4621,8 @@ const ToolBinding = Schema.Union([
 	MCPResourceTemplateBinding,
 	ApiRequestBinding,
 	ApiGraphqlBinding,
-	CliCommandBinding
+	CliCommandBinding,
+	ComposioToolBinding
 ]);
 const ToolBindingJson = Schema.fromJsonString(ToolBinding);
 const SourceConfigJson = Schema.fromJsonString(SourceConfig);
@@ -2280,7 +4757,8 @@ const ToolSearchKind = Schema.Literals([
 	"mcp",
 	"cli_command",
 	"api_request",
-	"api_graphql"
+	"api_graphql",
+	"composio"
 ]);
 const ToolSearchResult = Schema.Struct({
 	tool_id: Schema.String,
@@ -2315,7 +4793,11 @@ const ToolSignatureHit = Schema.Struct({
 	score: Schema.Number,
 	kind: ToolSearchKind
 });
-const ToolsSearchResponse = Schema.Struct({ hits: Schema.Array(ToolSignatureHit) });
+const ToolsSearchResponse = Schema.Struct({
+	hits: Schema.Array(ToolSignatureHit),
+	results: Schema.Array(ToolSignatureHit),
+	usage_hint: Schema.String
+});
 const ToolDescribeResponse = Schema.Struct({
 	tool_id: Schema.String,
 	name: Schema.String,
@@ -2530,7 +5012,7 @@ const ToolIdBody = Schema.Struct({
 const AddSourceBody = Schema.Struct({
 	workspace_id: Schema.String.check(Schema.isUUID()),
 	kind: SourceKind,
-	namespace: Schema.NonEmptyString,
+	namespace: NormalizedSourceNamespace,
 	display_name: Schema.NonEmptyString,
 	config: Schema.Unknown,
 	auth_config: Schema.optional(Schema.Unknown),
@@ -2589,7 +5071,7 @@ const SourceVerificationProbeResult = Schema.Struct({
 const RegistryInstallBody = Schema.Struct({
 	workspace_id: Schema.String.check(Schema.isUUID()),
 	slug: RegistrySlug,
-	namespace: Schema.optional(RegistryNamespace),
+	namespace: Schema.optional(NormalizedSourceNamespace),
 	source_visibility: Schema.optional(SourceVisibility),
 	secrets_by_env: Schema.optional(Schema.Record(SecretEnvKey, Schema.NonEmptyString)),
 	/** @deprecated Use secrets_by_env with env-keyed values. */
@@ -2877,6 +5359,6 @@ const PLUGIN_CATEGORY_LABELS = {
 	other: "Other"
 };
 //#endregion
-export { AWAITING_OAUTH_SOURCE_STATUSES, AddSourceBody, AddSourceResult, AddToolBody, AddToolResult, ApiAuthConfig, ApiGraphqlBinding, ApiRequestBinding, ApiSourceConfig, AuthConfig, AuthTemplate, CliArgTemplateFlag, CliArgTemplateInput, CliArgTemplateLiteral, CliArgTemplateOption, CliArgTemplatePart, CliCommandBinding, CliCwdPolicy, CliLauncher, CliSandResultDefaults, CliSourceConfig, ComposioStaticAuthConfig, ComposioStaticAuthScheme, CredentialCreateBody, CredentialCreateResult, CredentialDeleteResult, CredentialIdBody, CredentialKind, CredentialListItem, CredentialUpsertBody, CredentialUpsertResult, CredentialsListBody, CredentialsListResult, CustomMcpAddConfig, DiscoveryResult, DiscoverySourceMetadata, ExecuteResult, ExecuteResultContent, ExecuteResultJsonContent, ExecuteResultSkillBundleContent, ExecuteResultTextContent, ExecuteSkillBundle, ExecuteSkillBundleFile, ExtractedTool, InvokeResult, InvokeResultContent, InvokeToolBody, InvokerResult, InvokerRuntimeConfig, MCPPromptBinding, MCPResourceReadBinding, MCPResourceTemplateBinding, MCPSourceConfig, MCPToolBinding, McpAnnotations, McpIcon, McpOAuthClientConfig, McpOAuthDiscovery, McpOAuthDiscoveryResult, McpProbeBody, McpProbeResult, McpServerInfo, MetaSearchBody, OAuthCallbackUrlResult, OAuthConfigureBody, OAuthConfigureResult, OAuthDisconnectResult, OAuthFlowStatusBody, OAuthFlowStatusResult, OAuthReconnectBody, OAuthSetupHints, OAuthSetupHintsBody, OAuthSetupHintsRegisterUrlSource, OAuthStartResult, PLUGIN_CATEGORY_LABELS, PersistedAuthConfig, PersistedAuthConfigJson, PluginCredential, PluginInstallJob, PluginInstallJobGetBody, PluginInstallJobListBody, PluginInstallJobListResult, PluginInstallJobStatus, PluginLifecycle, PluginSource, PluginSourceCreator, PluginTool, RefreshSourceBody, RefreshSourceResult, RegistryInstallBody, RegistryInstallJobResult, RegistryInstallResult, RegistryInstallSourceResult, RegistryListBody, RemoveSourceResult, ResolvedAuth, SOURCE_STATUSES, SourceAbandonResult, SourceAuthTestBody, SourceAuthTestRedactedRequest, SourceAuthTestResult, SourceCleanupStaleResult, SourceConfig, SourceConfigJson, SourceIdBody, SourceKind, SourceLink, SourceListBody, SourceListResult, SourceStatus, SourceSummary, SourceVerification, SourceVerificationGetBody, SourceVerificationGetResult, SourceVerificationProbeBody, SourceVerificationProbeResult, SourceVerificationSetBody, SourceVerificationSetResult, SourceVerificationStatus, SourceVerificationSummary, SourceVisibility, SourceVisibilitySetBody, SubmitSourceRequestBody, SubmitSourceRequestResult, ToolBinding, ToolBindingJson, ToolDescribeBody, ToolDescribeResponse, ToolIdBody, ToolIdsBody, ToolSchemaResponse, ToolSchemasResponse, ToolSearchKind, ToolSearchMode, ToolSearchResult, ToolSignatureHit, ToolsListBody, ToolsListResult, ToolsReindexBody, ToolsReindexResult, ToolsSearchBody, ToolsSearchResponse, WorkspaceOAuthClient, WorkspaceOAuthClientDeleteBody, WorkspaceOAuthClientDeleteResult, WorkspaceOAuthClientListBody, WorkspaceOAuthClientListResult, WorkspaceOAuthClientSetBody, WorkspaceOAuthClientSetResult, comparePluginSourcesForDisplay, displayPluginSourceStatus, effectivePluginSourceStatus, isPluginSourceAwaitingOauth, isPluginSourceRunnable, isPluginSourceToolCallable, pluginSourceDomainView, pluginSourceNextAction, pluginToolNamespaceSummary, registryAgentSkillSlug, selectRepresentativePluginSource, summarizePluginSourceGroupHealth };
+export { AWAITING_OAUTH_SOURCE_STATUSES, AddSourceBody, AddSourceResult, AddToolBody, AddToolResult, ApiAuthConfig, ApiGraphqlBinding, ApiRequestBinding, ApiSourceConfig, AuthConfig, AuthTemplate, CliArgTemplateFlag, CliArgTemplateInput, CliArgTemplateLiteral, CliArgTemplateOption, CliArgTemplatePart, CliCommandBinding, CliCwdPolicy, CliLauncher, CliSandResultDefaults, CliSourceConfig, ComposioSourceConfig, ComposioStaticAuthConfig, ComposioStaticAuthScheme, ComposioToolBinding, CredentialCreateBody, CredentialCreateResult, CredentialDeleteResult, CredentialIdBody, CredentialKind, CredentialListItem, CredentialUpsertBody, CredentialUpsertResult, CredentialsListBody, CredentialsListResult, CustomMcpAddConfig, DiscoveryResult, DiscoverySourceMetadata, ExecuteResult, ExecuteResultContent, ExecuteResultJsonContent, ExecuteResultSkillBundleContent, ExecuteResultTextContent, ExecuteSkillBundle, ExecuteSkillBundleFile, ExtractedTool, InvokeResult, InvokeResultContent, InvokeToolBody, InvokerResult, InvokerRuntimeConfig, MCPPromptBinding, MCPResourceReadBinding, MCPResourceTemplateBinding, MCPSourceConfig, MCPToolBinding, McpAnnotations, McpIcon, McpOAuthClientConfig, McpOAuthDiscovery, McpOAuthDiscoveryResult, McpProbeBody, McpProbeResult, McpServerInfo, MetaSearchBody, NormalizedSourceNamespace, OAuthCallbackUrlResult, OAuthConfigureBody, OAuthConfigureResult, OAuthDisconnectResult, OAuthFlowStatusBody, OAuthFlowStatusResult, OAuthReconnectBody, OAuthSetupHints, OAuthSetupHintsBody, OAuthSetupHintsRegisterUrlSource, OAuthStartResult, PLUGIN_CATEGORY_LABELS, PersistedAuthConfig, PersistedAuthConfigJson, PluginCredential, PluginInstallJob, PluginInstallJobGetBody, PluginInstallJobListBody, PluginInstallJobListResult, PluginInstallJobStatus, PluginLifecycle, PluginSource, PluginSourceCreator, PluginTool, RefreshSourceBody, RefreshSourceResult, RegistryInstallBody, RegistryInstallJobResult, RegistryInstallResult, RegistryInstallSourceResult, RegistryListBody, RemoveSourceResult, ResolvedAuth, SOURCE_STATUSES, SourceAbandonResult, SourceAuthTestBody, SourceAuthTestRedactedRequest, SourceAuthTestResult, SourceCleanupStaleResult, SourceConfig, SourceConfigJson, SourceIdBody, SourceKind, SourceLink, SourceListBody, SourceListResult, SourceStatus, SourceSummary, SourceVerification, SourceVerificationGetBody, SourceVerificationGetResult, SourceVerificationProbeBody, SourceVerificationProbeResult, SourceVerificationSetBody, SourceVerificationSetResult, SourceVerificationStatus, SourceVerificationSummary, SourceVisibility, SourceVisibilitySetBody, SubmitSourceRequestBody, SubmitSourceRequestResult, ToolBinding, ToolBindingJson, ToolDescribeBody, ToolDescribeResponse, ToolIdBody, ToolIdsBody, ToolSchemaResponse, ToolSchemasResponse, ToolSearchKind, ToolSearchMode, ToolSearchResult, ToolSignatureHit, ToolsListBody, ToolsListResult, ToolsReindexBody, ToolsReindexResult, ToolsSearchBody, ToolsSearchResponse, WorkspaceOAuthClient, WorkspaceOAuthClientDeleteBody, WorkspaceOAuthClientDeleteResult, WorkspaceOAuthClientListBody, WorkspaceOAuthClientListResult, WorkspaceOAuthClientSetBody, WorkspaceOAuthClientSetResult, comparePluginSourcesForDisplay, displayPluginSourceStatus, effectivePluginSourceStatus, isPluginSourceAwaitingOauth, isPluginSourceRunnable, isPluginSourceToolCallable, pluginSourceDomainView, pluginSourceNextAction, pluginSourceStatusNeedsSetup, pluginToolNamespaceSummary, registryAgentSkillSlug, sanitizeNamespace, selectRepresentativePluginSource, summarizePluginSourceGroupHealth };
 
 //# sourceMappingURL=base.mjs.map

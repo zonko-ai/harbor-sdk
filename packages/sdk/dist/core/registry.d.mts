@@ -1,7 +1,7 @@
 import { Schema } from "effect";
 
 //#region ../core-effect/src/source.d.ts
-declare const SourceKind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+declare const SourceKind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
 type SourceKind = typeof SourceKind.Type;
 //#endregion
 //#region ../core-effect/src/plugin.d.ts
@@ -84,6 +84,11 @@ declare const ProviderToolBinding: Schema.Union<readonly [Schema.Struct<{
   readonly sand_result_mode: Schema.Literals<readonly ["json_stdout", "stdout_text", "binary_base64", "exit_code_only"]>;
   readonly timeout_ms: Schema.optional<Schema.Number>;
   readonly streaming: Schema.optional<Schema.Boolean>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">; /** Composio tool slug, e.g. `GMAIL_SEND_EMAIL`. The execute call targets this. */
+  readonly tool_slug: Schema.NonEmptyString; /** Owning toolkit slug, e.g. `gmail`. Informational; mirrors the source config. */
+  readonly toolkit_slug: Schema.optional<Schema.NonEmptyString>; /** Pinned Composio tool version. Forwarded to the execute call when set. */
+  readonly version: Schema.optional<Schema.NonEmptyString>;
 }>]>;
 type ProviderToolBinding = typeof ProviderToolBinding.Type;
 //#endregion
@@ -576,6 +581,19 @@ declare const PluginRegistryCliConfig: Schema.Struct<{
   }>>;
 }>;
 type PluginRegistryCliConfig = typeof PluginRegistryCliConfig.Type;
+/**
+ * Registry config for an SDK-native Composio source. Mirrors the source-side
+ * `ComposioSourceConfig` (kind `composio`) without an MCP endpoint: discovery
+ * and execution happen over Composio's REST tool API, keyed on
+ * `composio_auth_config_id`, scoped to a single `toolkit_slug`.
+ */
+declare const PluginRegistryComposioConfig: Schema.Struct<{
+  readonly composio_auth_config_id: Schema.NonEmptyString;
+  readonly toolkit_slug: Schema.NonEmptyString;
+  readonly version: Schema.optional<Schema.NonEmptyString>;
+  readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+}>;
+type PluginRegistryComposioConfig = typeof PluginRegistryComposioConfig.Type;
 declare const PluginRegistryApiConfig: Schema.Struct<{
   readonly api_protocol: Schema.optional<Schema.Literals<readonly ["openapi", "graphql", "http"]>>;
   readonly api_base_url: Schema.NonEmptyString;
@@ -1081,6 +1099,158 @@ declare const PluginRegistryEntry: Schema.Union<readonly [Schema.Struct<{
       readonly password_env: Schema.optional<Schema.String>;
       readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
     }>>;
+  }>;
+  readonly manifest: Schema.optional<Schema.Struct<{
+    readonly tools: Schema.$Array<Schema.Struct<{
+      readonly tool_id: Schema.String;
+      readonly name: Schema.String;
+      readonly display_name: Schema.NonEmptyString;
+      readonly description: Schema.optional<Schema.String>;
+      readonly title: Schema.optional<Schema.String>;
+      readonly input_schema: Schema.optional<Schema.Unknown>;
+      readonly output_schema: Schema.optional<Schema.Unknown>;
+      readonly annotations: Schema.optional<Schema.Unknown>;
+      readonly icons: Schema.optional<Schema.Unknown>;
+      readonly binding: Schema.Union<readonly [Schema.Struct<{
+        readonly kind: Schema.Literal<"mcp">;
+        readonly tool_name: Schema.String;
+        readonly cached_input_schema: Schema.optional<Schema.Unknown>;
+        readonly cached_output_schema: Schema.optional<Schema.Unknown>;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"cli_command">;
+        readonly tool_name: Schema.String;
+        readonly argv_template: Schema.$Array<Schema.Union<readonly [Schema.Struct<{
+          readonly kind: Schema.Literal<"literal">;
+          readonly value: Schema.String;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"input">;
+          readonly path: Schema.NonEmptyString;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"option">;
+          readonly flag: Schema.NonEmptyString;
+          readonly path: Schema.NonEmptyString;
+          readonly omit_if_empty: Schema.optional<Schema.Boolean>;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"flag">;
+          readonly flag: Schema.NonEmptyString;
+          readonly path: Schema.NonEmptyString;
+        }>]>>;
+        readonly sand_stdin_mode: Schema.Literals<readonly ["none", "json", "text"]>;
+        readonly sand_result_mode: Schema.Literals<readonly ["json_stdout", "stdout_text", "binary_base64", "exit_code_only"]>;
+        readonly timeout_ms: Schema.optional<Schema.Number>;
+        readonly streaming: Schema.optional<Schema.Boolean>;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"api_request">;
+        readonly method: Schema.Literals<readonly ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]>;
+        readonly path: Schema.NonEmptyString;
+        readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+        readonly query: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+        readonly body_template: Schema.optional<Schema.Unknown>;
+        readonly timeout_ms: Schema.optional<Schema.Number>;
+        readonly auth: Schema.optional<Schema.Struct<{
+          readonly method: Schema.Literals<readonly ["none", "header", "bearer", "query", "basic"]>;
+          readonly required: Schema.optional<Schema.Boolean>;
+          readonly env: Schema.optional<Schema.String>;
+          readonly secret_name: Schema.optional<Schema.NonEmptyString>;
+          readonly header_name: Schema.optional<Schema.String>;
+          readonly query_param: Schema.optional<Schema.String>;
+          readonly prefix: Schema.optional<Schema.String>;
+          readonly username_env: Schema.optional<Schema.String>;
+          readonly username_secret_name: Schema.optional<Schema.NonEmptyString>;
+          readonly password_env: Schema.optional<Schema.String>;
+          readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
+        }>>;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"api_graphql">;
+        readonly path: Schema.optional<Schema.NonEmptyString>;
+        readonly document: Schema.NonEmptyString;
+        readonly operation_name: Schema.optional<Schema.NonEmptyString>;
+        readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+        readonly variables_template: Schema.optional<Schema.Unknown>;
+        readonly timeout_ms: Schema.optional<Schema.Number>;
+        readonly auth: Schema.optional<Schema.Struct<{
+          readonly method: Schema.Literals<readonly ["none", "header", "bearer", "query", "basic"]>;
+          readonly required: Schema.optional<Schema.Boolean>;
+          readonly env: Schema.optional<Schema.String>;
+          readonly secret_name: Schema.optional<Schema.NonEmptyString>;
+          readonly header_name: Schema.optional<Schema.String>;
+          readonly query_param: Schema.optional<Schema.String>;
+          readonly prefix: Schema.optional<Schema.String>;
+          readonly username_env: Schema.optional<Schema.String>;
+          readonly username_secret_name: Schema.optional<Schema.NonEmptyString>;
+          readonly password_env: Schema.optional<Schema.String>;
+          readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
+        }>>;
+      }>]>;
+      readonly tags: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+    }>>;
+    readonly shared_defs: Schema.optional<Schema.Unknown>;
+  }>>;
+  readonly slug: Schema.String;
+  readonly display_name: Schema.NonEmptyString;
+  readonly description: Schema.NonEmptyString;
+  readonly category: Schema.Literals<readonly ["search", "ai", "comms", "dev", "data", "web", "media", "infra", "observability", "analytics", "storage", "other"]>;
+  readonly auth: Schema.Struct<{
+    readonly method: Schema.Literals<readonly ["header", "bearer", "query", "none", "basic"]>;
+    readonly header_name: Schema.optional<Schema.NonEmptyString>;
+    readonly query_param: Schema.optional<Schema.NonEmptyString>;
+    readonly prefix: Schema.optional<Schema.String>;
+    readonly required_secrets: Schema.$Array<Schema.String>;
+  }>;
+  readonly oauth_client: Schema.optional<Schema.Struct<{
+    readonly client_id: Schema.optional<Schema.NonEmptyString>;
+    readonly client_secret: Schema.optional<Schema.NonEmptyString>;
+    readonly redirect_uri: Schema.optional<Schema.NonEmptyString>;
+    readonly scope: Schema.optional<Schema.NonEmptyString>;
+  }>>;
+  readonly auth_test: Schema.optional<Schema.Struct<{
+    readonly method: Schema.Literals<readonly ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]>;
+    readonly url: Schema.optional<Schema.NonEmptyString>;
+    readonly path: Schema.optional<Schema.NonEmptyString>;
+    readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+    readonly body: Schema.optional<Schema.Unknown>;
+    readonly expected_status: Schema.optional<Schema.Number>;
+    readonly auth_template: Schema.Union<readonly [Schema.Struct<{
+      readonly kind: Schema.Literal<"header">;
+      readonly header_name: Schema.NonEmptyString;
+      readonly value_template: Schema.NonEmptyString;
+      readonly secret_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"query">;
+      readonly query_param: Schema.NonEmptyString;
+      readonly value_template: Schema.NonEmptyString;
+      readonly secret_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"basic">;
+      readonly username_slot: Schema.NonEmptyString;
+      readonly password_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"oauth_grant">;
+      readonly header_name: Schema.optional<Schema.String>;
+      readonly value_template: Schema.optional<Schema.String>;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"none">;
+    }>]>;
+  }>>;
+  readonly links: Schema.optional<Schema.$Array<Schema.Struct<{
+    readonly label: Schema.String;
+    readonly url: Schema.String;
+    readonly kind: Schema.Literals<readonly ["docs", "dashboard", "api"]>;
+  }>>>;
+  readonly icon_url: Schema.optional<Schema.NonEmptyString>;
+  readonly skill: Schema.optional<Schema.Struct<{
+    readonly slug: Schema.optional<Schema.String>;
+  }>>;
+  readonly default_namespace: Schema.String;
+  readonly popularity: Schema.optional<Schema.Number>;
+  readonly is_oauth_client_configured: Schema.optional<Schema.Boolean>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">;
+  readonly config: Schema.Struct<{
+    readonly composio_auth_config_id: Schema.NonEmptyString;
+    readonly toolkit_slug: Schema.NonEmptyString;
+    readonly version: Schema.optional<Schema.NonEmptyString>;
+    readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
   }>;
   readonly manifest: Schema.optional<Schema.Struct<{
     readonly tools: Schema.$Array<Schema.Struct<{
@@ -1890,6 +2060,166 @@ declare const PluginRegistryPublicEntry: Schema.Union<readonly [Schema.Struct<{
   readonly default_namespace: Schema.String;
   readonly popularity: Schema.optional<Schema.Number>;
   readonly is_oauth_client_configured: Schema.optional<Schema.Boolean>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">;
+  readonly config: Schema.Struct<{
+    readonly composio_auth_config_id: Schema.NonEmptyString;
+    readonly toolkit_slug: Schema.NonEmptyString;
+    readonly version: Schema.optional<Schema.NonEmptyString>;
+    readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+  }>;
+  readonly manifest: Schema.optional<Schema.Struct<{
+    readonly tools: Schema.$Array<Schema.Struct<{
+      readonly tool_id: Schema.String;
+      readonly name: Schema.String;
+      readonly display_name: Schema.NonEmptyString;
+      readonly description: Schema.optional<Schema.String>;
+      readonly title: Schema.optional<Schema.String>;
+      readonly input_schema: Schema.optional<Schema.Unknown>;
+      readonly output_schema: Schema.optional<Schema.Unknown>;
+      readonly annotations: Schema.optional<Schema.Unknown>;
+      readonly icons: Schema.optional<Schema.Unknown>;
+      readonly binding: Schema.Union<readonly [Schema.Struct<{
+        readonly kind: Schema.Literal<"mcp">;
+        readonly tool_name: Schema.String;
+        readonly cached_input_schema: Schema.optional<Schema.Unknown>;
+        readonly cached_output_schema: Schema.optional<Schema.Unknown>;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"cli_command">;
+        readonly tool_name: Schema.String;
+        readonly argv_template: Schema.$Array<Schema.Union<readonly [Schema.Struct<{
+          readonly kind: Schema.Literal<"literal">;
+          readonly value: Schema.String;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"input">;
+          readonly path: Schema.NonEmptyString;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"option">;
+          readonly flag: Schema.NonEmptyString;
+          readonly path: Schema.NonEmptyString;
+          readonly omit_if_empty: Schema.optional<Schema.Boolean>;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"flag">;
+          readonly flag: Schema.NonEmptyString;
+          readonly path: Schema.NonEmptyString;
+        }>]>>;
+        readonly sand_stdin_mode: Schema.Literals<readonly ["none", "json", "text"]>;
+        readonly sand_result_mode: Schema.Literals<readonly ["json_stdout", "stdout_text", "binary_base64", "exit_code_only"]>;
+        readonly timeout_ms: Schema.optional<Schema.Number>;
+        readonly streaming: Schema.optional<Schema.Boolean>;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"api_request">;
+        readonly method: Schema.Literals<readonly ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]>;
+        readonly path: Schema.NonEmptyString;
+        readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+        readonly query: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+        readonly body_template: Schema.optional<Schema.Unknown>;
+        readonly timeout_ms: Schema.optional<Schema.Number>;
+        readonly auth: Schema.optional<Schema.Struct<{
+          readonly method: Schema.Literals<readonly ["none", "header", "bearer", "query", "basic"]>;
+          readonly required: Schema.optional<Schema.Boolean>;
+          readonly env: Schema.optional<Schema.String>;
+          readonly secret_name: Schema.optional<Schema.NonEmptyString>;
+          readonly header_name: Schema.optional<Schema.String>;
+          readonly query_param: Schema.optional<Schema.String>;
+          readonly prefix: Schema.optional<Schema.String>;
+          readonly username_env: Schema.optional<Schema.String>;
+          readonly username_secret_name: Schema.optional<Schema.NonEmptyString>;
+          readonly password_env: Schema.optional<Schema.String>;
+          readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
+        }>>;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"api_graphql">;
+        readonly path: Schema.optional<Schema.NonEmptyString>;
+        readonly document: Schema.NonEmptyString;
+        readonly operation_name: Schema.optional<Schema.NonEmptyString>;
+        readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+        readonly variables_template: Schema.optional<Schema.Unknown>;
+        readonly timeout_ms: Schema.optional<Schema.Number>;
+        readonly auth: Schema.optional<Schema.Struct<{
+          readonly method: Schema.Literals<readonly ["none", "header", "bearer", "query", "basic"]>;
+          readonly required: Schema.optional<Schema.Boolean>;
+          readonly env: Schema.optional<Schema.String>;
+          readonly secret_name: Schema.optional<Schema.NonEmptyString>;
+          readonly header_name: Schema.optional<Schema.String>;
+          readonly query_param: Schema.optional<Schema.String>;
+          readonly prefix: Schema.optional<Schema.String>;
+          readonly username_env: Schema.optional<Schema.String>;
+          readonly username_secret_name: Schema.optional<Schema.NonEmptyString>;
+          readonly password_env: Schema.optional<Schema.String>;
+          readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
+        }>>;
+      }>]>;
+      readonly tags: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+    }>>;
+    readonly shared_defs: Schema.optional<Schema.Unknown>;
+  }>>;
+  readonly availability: Schema.Struct<{
+    readonly status: Schema.Literals<readonly ["active", "coming_soon"]>;
+    readonly selectable: Schema.Boolean;
+    readonly hiddenInOnboarding: Schema.Boolean;
+    readonly label: Schema.optional<Schema.String>;
+    readonly reason: Schema.optional<Schema.String>;
+    readonly code: Schema.optional<Schema.Literals<readonly ["sse_only", "manual_oauth_setup", "requires_client_secret", "install_verification_pending", "known_broken", "superseded_by_kind"]>>;
+  }>;
+  readonly slug: Schema.String;
+  readonly display_name: Schema.NonEmptyString;
+  readonly description: Schema.NonEmptyString;
+  readonly category: Schema.Literals<readonly ["search", "ai", "comms", "dev", "data", "web", "media", "infra", "observability", "analytics", "storage", "other"]>;
+  readonly auth: Schema.Struct<{
+    readonly method: Schema.Literals<readonly ["header", "bearer", "query", "none", "basic"]>;
+    readonly header_name: Schema.optional<Schema.NonEmptyString>;
+    readonly query_param: Schema.optional<Schema.NonEmptyString>;
+    readonly prefix: Schema.optional<Schema.String>;
+    readonly required_secrets: Schema.$Array<Schema.String>;
+  }>;
+  readonly oauth_client: Schema.optional<Schema.Struct<{
+    readonly client_id: Schema.optional<Schema.NonEmptyString>;
+    readonly client_secret: Schema.optional<Schema.NonEmptyString>;
+    readonly redirect_uri: Schema.optional<Schema.NonEmptyString>;
+    readonly scope: Schema.optional<Schema.NonEmptyString>;
+  }>>;
+  readonly auth_test: Schema.optional<Schema.Struct<{
+    readonly method: Schema.Literals<readonly ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]>;
+    readonly url: Schema.optional<Schema.NonEmptyString>;
+    readonly path: Schema.optional<Schema.NonEmptyString>;
+    readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+    readonly body: Schema.optional<Schema.Unknown>;
+    readonly expected_status: Schema.optional<Schema.Number>;
+    readonly auth_template: Schema.Union<readonly [Schema.Struct<{
+      readonly kind: Schema.Literal<"header">;
+      readonly header_name: Schema.NonEmptyString;
+      readonly value_template: Schema.NonEmptyString;
+      readonly secret_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"query">;
+      readonly query_param: Schema.NonEmptyString;
+      readonly value_template: Schema.NonEmptyString;
+      readonly secret_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"basic">;
+      readonly username_slot: Schema.NonEmptyString;
+      readonly password_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"oauth_grant">;
+      readonly header_name: Schema.optional<Schema.String>;
+      readonly value_template: Schema.optional<Schema.String>;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"none">;
+    }>]>;
+  }>>;
+  readonly links: Schema.optional<Schema.$Array<Schema.Struct<{
+    readonly label: Schema.String;
+    readonly url: Schema.String;
+    readonly kind: Schema.Literals<readonly ["docs", "dashboard", "api"]>;
+  }>>>;
+  readonly icon_url: Schema.optional<Schema.NonEmptyString>;
+  readonly skill: Schema.optional<Schema.Struct<{
+    readonly slug: Schema.optional<Schema.String>;
+  }>>;
+  readonly default_namespace: Schema.String;
+  readonly popularity: Schema.optional<Schema.Number>;
+  readonly is_oauth_client_configured: Schema.optional<Schema.Boolean>;
 }>]>;
 type PluginRegistryPublicEntry = typeof PluginRegistryPublicEntry.Type;
 declare const PluginRegistryListResult: Schema.Struct<{
@@ -2543,6 +2873,166 @@ declare const PluginRegistryListResult: Schema.Struct<{
     readonly default_namespace: Schema.String;
     readonly popularity: Schema.optional<Schema.Number>;
     readonly is_oauth_client_configured: Schema.optional<Schema.Boolean>;
+  }>, Schema.Struct<{
+    readonly kind: Schema.Literal<"composio">;
+    readonly config: Schema.Struct<{
+      readonly composio_auth_config_id: Schema.NonEmptyString;
+      readonly toolkit_slug: Schema.NonEmptyString;
+      readonly version: Schema.optional<Schema.NonEmptyString>;
+      readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+    }>;
+    readonly manifest: Schema.optional<Schema.Struct<{
+      readonly tools: Schema.$Array<Schema.Struct<{
+        readonly tool_id: Schema.String;
+        readonly name: Schema.String;
+        readonly display_name: Schema.NonEmptyString;
+        readonly description: Schema.optional<Schema.String>;
+        readonly title: Schema.optional<Schema.String>;
+        readonly input_schema: Schema.optional<Schema.Unknown>;
+        readonly output_schema: Schema.optional<Schema.Unknown>;
+        readonly annotations: Schema.optional<Schema.Unknown>;
+        readonly icons: Schema.optional<Schema.Unknown>;
+        readonly binding: Schema.Union<readonly [Schema.Struct<{
+          readonly kind: Schema.Literal<"mcp">;
+          readonly tool_name: Schema.String;
+          readonly cached_input_schema: Schema.optional<Schema.Unknown>;
+          readonly cached_output_schema: Schema.optional<Schema.Unknown>;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"cli_command">;
+          readonly tool_name: Schema.String;
+          readonly argv_template: Schema.$Array<Schema.Union<readonly [Schema.Struct<{
+            readonly kind: Schema.Literal<"literal">;
+            readonly value: Schema.String;
+          }>, Schema.Struct<{
+            readonly kind: Schema.Literal<"input">;
+            readonly path: Schema.NonEmptyString;
+          }>, Schema.Struct<{
+            readonly kind: Schema.Literal<"option">;
+            readonly flag: Schema.NonEmptyString;
+            readonly path: Schema.NonEmptyString;
+            readonly omit_if_empty: Schema.optional<Schema.Boolean>;
+          }>, Schema.Struct<{
+            readonly kind: Schema.Literal<"flag">;
+            readonly flag: Schema.NonEmptyString;
+            readonly path: Schema.NonEmptyString;
+          }>]>>;
+          readonly sand_stdin_mode: Schema.Literals<readonly ["none", "json", "text"]>;
+          readonly sand_result_mode: Schema.Literals<readonly ["json_stdout", "stdout_text", "binary_base64", "exit_code_only"]>;
+          readonly timeout_ms: Schema.optional<Schema.Number>;
+          readonly streaming: Schema.optional<Schema.Boolean>;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"api_request">;
+          readonly method: Schema.Literals<readonly ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]>;
+          readonly path: Schema.NonEmptyString;
+          readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+          readonly query: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+          readonly body_template: Schema.optional<Schema.Unknown>;
+          readonly timeout_ms: Schema.optional<Schema.Number>;
+          readonly auth: Schema.optional<Schema.Struct<{
+            readonly method: Schema.Literals<readonly ["none", "header", "bearer", "query", "basic"]>;
+            readonly required: Schema.optional<Schema.Boolean>;
+            readonly env: Schema.optional<Schema.String>;
+            readonly secret_name: Schema.optional<Schema.NonEmptyString>;
+            readonly header_name: Schema.optional<Schema.String>;
+            readonly query_param: Schema.optional<Schema.String>;
+            readonly prefix: Schema.optional<Schema.String>;
+            readonly username_env: Schema.optional<Schema.String>;
+            readonly username_secret_name: Schema.optional<Schema.NonEmptyString>;
+            readonly password_env: Schema.optional<Schema.String>;
+            readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
+          }>>;
+        }>, Schema.Struct<{
+          readonly kind: Schema.Literal<"api_graphql">;
+          readonly path: Schema.optional<Schema.NonEmptyString>;
+          readonly document: Schema.NonEmptyString;
+          readonly operation_name: Schema.optional<Schema.NonEmptyString>;
+          readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+          readonly variables_template: Schema.optional<Schema.Unknown>;
+          readonly timeout_ms: Schema.optional<Schema.Number>;
+          readonly auth: Schema.optional<Schema.Struct<{
+            readonly method: Schema.Literals<readonly ["none", "header", "bearer", "query", "basic"]>;
+            readonly required: Schema.optional<Schema.Boolean>;
+            readonly env: Schema.optional<Schema.String>;
+            readonly secret_name: Schema.optional<Schema.NonEmptyString>;
+            readonly header_name: Schema.optional<Schema.String>;
+            readonly query_param: Schema.optional<Schema.String>;
+            readonly prefix: Schema.optional<Schema.String>;
+            readonly username_env: Schema.optional<Schema.String>;
+            readonly username_secret_name: Schema.optional<Schema.NonEmptyString>;
+            readonly password_env: Schema.optional<Schema.String>;
+            readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
+          }>>;
+        }>]>;
+        readonly tags: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+      }>>;
+      readonly shared_defs: Schema.optional<Schema.Unknown>;
+    }>>;
+    readonly availability: Schema.Struct<{
+      readonly status: Schema.Literals<readonly ["active", "coming_soon"]>;
+      readonly selectable: Schema.Boolean;
+      readonly hiddenInOnboarding: Schema.Boolean;
+      readonly label: Schema.optional<Schema.String>;
+      readonly reason: Schema.optional<Schema.String>;
+      readonly code: Schema.optional<Schema.Literals<readonly ["sse_only", "manual_oauth_setup", "requires_client_secret", "install_verification_pending", "known_broken", "superseded_by_kind"]>>;
+    }>;
+    readonly slug: Schema.String;
+    readonly display_name: Schema.NonEmptyString;
+    readonly description: Schema.NonEmptyString;
+    readonly category: Schema.Literals<readonly ["search", "ai", "comms", "dev", "data", "web", "media", "infra", "observability", "analytics", "storage", "other"]>;
+    readonly auth: Schema.Struct<{
+      readonly method: Schema.Literals<readonly ["header", "bearer", "query", "none", "basic"]>;
+      readonly header_name: Schema.optional<Schema.NonEmptyString>;
+      readonly query_param: Schema.optional<Schema.NonEmptyString>;
+      readonly prefix: Schema.optional<Schema.String>;
+      readonly required_secrets: Schema.$Array<Schema.String>;
+    }>;
+    readonly oauth_client: Schema.optional<Schema.Struct<{
+      readonly client_id: Schema.optional<Schema.NonEmptyString>;
+      readonly client_secret: Schema.optional<Schema.NonEmptyString>;
+      readonly redirect_uri: Schema.optional<Schema.NonEmptyString>;
+      readonly scope: Schema.optional<Schema.NonEmptyString>;
+    }>>;
+    readonly auth_test: Schema.optional<Schema.Struct<{
+      readonly method: Schema.Literals<readonly ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]>;
+      readonly url: Schema.optional<Schema.NonEmptyString>;
+      readonly path: Schema.optional<Schema.NonEmptyString>;
+      readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+      readonly body: Schema.optional<Schema.Unknown>;
+      readonly expected_status: Schema.optional<Schema.Number>;
+      readonly auth_template: Schema.Union<readonly [Schema.Struct<{
+        readonly kind: Schema.Literal<"header">;
+        readonly header_name: Schema.NonEmptyString;
+        readonly value_template: Schema.NonEmptyString;
+        readonly secret_slot: Schema.NonEmptyString;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"query">;
+        readonly query_param: Schema.NonEmptyString;
+        readonly value_template: Schema.NonEmptyString;
+        readonly secret_slot: Schema.NonEmptyString;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"basic">;
+        readonly username_slot: Schema.NonEmptyString;
+        readonly password_slot: Schema.NonEmptyString;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"oauth_grant">;
+        readonly header_name: Schema.optional<Schema.String>;
+        readonly value_template: Schema.optional<Schema.String>;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"none">;
+      }>]>;
+    }>>;
+    readonly links: Schema.optional<Schema.$Array<Schema.Struct<{
+      readonly label: Schema.String;
+      readonly url: Schema.String;
+      readonly kind: Schema.Literals<readonly ["docs", "dashboard", "api"]>;
+    }>>>;
+    readonly icon_url: Schema.optional<Schema.NonEmptyString>;
+    readonly skill: Schema.optional<Schema.Struct<{
+      readonly slug: Schema.optional<Schema.String>;
+    }>>;
+    readonly default_namespace: Schema.String;
+    readonly popularity: Schema.optional<Schema.Number>;
+    readonly is_oauth_client_configured: Schema.optional<Schema.Boolean>;
   }>]>>;
   readonly total: Schema.Number;
   readonly limit: Schema.Number;
@@ -2875,6 +3365,80 @@ declare const PluginRegistryPublicEntryWithoutManifest: Schema.Union<readonly [S
       readonly password_env: Schema.optional<Schema.String>;
       readonly password_secret_name: Schema.optional<Schema.NonEmptyString>;
     }>>;
+  }>;
+  readonly availability: Schema.Struct<{
+    readonly status: Schema.Literals<readonly ["active", "coming_soon"]>;
+    readonly selectable: Schema.Boolean;
+    readonly hiddenInOnboarding: Schema.Boolean;
+    readonly label: Schema.optional<Schema.String>;
+    readonly reason: Schema.optional<Schema.String>;
+    readonly code: Schema.optional<Schema.Literals<readonly ["sse_only", "manual_oauth_setup", "requires_client_secret", "install_verification_pending", "known_broken", "superseded_by_kind"]>>;
+  }>;
+  readonly slug: Schema.String;
+  readonly display_name: Schema.NonEmptyString;
+  readonly description: Schema.NonEmptyString;
+  readonly category: Schema.Literals<readonly ["search", "ai", "comms", "dev", "data", "web", "media", "infra", "observability", "analytics", "storage", "other"]>;
+  readonly auth: Schema.Struct<{
+    readonly method: Schema.Literals<readonly ["header", "bearer", "query", "none", "basic"]>;
+    readonly header_name: Schema.optional<Schema.NonEmptyString>;
+    readonly query_param: Schema.optional<Schema.NonEmptyString>;
+    readonly prefix: Schema.optional<Schema.String>;
+    readonly required_secrets: Schema.$Array<Schema.String>;
+  }>;
+  readonly oauth_client: Schema.optional<Schema.Struct<{
+    readonly client_id: Schema.optional<Schema.NonEmptyString>;
+    readonly client_secret: Schema.optional<Schema.NonEmptyString>;
+    readonly redirect_uri: Schema.optional<Schema.NonEmptyString>;
+    readonly scope: Schema.optional<Schema.NonEmptyString>;
+  }>>;
+  readonly auth_test: Schema.optional<Schema.Struct<{
+    readonly method: Schema.Literals<readonly ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]>;
+    readonly url: Schema.optional<Schema.NonEmptyString>;
+    readonly path: Schema.optional<Schema.NonEmptyString>;
+    readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+    readonly body: Schema.optional<Schema.Unknown>;
+    readonly expected_status: Schema.optional<Schema.Number>;
+    readonly auth_template: Schema.Union<readonly [Schema.Struct<{
+      readonly kind: Schema.Literal<"header">;
+      readonly header_name: Schema.NonEmptyString;
+      readonly value_template: Schema.NonEmptyString;
+      readonly secret_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"query">;
+      readonly query_param: Schema.NonEmptyString;
+      readonly value_template: Schema.NonEmptyString;
+      readonly secret_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"basic">;
+      readonly username_slot: Schema.NonEmptyString;
+      readonly password_slot: Schema.NonEmptyString;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"oauth_grant">;
+      readonly header_name: Schema.optional<Schema.String>;
+      readonly value_template: Schema.optional<Schema.String>;
+    }>, Schema.Struct<{
+      readonly kind: Schema.Literal<"none">;
+    }>]>;
+  }>>;
+  readonly links: Schema.optional<Schema.$Array<Schema.Struct<{
+    readonly label: Schema.String;
+    readonly url: Schema.String;
+    readonly kind: Schema.Literals<readonly ["docs", "dashboard", "api"]>;
+  }>>>;
+  readonly icon_url: Schema.optional<Schema.NonEmptyString>;
+  readonly skill: Schema.optional<Schema.Struct<{
+    readonly slug: Schema.optional<Schema.String>;
+  }>>;
+  readonly default_namespace: Schema.String;
+  readonly popularity: Schema.optional<Schema.Number>;
+  readonly is_oauth_client_configured: Schema.optional<Schema.Boolean>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">;
+  readonly config: Schema.Struct<{
+    readonly composio_auth_config_id: Schema.NonEmptyString;
+    readonly toolkit_slug: Schema.NonEmptyString;
+    readonly version: Schema.optional<Schema.NonEmptyString>;
+    readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
   }>;
   readonly availability: Schema.Struct<{
     readonly status: Schema.Literals<readonly ["active", "coming_soon"]>;
@@ -3337,6 +3901,80 @@ declare const PluginRegistryListResultWithoutManifest: Schema.Struct<{
     readonly default_namespace: Schema.String;
     readonly popularity: Schema.optional<Schema.Number>;
     readonly is_oauth_client_configured: Schema.optional<Schema.Boolean>;
+  }>, Schema.Struct<{
+    readonly kind: Schema.Literal<"composio">;
+    readonly config: Schema.Struct<{
+      readonly composio_auth_config_id: Schema.NonEmptyString;
+      readonly toolkit_slug: Schema.NonEmptyString;
+      readonly version: Schema.optional<Schema.NonEmptyString>;
+      readonly allowed_tools: Schema.optional<Schema.$Array<Schema.NonEmptyString>>;
+    }>;
+    readonly availability: Schema.Struct<{
+      readonly status: Schema.Literals<readonly ["active", "coming_soon"]>;
+      readonly selectable: Schema.Boolean;
+      readonly hiddenInOnboarding: Schema.Boolean;
+      readonly label: Schema.optional<Schema.String>;
+      readonly reason: Schema.optional<Schema.String>;
+      readonly code: Schema.optional<Schema.Literals<readonly ["sse_only", "manual_oauth_setup", "requires_client_secret", "install_verification_pending", "known_broken", "superseded_by_kind"]>>;
+    }>;
+    readonly slug: Schema.String;
+    readonly display_name: Schema.NonEmptyString;
+    readonly description: Schema.NonEmptyString;
+    readonly category: Schema.Literals<readonly ["search", "ai", "comms", "dev", "data", "web", "media", "infra", "observability", "analytics", "storage", "other"]>;
+    readonly auth: Schema.Struct<{
+      readonly method: Schema.Literals<readonly ["header", "bearer", "query", "none", "basic"]>;
+      readonly header_name: Schema.optional<Schema.NonEmptyString>;
+      readonly query_param: Schema.optional<Schema.NonEmptyString>;
+      readonly prefix: Schema.optional<Schema.String>;
+      readonly required_secrets: Schema.$Array<Schema.String>;
+    }>;
+    readonly oauth_client: Schema.optional<Schema.Struct<{
+      readonly client_id: Schema.optional<Schema.NonEmptyString>;
+      readonly client_secret: Schema.optional<Schema.NonEmptyString>;
+      readonly redirect_uri: Schema.optional<Schema.NonEmptyString>;
+      readonly scope: Schema.optional<Schema.NonEmptyString>;
+    }>>;
+    readonly auth_test: Schema.optional<Schema.Struct<{
+      readonly method: Schema.Literals<readonly ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]>;
+      readonly url: Schema.optional<Schema.NonEmptyString>;
+      readonly path: Schema.optional<Schema.NonEmptyString>;
+      readonly headers: Schema.optional<Schema.$Record<Schema.NonEmptyString, Schema.String>>;
+      readonly body: Schema.optional<Schema.Unknown>;
+      readonly expected_status: Schema.optional<Schema.Number>;
+      readonly auth_template: Schema.Union<readonly [Schema.Struct<{
+        readonly kind: Schema.Literal<"header">;
+        readonly header_name: Schema.NonEmptyString;
+        readonly value_template: Schema.NonEmptyString;
+        readonly secret_slot: Schema.NonEmptyString;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"query">;
+        readonly query_param: Schema.NonEmptyString;
+        readonly value_template: Schema.NonEmptyString;
+        readonly secret_slot: Schema.NonEmptyString;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"basic">;
+        readonly username_slot: Schema.NonEmptyString;
+        readonly password_slot: Schema.NonEmptyString;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"oauth_grant">;
+        readonly header_name: Schema.optional<Schema.String>;
+        readonly value_template: Schema.optional<Schema.String>;
+      }>, Schema.Struct<{
+        readonly kind: Schema.Literal<"none">;
+      }>]>;
+    }>>;
+    readonly links: Schema.optional<Schema.$Array<Schema.Struct<{
+      readonly label: Schema.String;
+      readonly url: Schema.String;
+      readonly kind: Schema.Literals<readonly ["docs", "dashboard", "api"]>;
+    }>>>;
+    readonly icon_url: Schema.optional<Schema.NonEmptyString>;
+    readonly skill: Schema.optional<Schema.Struct<{
+      readonly slug: Schema.optional<Schema.String>;
+    }>>;
+    readonly default_namespace: Schema.String;
+    readonly popularity: Schema.optional<Schema.Number>;
+    readonly is_oauth_client_configured: Schema.optional<Schema.Boolean>;
   }>]>>;
   readonly total: Schema.Number;
   readonly limit: Schema.Number;
@@ -3344,7 +3982,7 @@ declare const PluginRegistryListResultWithoutManifest: Schema.Struct<{
   readonly hasMore: Schema.Boolean;
 }>;
 type PluginRegistryListResultWithoutManifest = typeof PluginRegistryListResultWithoutManifest.Type;
-declare const RegistrySourceKind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+declare const RegistrySourceKind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
 type RegistrySourceKind = SourceKind;
 declare const RegistryToolBinding: Schema.Union<readonly [Schema.Struct<{
   readonly kind: Schema.Literal<"mcp">;
@@ -3425,8 +4063,13 @@ declare const RegistryToolBinding: Schema.Union<readonly [Schema.Struct<{
   readonly sand_result_mode: Schema.Literals<readonly ["json_stdout", "stdout_text", "binary_base64", "exit_code_only"]>;
   readonly timeout_ms: Schema.optional<Schema.Number>;
   readonly streaming: Schema.optional<Schema.Boolean>;
+}>, Schema.Struct<{
+  readonly kind: Schema.Literal<"composio">;
+  readonly tool_slug: Schema.NonEmptyString;
+  readonly toolkit_slug: Schema.optional<Schema.NonEmptyString>;
+  readonly version: Schema.optional<Schema.NonEmptyString>;
 }>]>;
 type RegistryToolBinding = ProviderToolBinding;
 //#endregion
-export { CATEGORY_LABELS, CATEGORY_SLUGS, CategorySlug, PluginCategory, PluginRegistryApiConfig, PluginRegistryApiSetup, PluginRegistryApiSetupVerifyProbe, PluginRegistryAuth, PluginRegistryCliConfig, PluginRegistryCliSetup, PluginRegistryCliSetupFailureHint, PluginRegistryCliSetupFailureMatcher, PluginRegistryCliSetupRequiredSecret, PluginRegistryCliSetupRunnableRequirement, PluginRegistryCliSetupVerifyProbe, PluginRegistryEntry, PluginRegistryEntryAvailability, PluginRegistryListResult, PluginRegistryListResultWithoutManifest, PluginRegistryManifest, PluginRegistryManifestTool, PluginRegistryManifestToolBinding, PluginRegistryMcpConfig, PluginRegistryOAuthClientSeed, PluginRegistryPublicEntry, PluginRegistryPublicEntryWithoutManifest, PluginRegistrySkill, RegistryAvailability, RegistryAvailabilityReason, RegistryAvailabilityStatus, RegistrySourceKind, RegistryToolBinding };
+export { CATEGORY_LABELS, CATEGORY_SLUGS, CategorySlug, PluginCategory, PluginRegistryApiConfig, PluginRegistryApiSetup, PluginRegistryApiSetupVerifyProbe, PluginRegistryAuth, PluginRegistryCliConfig, PluginRegistryCliSetup, PluginRegistryCliSetupFailureHint, PluginRegistryCliSetupFailureMatcher, PluginRegistryCliSetupRequiredSecret, PluginRegistryCliSetupRunnableRequirement, PluginRegistryCliSetupVerifyProbe, PluginRegistryComposioConfig, PluginRegistryEntry, PluginRegistryEntryAvailability, PluginRegistryListResult, PluginRegistryListResultWithoutManifest, PluginRegistryManifest, PluginRegistryManifestTool, PluginRegistryManifestToolBinding, PluginRegistryMcpConfig, PluginRegistryOAuthClientSeed, PluginRegistryPublicEntry, PluginRegistryPublicEntryWithoutManifest, PluginRegistrySkill, RegistryAvailability, RegistryAvailabilityReason, RegistryAvailabilityStatus, RegistrySourceKind, RegistryToolBinding };
 //# sourceMappingURL=registry.d.mts.map

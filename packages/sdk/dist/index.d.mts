@@ -1,5 +1,6 @@
 export * as Agents from './agents.mjs'
 export * as Core from './core.mjs'
+export * as Inspect from './inspect.mjs'
 export * as Orbit from './orbit.mjs'
 export * as Platform from './platform.mjs'
 export * as Plugins from './plugins.mjs'

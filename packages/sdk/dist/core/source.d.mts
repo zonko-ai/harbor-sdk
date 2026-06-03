@@ -21,7 +21,7 @@ declare const AdapterId: Schema.String;
 type AdapterId = typeof AdapterId.Type;
 //#endregion
 //#region ../core-effect/src/source.d.ts
-declare const SourceKind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+declare const SourceKind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
 type SourceKind = typeof SourceKind.Type;
 declare const SourceAuthMode: Schema.Literals<readonly ["none", "bearer", "api_key", "oauth2"]>;
 type SourceAuthMode = typeof SourceAuthMode.Type;
@@ -86,15 +86,15 @@ declare const SourceVerificationStatus: Schema.Literals<readonly ["pending", "ve
 type SourceVerificationStatus = typeof SourceVerificationStatus.Type;
 declare const SourceIdentity: Schema.Struct<{
   readonly slug: Schema.String;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
   readonly default_namespace: Schema.String;
   readonly display_name: Schema.NonEmptyString;
 }>;
 type SourceIdentity = typeof SourceIdentity.Type;
-declare const TOOL_BINDING_KINDS: readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql"];
-declare const ToolBindingKind: Schema.Literals<readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql"]>;
+declare const TOOL_BINDING_KINDS: readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql", "composio"];
+declare const ToolBindingKind: Schema.Literals<readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql", "composio"]>;
 type ToolBindingKind = typeof ToolBindingKind.Type;
-declare const SourceRuntimeTransport: Schema.Literals<readonly ["mcp_http", "mcp_sse", "cli", "api_http", "api_graphql"]>;
+declare const SourceRuntimeTransport: Schema.Literals<readonly ["mcp_http", "mcp_sse", "cli", "api_http", "api_graphql", "composio"]>;
 type SourceRuntimeTransport = typeof SourceRuntimeTransport.Type;
 declare const SourceAvailabilityCode: Schema.Literals<readonly ["sse_only", "manual_oauth_setup", "requires_client_secret", "install_verification_pending", "known_broken", "superseded_by_kind"]>;
 type SourceAvailabilityCode = typeof SourceAvailabilityCode.Type;
@@ -117,7 +117,7 @@ type SourcePolicyDiagnostic = typeof SourcePolicyDiagnostic.Type;
 declare const SourcePolicy: Schema.Struct<{
   readonly identity: Schema.Struct<{
     readonly slug: Schema.String;
-    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+    readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
     readonly default_namespace: Schema.String;
     readonly display_name: Schema.NonEmptyString;
   }>;
@@ -142,8 +142,8 @@ declare const SourcePolicy: Schema.Struct<{
     }>>;
   }>;
   readonly runtime: Schema.Struct<{
-    readonly transport: Schema.Literals<readonly ["mcp_http", "mcp_sse", "cli", "api_http", "api_graphql"]>;
-    readonly tool_binding_kinds: Schema.$Array<Schema.Literals<readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql"]>>;
+    readonly transport: Schema.Literals<readonly ["mcp_http", "mcp_sse", "cli", "api_http", "api_graphql", "composio"]>;
+    readonly tool_binding_kinds: Schema.$Array<Schema.Literals<readonly ["mcp", "mcp_prompt", "mcp_resource_read", "mcp_resource_template", "cli_command", "api_request", "api_graphql", "composio"]>>;
   }>;
   readonly agent: Schema.Struct<{
     readonly capabilities: Schema.$Array<Schema.String>;
@@ -300,7 +300,7 @@ declare const Source: Schema.Struct<{
   readonly workspace_id: Schema.String;
   readonly namespace: Schema.String;
   readonly slug: Schema.optional<Schema.String>;
-  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api"]>;
+  readonly kind: Schema.Literals<readonly ["mcp", "cli", "api", "composio"]>;
   readonly status: Schema.Literals<readonly ["pending", "discovering", "ready", "needs_credentials", "credentials_error", "mcp_disconnected", "spec_error", "refreshing", "requires_oauth", "reconnect_required", "no_tools", "verification_required", "verification_failed"]>;
   readonly config: Schema.Union<readonly [Schema.Struct<{
     readonly kind: Schema.Literal<"mcp">;

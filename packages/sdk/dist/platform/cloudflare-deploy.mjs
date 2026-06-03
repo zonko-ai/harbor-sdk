@@ -1,28 +1,61 @@
 import * as Alchemy from "alchemy";
 import * as Cloudflare from "alchemy/Cloudflare";
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Pipeable.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Pipeable.js
 /**
+* The `Pipeable` module defines the shared interface and implementation helpers
+* for values that support Effect-style method chaining with `.pipe(...)`.
+*
+* A `Pipeable` value can pass itself through a sequence of unary functions from
+* left to right, so code can be written as `value.pipe(f, g, h)` instead of
+* deeply nesting calls. This is the method form used by many Effect data types
+* to compose transformations, validations, and effectful operations while
+* keeping the original value as the starting point of the pipeline.
+*
+* **Common tasks**
+*
+* - Type values that expose a `.pipe(...)` method with the {@link Pipeable} interface
+* - Implement a custom `.pipe(...)` method with {@link pipeArguments}
+* - Reuse the standard implementation through {@link Prototype}, {@link Class}, or {@link Mixin}
+*
+* **Gotchas**
+*
+* - Each function receives the result of the previous function, not the original value
+* - The overloads preserve precise types for long pipelines, but very long chains may be easier to read when split
+*
 * @since 2.0.0
 */
 /**
-* @since 2.0.0
-* @category utilities
-* @example
+* Applies a `pipe` method's variadic arguments to an initial value from left
+* to right.
+*
+* **Details**
+*
+* This helper is intended for implementing `Pipeable.pipe` methods that
+* receive JavaScript's `arguments` object. With no functions it returns the
+* original value; otherwise it feeds each result into the next function.
+*
+* **Example** (Implementing a pipe method)
+*
 * ```ts
 * import { Pipeable } from "effect"
 *
-* // pipeArguments is used internally to implement efficient piping
-* function customPipe<A>(self: A, ...fns: Array<(a: any) => any>): unknown {
-*   return Pipeable.pipeArguments(self, arguments as any)
+* class NumberBox {
+*   constructor(readonly value: number) {}
+*
+*   pipe(..._fns: ReadonlyArray<(value: number) => number>): number {
+*     return Pipeable.pipeArguments(this.value, arguments) as number
+*   }
 * }
 *
-* // Example usage
-* const add = (x: number) => (y: number) => x + y
-* const multiply = (x: number) => (y: number) => x * y
-*
-* const result = customPipe(5, add(2), multiply(3))
+* const result = new NumberBox(5).pipe(
+*   (n) => n + 2,
+*   (n) => n * 3
+* )
 * console.log(result) // 21
 * ```
+*
+* @category utils
+* @since 2.0.0
 */
 const pipeArguments = (self, args) => {
 	switch (args.length) {
@@ -44,44 +77,23 @@ const pipeArguments = (self, args) => {
 	}
 };
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Function.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Function.js
 /**
-* Creates a function that can be used in a data-last (aka `pipe`able) or
-* data-first style.
+* Creates a function that can be called in data-first style or data-last
+* (`pipe`-friendly) style.
 *
-* The first parameter to `dual` is either the arity of the uncurried function
-* or a predicate that determines if the function is being used in a data-first
-* or data-last style.
+* **Details**
 *
-* Using the arity is the most common use case, but there are some cases where
-* you may want to use a predicate. For example, if you have a function that
-* takes an optional argument, you can use a predicate to determine if the
-* function is being used in a data-first or data-last style.
-*
-* You can pass either the arity of the uncurried function or a predicate
-* which determines if the function is being used in a data-first or
-* data-last style.
-*
-* @example
-* ```ts
-* import { dual, pipe } from "effect/Function"
-*
-* // Using arity to determine data-first or data-last style
-* const sum = dual<
-*   (that: number) => (self: number) => number,
-*   (self: number, that: number) => number
-* >(2, (self, that) => self + that)
-*
-* console.log(sum(2, 3)) // 5 (data-first)
-* console.log(pipe(2, sum(3))) // 5 (data-last)
-* ```
+* Pass either the arity of the uncurried function or a predicate that decides
+* whether the current call is data-first. Arity is the common case. Use a
+* predicate when optional arguments make arity ambiguous.
 *
 * **Example** (Using arity to determine data-first or data-last style)
 *
 * ```ts
-* import { dual, pipe } from "effect/Function"
+* import { Function, pipe } from "effect"
 *
-* const sum = dual<
+* const sum = Function.dual<
 *   (that: number) => (self: number) => number,
 *   (self: number, that: number) => number
 * >(2, (self, that) => self + that)
@@ -93,12 +105,12 @@ const pipeArguments = (self, args) => {
 * **Example** (Using call signatures to define the overloads)
 *
 * ```ts
-* import { dual, pipe } from "effect/Function"
+* import { Function, pipe } from "effect"
 *
 * const sum: {
 *   (that: number): (self: number) => number
 *   (self: number, that: number): number
-* } = dual(2, (self: number, that: number): number => self + that)
+* } = Function.dual(2, (self: number, that: number): number => self + that)
 *
 * console.log(sum(2, 3)) // 5
 * console.log(pipe(2, sum(3))) // 5
@@ -107,9 +119,9 @@ const pipeArguments = (self, args) => {
 * **Example** (Using a predicate to determine data-first or data-last style)
 *
 * ```ts
-* import { dual, pipe } from "effect/Function"
+* import { Function, pipe } from "effect"
 *
-* const sum = dual<
+* const sum = Function.dual<
 *   (that: number) => (self: number) => number,
 *   (self: number, that: number) => number
 * >(
@@ -155,9 +167,10 @@ const dual = function(arity, body) {
 /**
 * The identity function, i.e. A function that returns its input argument.
 *
-* @example
+* **Example** (Returning the same value)
+*
 * ```ts
-* import { identity } from "effect/Function"
+* import { identity } from "effect"
 * import * as assert from "node:assert"
 *
 * assert.deepStrictEqual(identity(5), 5)
@@ -168,17 +181,20 @@ const dual = function(arity, body) {
 */
 const identity = (a) => a;
 /**
-* Creates a constant value that never changes.
+* Creates a zero-argument function that always returns the provided value.
 *
-* This is useful when you want to pass a value to a higher-order function (a function that takes another function as its argument)
-* and want that inner function to always use the same value, no matter how many times it is called.
+* **When to use**
 *
-* @example
+* Use `constant` when an API expects a thunk or callback and every invocation
+* should return the same value.
+*
+* **Example** (Creating a constant thunk)
+*
 * ```ts
-* import { constant } from "effect/Function"
+* import { Function } from "effect"
 * import * as assert from "node:assert"
 *
-* const constNull = constant(null)
+* const constNull = Function.constant(null)
 *
 * assert.deepStrictEqual(constNull(), null)
 * assert.deepStrictEqual(constNull(), null)
@@ -191,12 +207,13 @@ const constant = (value) => () => value;
 /**
 * A thunk that returns always `undefined`.
 *
-* @example
+* **Example** (Returning undefined from a thunk)
+*
 * ```ts
-* import { constUndefined } from "effect/Function"
+* import { Function } from "effect"
 * import * as assert from "node:assert"
 *
-* assert.deepStrictEqual(constUndefined(), undefined)
+* assert.deepStrictEqual(Function.constUndefined(), undefined)
 * ```
 *
 * @category constants
@@ -206,12 +223,13 @@ const constUndefined = /* @__PURE__ */ constant(void 0);
 /**
 * A thunk that returns always `void`.
 *
-* @example
+* **Example** (Returning void from a thunk)
+*
 * ```ts
-* import { constVoid } from "effect/Function"
+* import { Function } from "effect"
 * import * as assert from "node:assert"
 *
-* assert.deepStrictEqual(constVoid(), undefined)
+* assert.deepStrictEqual(Function.constVoid(), undefined)
 * ```
 *
 * @category constants
@@ -219,7 +237,7 @@ const constUndefined = /* @__PURE__ */ constant(void 0);
 */
 const constVoid = constUndefined;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/equal.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/internal/equal.js
 /** @internal */
 const getAllObjectKeys = (obj) => {
 	const keys = new Set(Reflect.ownKeys(obj));
@@ -238,7 +256,7 @@ const getAllObjectKeys = (obj) => {
 /** @internal */
 const byReferenceInstances = /* @__PURE__ */ new WeakSet();
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Predicate.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Predicate.js
 /**
 * Predicate and Refinement helpers for runtime checks, filtering, and type narrowing.
 * This module provides small, pure functions you can combine to decide whether a
@@ -268,7 +286,7 @@ const byReferenceInstances = /* @__PURE__ */ new WeakSet();
 * **Example** (Filter by a predicate)
 *
 * ```ts
-* import * as Predicate from "effect/Predicate"
+* import { Predicate } from "effect"
 *
 * const isPositive = (n: number) => n > 0
 * const data = [2, -1, 3]
@@ -283,10 +301,12 @@ const byReferenceInstances = /* @__PURE__ */ new WeakSet();
 /**
 * Checks whether a value is a `function`.
 *
-* When to use:
+* **When to use**
+*
 * - You need to guard an `unknown` value as callable.
 *
-* Behavior:
+* **Details**
+*
 * - Pure; does not mutate input.
 * - Uses `typeof input === "function"`.
 *
@@ -302,8 +322,7 @@ const byReferenceInstances = /* @__PURE__ */ new WeakSet();
 * }
 * ```
 *
-* See also: {@link isObjectKeyword}
-*
+* @see {@link isObjectKeyword}
 * @category guards
 * @since 2.0.0
 */
@@ -313,10 +332,12 @@ function isFunction(input) {
 /**
 * Checks whether a value is an `object` in the JavaScript sense (objects, arrays, functions).
 *
-* When to use:
+* **When to use**
+*
 * - You want to accept arrays and functions as well as objects.
 *
-* Behavior:
+* **Details**
+*
 * - Pure; does not mutate input.
 * - Returns `true` for arrays and functions, `false` for `null`.
 *
@@ -329,10 +350,10 @@ function isFunction(input) {
 * console.log(Predicate.isObjectKeyword(null))
 * ```
 *
-* See also: {@link isObject}, {@link isObjectOrArray}
-*
+* @see {@link isObject}
+* @see {@link isObjectOrArray}
 * @category guards
-* @since 2.0.0
+* @since 4.0.0
 */
 function isObjectKeyword(input) {
 	return typeof input === "object" && input !== null || isFunction(input);
@@ -340,11 +361,13 @@ function isObjectKeyword(input) {
 /**
 * Checks whether a value has a given property key.
 *
-* When to use:
+* **When to use**
+*
 * - You need to guard property access on `unknown` values.
 * - You want a simple structural guard for objects.
 *
-* Behavior:
+* **Details**
+*
 * - Pure; does not mutate input.
 * - Uses the `in` operator and {@link isObjectKeyword}.
 * - Does not check property value types.
@@ -362,14 +385,14 @@ function isObjectKeyword(input) {
 * }
 * ```
 *
-* See also: {@link isTagged}, {@link isObjectKeyword}
-*
+* @see {@link isTagged}
+* @see {@link isObjectKeyword}
 * @category guards
 * @since 2.0.0
 */
 const hasProperty = /* @__PURE__ */ dual(2, (self, property) => isObjectKeyword(self) && property in self);
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Hash.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Hash.js
 /**
 * This module provides utilities for hashing values in TypeScript.
 *
@@ -382,27 +405,29 @@ const hasProperty = /* @__PURE__ */ dual(2, (self, property) => isObjectKeyword(
 /**
 * The unique identifier used to identify objects that implement the Hash interface.
 *
+* @category symbols
 * @since 2.0.0
 */
 const symbol$1 = "~effect/interfaces/Hash";
 /**
 * Computes a hash value for any given value.
 *
+* **Details**
+*
 * This function can hash primitives (numbers, strings, booleans, etc.) as well as
 * objects, arrays, and other complex data structures. It automatically handles
 * different types and provides a consistent hash value for equivalent inputs.
 *
-* **⚠️ CRITICAL IMMUTABILITY REQUIREMENT**: Objects being hashed must be treated as
-* immutable after their first hash computation. Hash results are cached, so mutating
-* an object after hashing will lead to stale cached values and broken hash-based
-* operations. For mutable objects, use referential equality by implementing custom
-* `Hash` interface that hashes the object reference, not its content.
+* **Gotchas**
 *
-* **FORBIDDEN**: Modifying objects after `Hash.hash()` has been called on them
-* **ALLOWED**: Using immutable objects, or mutable objects with custom `Hash` interface
-* that uses referential equality (hashes the object reference, not content)
+* Objects being hashed must be treated as immutable after their first hash
+* computation. Hash results are cached, so mutating an object after hashing will
+* lead to stale cached values and broken hash-based operations. For mutable
+* objects, implement a custom `Hash` interface that hashes the object reference
+* rather than its content.
 *
-* @example
+* **Example** (Hashing different values)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -414,7 +439,7 @@ const symbol$1 = "~effect/interfaces/Hash";
 * // Hash objects and arrays
 * console.log(Hash.hash({ name: "John", age: 30 }))
 * console.log(Hash.hash([1, 2, 3]))
-* console.log(Hash.hash(new Date("2023-01-01")))
+* console.log(Hash.hash({ id: "user-1", roles: ["admin", "editor"] }))
 * ```
 *
 * @category hashing
@@ -452,11 +477,14 @@ const hash = (self) => {
 /**
 * Generates a random hash value for an object and caches it.
 *
+* **Details**
+*
 * This function creates a random hash value for objects that don't have their own
 * hash implementation. The hash value is cached using a WeakMap, so the same object
 * will always return the same hash value during its lifetime.
 *
-* @example
+* **Example** (Hashing objects by reference)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -480,16 +508,18 @@ const random = (self) => {
 /**
 * Combines two hash values into a single hash value.
 *
+* **Details**
+*
 * This function takes two hash values and combines them using a mathematical
 * operation to produce a new hash value. It's useful for creating hash values
 * of composite structures.
 *
-* @example
+* **Example** (Combining hash values)
+*
 * ```ts
-* import { Hash } from "effect" // combined hash value
+* import { Hash, pipe } from "effect"
 *
 * // Can also be used with pipe
-* import { pipe } from "effect"
 *
 * const hash1 = Hash.hash("hello")
 * const hash2 = Hash.hash("world")
@@ -507,10 +537,13 @@ const combine = /* @__PURE__ */ dual(2, (self, b) => self * 53 ^ b);
 /**
 * Optimizes a hash value by applying bit manipulation techniques.
 *
+* **Details**
+*
 * This function takes a hash value and applies bitwise operations to improve
 * the distribution of hash values, reducing the likelihood of collisions.
 *
-* @example
+* **Example** (Optimizing a hash value)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -529,10 +562,13 @@ const optimize = (n) => n & 3221225471 | n >>> 1 & 1073741824;
 /**
 * Checks if a value implements the Hash interface.
 *
+* **Details**
+*
 * This function determines whether a given value has the Hash symbol property,
 * indicating that it can provide its own hash value implementation.
 *
-* @example
+* **Example** (Checking for Hash support)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -555,11 +591,14 @@ const isHash = (u) => hasProperty(u, symbol$1);
 /**
 * Computes a hash value for a number.
 *
+* **Details**
+*
 * This function creates a hash value for numeric inputs, handling special cases
 * like NaN, Infinity, and -Infinity with distinct hash values. It uses bitwise operations to ensure good distribution
 * of hash values across different numeric inputs.
 *
-* @example
+* **Example** (Hashing numbers)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -587,11 +626,14 @@ const number = (n) => {
 /**
 * Computes a hash value for a string using the djb2 algorithm.
 *
+* **Details**
+*
 * This function implements a variation of the djb2 hash algorithm, which is
 * known for its good distribution properties and speed. It processes each
 * character of the string to produce a consistent hash value.
 *
-* @example
+* **Example** (Hashing strings)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -614,11 +656,14 @@ const string = (str) => {
 /**
 * Computes a hash value for an object using only the specified keys.
 *
+* **Details**
+*
 * This function allows you to hash an object by considering only specific keys,
 * which is useful when you want to create a hash based on a subset of an object's
 * properties.
 *
-* @example
+* **Example** (Hashing selected object keys)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -646,13 +691,15 @@ const structureKeys = (o, keys) => {
 	return optimize(h);
 };
 /**
-* Computes a hash value for an object using all of its enumerable keys.
+* Computes a structural hash for an object using Effect's object key collection.
 *
-* This function creates a hash value based on all enumerable properties of an object.
-* It's a convenient way to hash an entire object structure when you want to consider
-* all its properties.
+* **Details**
 *
-* @example
+* The hash is based on the object's structural keys and their values, including
+* symbol keys and relevant prototype keys for non-plain objects.
+*
+* **Example** (Hashing object structures)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -680,11 +727,14 @@ const iterableWith = (seed, f) => (iter) => {
 /**
 * Computes a hash value for an array by hashing all of its elements.
 *
+* **Details**
+*
 * This function creates a hash value based on all elements in the array.
 * The order of elements matters, so arrays with the same elements in different
 * orders will produce different hash values.
 *
-* @example
+* **Example** (Hashing arrays)
+*
 * ```ts
 * import { Hash } from "effect"
 *
@@ -718,22 +768,22 @@ function withVisitedTracking$1(obj, fn) {
 	return result;
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Equal.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Equal.js
 /**
 * The unique string identifier for the {@link Equal} interface.
 *
-* Use this as a computed property key when implementing custom equality on a
-* class or object literal.
+* **When to use**
 *
-* When to use:
-* - As the method name when implementing the {@link Equal} interface.
-* - To check manually whether an object carries an equality method (prefer
+* - Use it as the computed property key when implementing custom equality on a
+*   class or object literal.
+* - Use it to check manually whether an object carries an equality method (prefer
 *   {@link isEqual} instead).
 *
-* Behavior:
-* - Pure constant — no allocation or side effects.
+* **Details**
 *
-* **Example** (implementing Equal on a class)
+* This is a pure constant with no allocation or side effects.
+*
+* **Example** (Implementing Equal on a Class)
 *
 * ```ts
 * import { Equal, Hash } from "effect"
@@ -753,7 +803,7 @@ function withVisitedTracking$1(obj, fn) {
 *
 * @see {@link Equal} — the interface that uses this symbol
 * @see {@link isEqual} — type guard for `Equal` implementors
-*
+* @category symbols
 * @since 2.0.0
 */
 const symbol = "~effect/interfaces/Equal";
@@ -885,19 +935,21 @@ const compareSets = /* @__PURE__ */ makeCompareSet(compareBoth);
 /**
 * Checks whether a value implements the {@link Equal} interface.
 *
-* When to use:
+* **When to use**
+*
 * - To branch on whether a value supports custom equality before calling
 *   its `[Equal.symbol]` method directly.
 * - In generic utility code that needs to distinguish `Equal` implementors
 *   from plain values.
 *
-* Behavior:
+* **Details**
+*
 * - Pure function, no side effects.
 * - Returns `true` if and only if `u` has a property keyed by
 *   {@link symbol}.
 * - Acts as a TypeScript type guard, narrowing the input to {@link Equal}.
 *
-* **Example** (type guard)
+* **Example** (Type Guard)
 *
 * ```ts
 * import { Equal, Hash } from "effect"
@@ -919,7 +971,6 @@ const compareSets = /* @__PURE__ */ makeCompareSet(compareBoth);
 *
 * @see {@link Equal} — the interface being checked
 * @see {@link symbol} — the property key that signals `Equal` support
-*
 * @category guards
 * @since 2.0.0
 */
@@ -927,16 +978,18 @@ const isEqual = (u) => hasProperty(u, symbol);
 /**
 * Wraps {@link equals} as an `Equivalence<A>`.
 *
-* When to use:
+* **When to use**
+*
 * - When an API (e.g. `Array.dedupeWith`, `Equivalence.mapInput`) requires an
 *   `Equivalence` and you want to reuse `Equal.equals`.
 *
-* Behavior:
+* **Details**
+*
 * - Returns a function `(a: A, b: A) => boolean` that delegates to
 *   {@link equals}.
 * - Pure; allocates a thin wrapper on each call.
 *
-* **Example** (deduplicating with Equal semantics)
+* **Example** (Deduplicating with Equal Semantics)
 *
 * ```ts
 * import { Array, Equal } from "effect"
@@ -947,23 +1000,26 @@ const isEqual = (u) => hasProperty(u, symbol);
 * ```
 *
 * @see {@link equals} — the underlying comparison function
-*
 * @category instances
-* @since 2.0.0
+* @since 4.0.0
 */
 const asEquivalence = () => equals;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Redactable.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Redactable.js
 /**
 * Symbol used to identify objects that implement the {@link Redactable}
 * protocol.
 *
-* Add a method under this key to make an object redactable. The method
-* receives the current `Context` and must return the replacement value.
+* **When to use**
 *
-* - Use this symbol as the property key when implementing {@link Redactable}.
-* - Registered globally via `Symbol.for("~effect/Redactable")`,
-*   so it is identical across multiple copies of the library at runtime.
+* Use this symbol as the property key when implementing {@link Redactable}.
+*
+* **Details**
+*
+* Add a method under this key to make an object redactable. The method receives
+* the current `Context` and must return the replacement value. The symbol is
+* registered globally via `Symbol.for("~effect/Redactable")`, so it is
+* identical across multiple copies of the library at runtime.
 *
 * **Example** (Masking an API key)
 *
@@ -979,29 +1035,33 @@ const asEquivalence = () => equals;
 * }
 * ```
 *
-* See also:
-* - {@link Redactable} - the interface this symbol belongs to
-* - {@link isRedactable} - check whether a value has this symbol
-*
-* @since 4.0.0
+* @see {@link Redactable} - the interface this symbol belongs to
+* @see {@link isRedactable} - check whether a value has this symbol
 * @category symbol
+* @since 3.10.0
 */
 const symbolRedactable = /* @__PURE__ */ Symbol.for("~effect/Redactable");
 /**
 * Calls `[symbolRedactable]` on a value that is already known to be
 * {@link Redactable} and returns the result.
 *
-* - Use this when you have already verified the value is `Redactable` (e.g.,
-*   via {@link isRedactable}) and want to avoid a second check.
-* - Reads the current fiber's `Context` from the global fiber reference. If
-*   no fiber is active, an empty `Context` is passed to the redaction
-*   method.
-* - Does not mutate the input.
+* **When to use**
 *
-* See also:
-* - {@link redact} - higher-level variant that handles non-redactable values
-* - {@link isRedactable} - type guard to verify before calling this
+* Use this when you have already verified the value is `Redactable`, for
+* example with {@link isRedactable}, and want to avoid a second check.
 *
+* **Details**
+*
+* This function reads the current fiber's `Context` from the global fiber
+* reference and passes it to the redaction method. It does not mutate the input.
+*
+* **Gotchas**
+*
+* If no fiber is active, an empty `Context` is passed to the redaction method.
+*
+* @see {@link redact} - higher-level variant that handles non-redactable values
+* @see {@link isRedactable} - type guard to verify before calling this
+* @category destructors
 * @since 4.0.0
 */
 function getRedacted(redactable) {
@@ -1017,7 +1077,7 @@ const emptyContext = {
 	}
 };
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Formatter.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Formatter.js
 /**
 * Utilities for converting arbitrary JavaScript values into human-readable
 * strings, with support for circular references, redaction, and common JS
@@ -1075,14 +1135,16 @@ const emptyContext = {
 /**
 * Converts any JavaScript value into a human-readable string.
 *
-* When to use:
+* **When to use**
+*
 * - Pretty-printing values for debugging, logging, or error messages.
 * - You need to handle `BigInt`, `Symbol`, `Set`, `Map`, `Date`, `RegExp`,
 *   or class instances that `JSON.stringify` cannot represent.
 * - You want circular references shown as `"[Circular]"` instead of
 *   throwing.
 *
-* Behavior:
+* **Details**
+*
 * - Does not mutate input.
 * - Output is **not** valid JSON; use {@link formatJson} when you need
 *   parseable JSON.
@@ -1098,8 +1160,6 @@ const emptyContext = {
 * - Arrays/objects with 0–1 entries are inline; larger ones are
 *   pretty-printed when `space` is set.
 * - Circular references are replaced with `"[Circular]"`.
-*
-* Options:
 * - `space` — indentation unit (number of spaces, or a string like
 *   `"\t"`). Defaults to `0` (compact).
 * - `ignoreToString` — skip calling `toString()`. Defaults to `false`.
@@ -1139,9 +1199,10 @@ const emptyContext = {
 * // {"name":"loop","self":[Circular]}
 * ```
 *
-* See also: {@link formatJson}, {@link Formatter}
-*
-* @since 4.0.0
+* @see {@link formatJson}
+* @see {@link Formatter}
+* @category formatting
+* @since 2.0.0
 */
 function format(input, options) {
 	const space = options?.space ?? 0;
@@ -1191,30 +1252,6 @@ function format(input, options) {
 }
 const CIRCULAR = "[Circular]";
 /**
-* Formats a single property key for display.
-*
-* When to use:
-* - You are building a custom formatter that needs to render object keys.
-*
-* Behavior:
-* - String keys are JSON-quoted (e.g. `"foo"`).
-* - Symbol and number keys are converted with `String()`.
-* - Pure function; does not mutate input.
-*
-* **Example** (Format property keys)
-*
-* ```ts
-* import { Formatter } from "effect"
-*
-* console.log(Formatter.formatPropertyKey("name"))
-* // "name"
-*
-* console.log(Formatter.formatPropertyKey(Symbol.for("id")))
-* // Symbol(id)
-* ```
-*
-* See also: {@link formatPath}, {@link format}
-*
 * @internal
 */
 function formatPropertyKey(name) {
@@ -1223,29 +1260,6 @@ function formatPropertyKey(name) {
 /**
 * Formats a `Date` as an ISO 8601 string, returning `"Invalid Date"` for
 * invalid dates instead of throwing.
-*
-* When to use:
-* - You want a safe `toISOString()` that never throws.
-*
-* Behavior:
-* - Returns `date.toISOString()` on success.
-* - Returns `"Invalid Date"` if `toISOString()` throws (e.g. for
-*   `new Date(NaN)`).
-* - Pure function; does not mutate input.
-*
-* **Example** (Safe date formatting)
-*
-* ```ts
-* import { Formatter } from "effect"
-*
-* console.log(Formatter.formatDate(new Date("2024-01-15T10:30:00Z")))
-* // 2024-01-15T10:30:00.000Z
-*
-* console.log(Formatter.formatDate(new Date("invalid")))
-* // Invalid Date
-* ```
-*
-* See also: {@link format}
 *
 * @internal
 */
@@ -1265,15 +1279,18 @@ function safeToString(input) {
 	}
 }
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Inspectable.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Inspectable.js
 /**
 * Symbol used by Node.js for custom object inspection.
+*
+* **Details**
 *
 * This symbol is recognized by Node.js's `util.inspect()` function and the REPL
 * for custom object representation. When an object has a method with this symbol,
 * it will be called to determine how the object should be displayed.
 *
-* @example
+* **Example** (Defining custom Node inspection)
+*
 * ```ts
 * import { Inspectable } from "effect"
 *
@@ -1289,30 +1306,29 @@ function safeToString(input) {
 * console.log(obj) // Displays: CustomObject(hello)
 * ```
 *
-* @since 2.0.0
 * @category symbols
+* @since 2.0.0
 */
 const NodeInspectSymbol = /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom");
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Utils.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Utils.js
 /**
 * An `IterableIterator` that yields its wrapped value exactly once.
 *
-* When to use:
+* **When to use**
 *
-* - Implement `[Symbol.iterator]()` on Effect-like types so they can be
-*   `yield*`-ed inside generator functions (e.g. `Effect.gen`, `Option.gen`).
-* - You almost never construct this directly — it is created internally by
-*   yieldable types.
+* Implement `[Symbol.iterator]()` on Effect-like types so they can be
+* `yield*`-ed inside generator functions, such as `Effect.gen` and
+* `Option.gen`. You almost never construct this directly — it is created
+* internally by yieldable types.
 *
-* Behavior:
+* **Details**
 *
-* - The first call to `next()` returns `{ value: self, done: false }`.
-* - Every subsequent call returns `{ value: a, done: true }` where `a` is
-*   the argument passed to `next()`.
-* - `[Symbol.iterator]()` returns a **new** `SingleShotGen` wrapping the same
-*   value, so the outer type can be iterated multiple times.
-* - Does not mutate the wrapped value.
+* The first call to `next()` returns `{ value: self, done: false }`. Every
+* subsequent call returns `{ value: a, done: true }` where `a` is the argument
+* passed to `next()`. `[Symbol.iterator]()` returns a **new** `SingleShotGen`
+* wrapping the same value, so the outer type can be iterated multiple times.
+* It does not mutate the wrapped value.
 *
 * **Example** (Yielding a wrapped value in a generator)
 *
@@ -1331,7 +1347,6 @@ const NodeInspectSymbol = /* @__PURE__ */ Symbol.for("nodejs.util.inspect.custom
 * ```
 *
 * @see {@link Gen} — the type-level signature that relies on `SingleShotGen`
-*
 * @category constructors
 * @since 2.0.0
 */
@@ -1342,6 +1357,8 @@ var SingleShotGen = class SingleShotGen {
 		this.self = self;
 	}
 	/**
+	* Yields the stored value once, then completes with the value sent back in.
+	*
 	* @since 2.0.0
 	*/
 	next(a) {
@@ -1354,6 +1371,8 @@ var SingleShotGen = class SingleShotGen {
 		});
 	}
 	/**
+	* Creates a fresh single-shot iterator over the stored value.
+	*
 	* @since 2.0.0
 	*/
 	[Symbol.iterator]() {
@@ -1372,7 +1391,7 @@ const forced = { [InternalTypeId]: (body) => {
 /** @internal */
 const internalCall = /* @__PURE__ */ standard[InternalTypeId](() => (/* @__PURE__ */ new Error()).stack)?.includes(InternalTypeId) === true ? standard[InternalTypeId] : forced[InternalTypeId];
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/core.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/internal/core.js
 /** @internal */
 const EffectTypeId = `~effect/Effect`;
 /** @internal */
@@ -1707,28 +1726,43 @@ const TaggedError = (tag) => {
 };
 TaggedError("NoSuchElementError");
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Effectable.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Effectable.js
 /**
 * Create a low-level `Effect` prototype.
 *
-* When the effect is evaluated, it will call `evaluate` with the current fiber.
+* **Details**
 *
-* @since 4.0.0
+* When the effect is evaluated, it calls `evaluate` with the current fiber.
+*
 * @category Prototypes
+* @since 4.0.0
 */
 const Prototype = (options) => makePrimitiveProto({
 	op: options.label,
 	[evaluate]: options.evaluate
 });
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Context.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Context.js
 /**
-* @since 4.0.0
+* Runtime type identifier attached to `Context` service keys and used by
+* `isKey` to recognize them.
+*
 * @category Type Identifiers
+* @since 4.0.0
 */
 const ServiceTypeId = "~effect/Context/Service";
 /**
-* @example
+* Creates a `Context` service key.
+*
+* **Details**
+*
+* Call `Context.Service("Key")` for a function-style key, or use the two-stage
+* form `Context.Service<Self, Shape>()("Key")` for class-style service
+* declarations. The returned key can be yielded as an Effect and passed to
+* `Context.make`, `Context.add`, and the Context getter functions.
+*
+* **Example** (Creating service keys)
+*
 * ```ts
 * import { Context } from "effect"
 *
@@ -1749,8 +1783,8 @@ const ServiceTypeId = "~effect/Context/Service";
 * const config = Context.make(Config, { port: 8080 })
 * ```
 *
+* @category constructors
 * @since 4.0.0
-* @category Constructors
 */
 const Service = function() {
 	const prevLimit = Error.stackTraceLimit;
@@ -1808,7 +1842,17 @@ const ServiceProto = {
 const ReferenceTypeId = "~effect/Context/Reference";
 const TypeId$2 = "~effect/Context";
 /**
-* @example
+* Creates a `Context` from an existing service map without validating or
+* copying it.
+*
+* **Gotchas**
+*
+* This is unsafe because later mutation of the provided map can affect the
+* created `Context`. Prefer `empty`, `make`, `add`, or `merge` for normal
+* Context construction.
+*
+* **Example** (Creating a context from a map)
+*
 * ```ts
 * import { Context } from "effect"
 *
@@ -1820,8 +1864,8 @@ const TypeId$2 = "~effect/Context";
 * const context = Context.makeUnsafe(map)
 * ```
 *
+* @category constructors
 * @since 4.0.0
-* @category Constructors
 */
 const makeUnsafe$2 = (mapUnsafe) => {
 	const self = Object.create(Proto);
@@ -1853,7 +1897,8 @@ const Proto = {
 /**
 * Checks if the provided argument is a `Context`.
 *
-* @example
+* **Example** (Checking for contexts)
+*
 * ```ts
 * import { Context } from "effect"
 * import * as assert from "node:assert"
@@ -1861,14 +1906,15 @@ const Proto = {
 * assert.strictEqual(Context.isContext(Context.empty()), true)
 * ```
 *
-* @since 4.0.0
-* @category Guards
+* @category guards
+* @since 2.0.0
 */
 const isContext = (u) => hasProperty(u, TypeId$2);
 /**
 * Checks if the provided argument is a `Reference`.
 *
-* @example
+* **Example** (Checking for references)
+*
 * ```ts
 * import { Context } from "effect"
 * import * as assert from "node:assert"
@@ -1881,14 +1927,15 @@ const isContext = (u) => hasProperty(u, TypeId$2);
 * assert.strictEqual(Context.isReference(Context.Service("Key")), false)
 * ```
 *
-* @since 4.0.0
-* @category Guards
+* @category guards
+* @since 3.11.0
 */
 const isReference = (u) => hasProperty(u, ReferenceTypeId);
 /**
 * Creates a new `Context` with a single service associated to the key.
 *
-* @example
+* **Example** (Creating a context with one service)
+*
 * ```ts
 * import { Context } from "effect"
 * import * as assert from "node:assert"
@@ -1900,18 +1947,23 @@ const isReference = (u) => hasProperty(u, ReferenceTypeId);
 * assert.deepStrictEqual(Context.get(context, Port), { PORT: 8080 })
 * ```
 *
-* @since 4.0.0
-* @category Constructors
+* @category constructors
+* @since 2.0.0
 */
 const make = (key, service) => makeUnsafe$2(new Map([[key.key, service]]));
 /**
-* Get a service from the context that corresponds to the given key, or
-* use the fallback value.
+* Gets the service for a key, or evaluates the fallback when a non-reference
+* key is absent.
 *
-* @example
+* **Details**
+*
+* If the key is a `Context.Reference` and no override is stored in the
+* context, its cached default value is returned instead of the fallback.
+*
+* **Example** (Falling back for missing services)
+*
 * ```ts
 * import { Context } from "effect"
-* import * as assert from "node:assert"
 *
 * const Logger = Context.Service<{ log: (msg: string) => void }>("Logger")
 * const Database = Context.Service<{ query: (sql: string) => string }>(
@@ -1929,12 +1981,12 @@ const make = (key, service) => makeUnsafe$2(new Map([[key.key, service]]));
 *   () => ({ query: () => "fallback" })
 * )
 *
-* assert.deepStrictEqual(logger, { log: (msg: string) => console.log(msg) })
-* assert.deepStrictEqual(database, { query: () => "fallback" })
+* console.log(logger === Context.get(context, Logger)) // true
+* console.log(database.query("SELECT 1")) // "fallback"
 * ```
 *
-* @since 4.0.0
-* @category Getters
+* @category getters
+* @since 3.7.0
 */
 const getOrElse = /* @__PURE__ */ dual(3, (self, key, orElse) => {
 	if (self.mapUnsafe.has(key.key)) return self.mapUnsafe.get(key.key);
@@ -1943,12 +1995,10 @@ const getOrElse = /* @__PURE__ */ dual(3, (self, key, orElse) => {
 /**
 * Get a service from the context that corresponds to the given key.
 *
-* @param self - The `Context` to search for the service.
-* @param service - The `Service` of the service to retrieve.
+* **Example** (Getting a service from a context)
 *
-* @example
 * ```ts
-* import { pipe, Context } from "effect"
+* import { Context, pipe } from "effect"
 * import * as assert from "node:assert"
 *
 * const Port = Context.Service<{ PORT: number }>("Port")
@@ -1962,8 +2012,8 @@ const getOrElse = /* @__PURE__ */ dual(3, (self, key, orElse) => {
 * assert.deepStrictEqual(Context.get(context, Timeout), { TIMEOUT: 5000 })
 * ```
 *
-* @since 4.0.0
-* @category Getters
+* @category getters
+* @since 2.0.0
 */
 const get = /* @__PURE__ */ dual(2, (self, service) => {
 	if (!self.mapUnsafe.has(service.key)) {
@@ -1973,10 +2023,13 @@ const get = /* @__PURE__ */ dual(2, (self, service) => {
 	return self.mapUnsafe.get(service.key);
 });
 /**
-* @example
+* Gets the value for a `Context.Reference`, returning its cached default when
+* the context does not contain an override.
+*
+* **Example** (Getting reference defaults unsafely)
+*
 * ```ts
 * import { Context } from "effect"
-* import * as assert from "node:assert"
 *
 * const LoggerRef = Context.Reference("Logger", {
 *   defaultValue: () => ({ log: (msg: string) => console.log(msg) })
@@ -1985,11 +2038,11 @@ const get = /* @__PURE__ */ dual(2, (self, service) => {
 * const context = Context.empty()
 * const logger = Context.getReferenceUnsafe(context, LoggerRef)
 *
-* assert.deepStrictEqual(logger, { log: (msg: string) => console.log(msg) })
+* console.log(typeof logger.log) // "function"
 * ```
 *
-* @since 4.0.0
 * @category unsafe
+* @since 4.0.0
 */
 const getReferenceUnsafe = (self, service) => {
 	if (!self.mapUnsafe.has(service.key)) return getDefaultValue(service);
@@ -2017,9 +2070,15 @@ const serviceNotFoundError = (service) => {
 	return error;
 };
 /**
-* Merges any number of `Context`s, returning a new `Context` containing the services of all.
+* Merges any number of `Context`s into one.
 *
-* @example
+* **Details**
+*
+* When multiple contexts contain the same service key, the service from the
+* last context with that key is kept.
+*
+* **Example** (Merging multiple contexts)
+*
 * ```ts
 * import { Context } from "effect"
 * import * as assert from "node:assert"
@@ -2043,6 +2102,7 @@ const serviceNotFoundError = (service) => {
 * assert.deepStrictEqual(Context.get(context, Host), { HOST: "localhost" })
 * ```
 *
+* @category combining
 * @since 3.12.0
 */
 const mergeAll$1 = (...ctxs) => {
@@ -2062,7 +2122,8 @@ const mergeAll$1 = (...ctxs) => {
 * when the context is accessed, or override it with a custom implementation
 * when needed.
 *
-* @example
+* **Example** (Creating references with default values)
+*
 * ```ts
 * import { Context } from "effect"
 *
@@ -2082,19 +2143,19 @@ const mergeAll$1 = (...ctxs) => {
 * const customLogger = Context.get(customContext, LoggerRef)
 * ```
 *
-* @since 4.0.0
-* @category References
+* @category references
+* @since 3.11.0
 */
 const Reference = Service;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/array.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/internal/array.js
 /**
 * @since 2.0.0
 */
 /** @internal */
 const isArrayNonEmpty = (self) => self.length > 0;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Array.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Array.js
 /**
 * Utilities for working with immutable arrays (and non-empty arrays) in a
 * functional style. All functions treat arrays as immutable — they return new
@@ -2183,6 +2244,8 @@ const isArrayNonEmpty = (self) => self.length > 0;
 /**
 * Reference to the global `Array` constructor.
 *
+* **When to use**
+*
 * Use this when you need the native `Array` constructor while the `Array`
 * namespace is in scope (e.g. `Array.Array.isArray`, `Array.Array.from`).
 *
@@ -2201,6 +2264,8 @@ const isArrayNonEmpty = (self) => self.length > 0;
 const Array$1 = globalThis.Array;
 /**
 * Converts an `Iterable` to an `Array`.
+*
+* **Details**
 *
 * - If the input is already an array, returns it **by reference** (no copy).
 * - Otherwise, creates a new array from the iterable.
@@ -2225,6 +2290,8 @@ const Array$1 = globalThis.Array;
 const fromIterable = (collection) => Array$1.isArray(collection) ? collection : Array$1.from(collection);
 /**
 * Concatenates two iterables into a single array.
+*
+* **Details**
 *
 * - If either input is non-empty, the result is a `NonEmptyArray`.
 * - Does not mutate the inputs.
@@ -2263,7 +2330,7 @@ Array$1.isArray;
 * @see {@link isReadonlyArrayEmpty} — opposite check
 *
 * @category guards
-* @since 2.0.0
+* @since 4.0.0
 */
 const isReadonlyArrayNonEmpty = isArrayNonEmpty;
 /** @internal */
@@ -2387,13 +2454,39 @@ const dedupeWith = /* @__PURE__ */ dual(2, (self, isEquivalent) => {
 	return [];
 });
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Scheduler.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Scheduler.js
 /**
+* The `Scheduler` module defines the runtime scheduling services used by
+* Effect fibers. A scheduler decides how runnable tasks are enqueued, when they
+* are dispatched, and whether a fiber should yield after consuming its
+* operation budget.
+*
+* **Common tasks**
+*
+* - Use {@link Scheduler} to provide a custom runtime scheduler
+* - Use {@link MixedScheduler} for the default priority-aware scheduler
+* - Use {@link MaxOpsBeforeYield} to tune fairness for CPU-bound fibers
+* - Use {@link PreventSchedulerYield} only when a runtime should bypass yield checks
+*
+* **Gotchas**
+*
+* - Scheduler priorities affect the order of queued runtime tasks, not the
+*   semantic result of an `Effect`
+* - Disabling scheduler yields can improve throughput for controlled workloads,
+*   but it can also let long-running fibers monopolize the JavaScript thread
+*
 * @since 2.0.0
 */
 /**
-* @since 4.0.0
+* Context reference for the scheduler used by the Effect runtime.
+*
+* **Details**
+*
+* The default value creates a `MixedScheduler`. Provide this service to
+* customize execution mode, task dispatching, or yield behavior.
+*
 * @category references
+* @since 2.0.0
 */
 const Scheduler = /* @__PURE__ */ Reference("effect/Scheduler", { defaultValue: () => new MixedScheduler() });
 const setImmediate = "setImmediate" in globalThis ? (f) => {
@@ -2425,18 +2518,17 @@ var PriorityBuckets = class {
 	}
 };
 /**
-* A scheduler implementation that provides efficient task scheduling
-* with support for both synchronous and asynchronous execution modes.
+* A scheduler implementation that batches queued tasks and dispatches them by
+* priority.
 *
-* Features:
-* - Batches tasks for efficient execution
-* - Supports priority-based task scheduling
-* - Configurable execution mode (sync/async)
-* - Automatic yielding based on operation count
-* - Optimized for high-throughput scenarios
+* **Details**
 *
-* @since 2.0.0
+* `MixedScheduler` supports synchronous and asynchronous execution modes, uses
+* operation counts to decide when fibers should yield, and is the default
+* scheduler implementation.
+*
 * @category schedulers
+* @since 2.0.0
 */
 var MixedScheduler = class {
 	executionMode;
@@ -2446,13 +2538,17 @@ var MixedScheduler = class {
 		this.setImmediate = setImmediateFn;
 	}
 	/**
+	* Returns whether the fiber has reached its operation budget and should yield.
+	*
 	* @since 2.0.0
 	*/
 	shouldYield(fiber) {
 		return fiber.currentOpCount >= fiber.maxOpsBeforeYield;
 	}
 	/**
-	* @since 2.0.0
+	* Creates a dispatcher that schedules work through this scheduler.
+	*
+	* @since 4.0.0
 	*/
 	makeDispatcher() {
 		return new MixedSchedulerDispatcher(this.setImmediate);
@@ -2504,14 +2600,16 @@ var MixedSchedulerDispatcher = class {
 };
 /**
 * A service reference that controls the maximum number of operations a fiber
-* can perform before yielding control back to the scheduler. This helps
-* prevent long-running fibers from monopolizing the execution thread.
+* can perform before yielding control back to the scheduler.
 *
-* The default value is 2048 operations, which provides a good balance between
-* performance and fairness in concurrent execution.
+* **Details**
 *
-* @since 4.0.0
+* The default value is `2048` operations, which balances performance and
+* fairness by helping prevent long-running fibers from monopolizing the
+* execution thread.
+*
 * @category references
+* @since 4.0.0
 */
 const MaxOpsBeforeYield = /* @__PURE__ */ Reference("effect/Scheduler/MaxOpsBeforeYield", { defaultValue: () => 2048 });
 /**
@@ -2519,39 +2617,83 @@ const MaxOpsBeforeYield = /* @__PURE__ */ Reference("effect/Scheduler/MaxOpsBefo
 * yield checks. When set to `true`, the fiber run loop won't call
 * `Scheduler.shouldYield`.
 *
-* @since 4.0.0
 * @category references
+* @since 4.0.0
 */
 const PreventSchedulerYield = /* @__PURE__ */ Reference("effect/Scheduler/PreventSchedulerYield", { defaultValue: () => false });
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Tracer.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Tracer.js
 /**
+* The `Tracer` module defines the low-level tracing model used by Effect to
+* describe and propagate spans. A span records the lifetime of an operation,
+* including its name, parent, attributes, links, annotations, sampling decision,
+* kind, and completion status.
+*
+* **Mental model**
+*
+* - `Tracer` is the backend interface responsible for creating spans
+* - `Span` values represent Effect-managed operations with mutable lifecycle
+*   hooks for ending spans and adding attributes, events, or links
+* - `ExternalSpan` represents trace context imported from another tracing
+*   system so Effect spans can be parented by or linked to external work
+* - `ParentSpan`, `Tracer`, and related context references control propagation,
+*   sampling, and trace-level filtering through the Effect context
+*
+* **Common tasks**
+*
+* - Implement a custom tracing backend with {@link make}
+* - Provide or inspect parent span context with {@link ParentSpan}
+* - Convert external trace identifiers into Effect span values with
+*   {@link externalSpan}
+* - Configure span metadata with {@link SpanOptions}, {@link SpanKind}, and
+*   {@link SpanLink}
+* - Disable propagation or adjust trace filtering with
+*   {@link DisablePropagation}, {@link CurrentTraceLevel}, and
+*   {@link MinimumTraceLevel}
+*
+* **Gotchas**
+*
+* - This module exposes the tracing data model and backend hooks; most
+*   application code should create spans through higher-level Effect APIs such
+*   as `Effect.withSpan`
+* - `ExternalSpan` only carries identity and metadata from another system; it
+*   does not have lifecycle methods like `Span`
+* - Propagation and sampling are context-dependent, so parent selection can be
+*   affected by disabled propagation, root span options, and trace-level
+*   thresholds
+*
 * @since 2.0.0
 */
 /**
-* @since 2.0.0
-* @category tags
-* @example
+* The string key used to identify the `ParentSpan` context service.
+*
+* **Example** (Reading the parent span key)
+*
 * ```ts
 * import { Tracer } from "effect"
 *
 * // The key used to identify parent spans in the context
 * console.log(Tracer.ParentSpanKey) // "effect/Tracer/ParentSpan"
 * ```
+*
+* @category tags
+* @since 4.0.0
 */
 const ParentSpanKey = "effect/Tracer/ParentSpan";
 Service()(ParentSpanKey);
 /**
-* @since 4.0.0
+* The string key used to identify the active `Tracer` context reference.
+*
 * @category references
+* @since 4.0.0
 */
 const TracerKey = "effect/Tracer";
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/metric.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/internal/metric.js
 /** @internal */
 const FiberRuntimeMetricsKey = "effect/observability/Metric/FiberRuntimeMetricsKey";
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/references.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/internal/references.js
 /** @internal */
 const CurrentConcurrency = /* @__PURE__ */ Reference("effect/References/CurrentConcurrency", { defaultValue: () => "unbounded" });
 /** @internal */
@@ -2561,7 +2703,7 @@ const CurrentLogLevel = /* @__PURE__ */ Reference("effect/References/CurrentLogL
 /** @internal */
 const MinimumLogLevel = /* @__PURE__ */ Reference("effect/References/MinimumLogLevel", { defaultValue: () => "Info" });
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/internal/effect.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/internal/effect.js
 /** @internal */
 var Interrupt = class extends ReasonBase {
 	fiberId;
@@ -3264,9 +3406,15 @@ const DeferredProto = {
 	}
 };
 /**
-* Unsafely creates a new `Deferred`
+* Synchronously creates an empty `Deferred` outside the `Effect` runtime.
 *
-* @example
+* **When to use**
+*
+* Prefer `Deferred.make` in effectful code so allocation is represented in
+* `Effect`; use this only when direct synchronous allocation is required.
+*
+* **Example** (Creating a Deferred unsafely)
+*
 * ```ts
 * import { Deferred } from "effect"
 *
@@ -3274,8 +3422,8 @@ const DeferredProto = {
 * console.log(deferred)
 * ```
 *
-* @since 2.0.0
 * @category unsafe
+* @since 4.0.0
 */
 const makeUnsafe$1 = () => {
 	const self = Object.create(DeferredProto);
@@ -3296,7 +3444,8 @@ const _await = (self) => callback((resume) => {
 * Exits the `Deferred` with the specified `Exit` value, which will be
 * propagated to all fibers waiting on the value of the `Deferred`.
 *
-* @example
+* **Example** (Completing a Deferred with an Exit)
+*
 * ```ts
 * import { Deferred, Effect, Exit } from "effect"
 *
@@ -3309,15 +3458,22 @@ const _await = (self) => callback((resume) => {
 * })
 * ```
 *
-* @since 2.0.0
 * @category utils
+* @since 2.0.0
 */
 const done = /* @__PURE__ */ dual(2, (self, effect) => sync(() => doneUnsafe(self, effect)));
 /**
-* Unsafely exits the `Deferred` with the specified `Exit` value, which will be
-* propagated to all fibers waiting on the value of the `Deferred`.
+* Synchronously attempts to complete the `Deferred` with the specified
+* completion effect.
 *
-* @example
+* **Details**
+*
+* This mutates the `Deferred` directly and should be reserved for low-level
+* code; prefer the effectful completion APIs when possible. Returns `true` if
+* this call completed the `Deferred`, or `false` if it was already completed.
+*
+* **Example** (Completing a Deferred unsafely)
+*
 * ```ts
 * import { Deferred, Effect } from "effect"
 *
@@ -3326,8 +3482,8 @@ const done = /* @__PURE__ */ dual(2, (self, effect) => sync(() => doneUnsafe(sel
 * console.log(success) // true
 * ```
 *
-* @since 2.0.0
 * @category unsafe
+* @since 4.0.0
 */
 const doneUnsafe = (self, effect) => {
 	if (self.effect) return false;
@@ -3339,7 +3495,7 @@ const doneUnsafe = (self, effect) => {
 	return true;
 };
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Scope.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Scope.js
 /**
 * The `Scope` module provides functionality for managing resource lifecycles
 * and cleanup operations in a functional and composable manner.
@@ -3360,7 +3516,8 @@ const doneUnsafe = (self, effect) => {
 * This is useful when you need a scope immediately but should be used with caution
 * as it doesn't provide the same safety guarantees as the `Effect`-wrapped version.
 *
-* @example
+* **Example** (Creating a scope synchronously)
+*
 * ```ts
 * import { Console, Effect, Exit, Scope } from "effect"
 *
@@ -3374,15 +3531,21 @@ const doneUnsafe = (self, effect) => {
 * })
 * ```
 *
-* @since 4.0.0
 * @category constructors
+* @since 4.0.0
 */
 const makeUnsafe = scopeMakeUnsafe;
 /**
-* Creates a child scope from a parent scope synchronously without wrapping it in an `Effect`.
-* The child scope inherits the parent's finalization strategy unless overridden.
+* Synchronously creates a closeable child scope registered with a parent scope.
 *
-* @example
+* **Details**
+*
+* Closing the parent closes the child with the same exit value, and closing the
+* child detaches it from the parent. The optional finalizer strategy configures
+* the child scope and defaults to `"sequential"` when omitted.
+*
+* **Example** (Creating a child scope synchronously)
+*
 * ```ts
 * import { Console, Effect, Exit, Scope } from "effect"
 *
@@ -3400,15 +3563,16 @@ const makeUnsafe = scopeMakeUnsafe;
 * })
 * ```
 *
-* @since 4.0.0
 * @category combinators
+* @since 4.0.0
 */
 const forkUnsafe = scopeForkUnsafe;
 /**
 * Closes a scope, running all registered finalizers in the appropriate order.
 * The exit value is passed to each finalizer.
 *
-* @example
+* **Example** (Running scope finalizers)
+*
 * ```ts
 * import { Console, Effect, Exit, Scope } from "effect"
 *
@@ -3430,13 +3594,17 @@ const forkUnsafe = scopeForkUnsafe;
 * ```
 *
 * @category combinators
-* @since 4.0.0
+* @since 2.0.0
 */
 const close = scopeClose;
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Layer.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Layer.js
 const TypeId = "~effect/Layer";
 const MemoMapTypeId = "~effect/Layer/MemoMap";
+const memoMapReuse = (entry, scope) => {
+	entry.observers++;
+	return andThen(scopeAddFinalizerExit(scope, (exit) => entry.finalizer(exit)), entry.effect);
+};
 const LayerProto = {
 	[TypeId]: {
 		_ROut: identity,
@@ -3453,14 +3621,18 @@ const fromBuildUnsafe = (build) => {
 	return self;
 };
 /**
-* Constructs a Layer from a function that uses a `MemoMap` and `Scope` to build the layer.
+* Constructs a `Layer` from a function that uses a `MemoMap` and `Scope` to
+* build the layer.
+*
+* **Details**
 *
 * The function receives a `MemoMap` for memoization and a `Scope` for resource management.
 * A child scope is created, and if the build fails, the child scope is closed.
 *
-* @example
+* **Example** (Constructing a layer from a build function)
+*
 * ```ts
-* import { Effect, Layer, Context } from "effect"
+* import { Context, Effect, Layer } from "effect"
 *
 * class Database extends Context.Service<Database, {
 *   readonly query: (sql: string) => Effect.Effect<string>
@@ -3475,51 +3647,61 @@ const fromBuildUnsafe = (build) => {
 * )
 * ```
 *
-* @since 4.0.0
 * @category constructors
+* @since 4.0.0
 */
 const fromBuild = (build) => fromBuildUnsafe((memoMap, scope) => {
 	const layerScope = forkUnsafe(scope);
 	return onExit(build(memoMap, layerScope), (exit) => exit._tag === "Failure" ? close(layerScope, exit) : void_);
 });
+const memoMapBuild = (memoMap, layer, scope, build) => {
+	const layerScope = makeUnsafe();
+	const deferred = makeUnsafe$1();
+	const entry = {
+		observers: 1,
+		effect: _await(deferred),
+		finalizer: (exit) => suspend(() => {
+			entry.observers--;
+			if (entry.observers === 0) {
+				memoMap.map.delete(layer);
+				return close(layerScope, exit);
+			}
+			return void_;
+		})
+	};
+	memoMap.map.set(layer, entry);
+	return scopeAddFinalizerExit(scope, entry.finalizer).pipe(flatMap(() => build(memoMap, layerScope)), onExit((exit) => {
+		entry.effect = exit;
+		return done(deferred, exit);
+	}));
+};
 var MemoMapImpl = class {
 	get [MemoMapTypeId]() {
 		return MemoMapTypeId;
 	}
+	parent;
+	constructor(parent) {
+		this.parent = parent;
+	}
 	map = /* @__PURE__ */ new Map();
+	get(layer, scope) {
+		const local = this.map.get(layer);
+		if (local) return memoMapReuse(local, scope);
+		return this.parent?.get(layer, scope);
+	}
 	getOrElseMemoize(layer, scope, build) {
-		if (this.map.has(layer)) {
-			const entry = this.map.get(layer);
-			entry.observers++;
-			return andThen(scopeAddFinalizerExit(scope, (exit) => entry.finalizer(exit)), entry.effect);
-		}
-		const layerScope = makeUnsafe();
-		const deferred = makeUnsafe$1();
-		const entry = {
-			observers: 1,
-			effect: _await(deferred),
-			finalizer: (exit) => suspend(() => {
-				entry.observers--;
-				if (entry.observers === 0) {
-					this.map.delete(layer);
-					return close(layerScope, exit);
-				}
-				return void_;
-			})
-		};
-		this.map.set(layer, entry);
-		return scopeAddFinalizerExit(scope, entry.finalizer).pipe(flatMap(() => build(this, layerScope)), onExit((exit) => {
-			entry.effect = exit;
-			return done(deferred, exit);
-		}));
+		const existing = this.get(layer, scope);
+		if (existing) return existing;
+		return memoMapBuild(this, layer, scope, build);
 	}
 };
 /**
 * Constructs a `MemoMap` that can be used to build additional layers.
 *
-* @example
+* **Example** (Creating a memo map unsafely)
+*
 * ```ts
-* import { Effect, Layer, Context } from "effect"
+* import { Context, Effect, Layer } from "effect"
 *
 * class Database extends Context.Service<Database, {
 *   readonly query: (sql: string) => Effect.Effect<string>
@@ -3530,7 +3712,7 @@ var MemoMapImpl = class {
 *   const memoMap = Layer.makeMemoMapUnsafe()
 *   const scope = yield* Effect.scope
 *
-*   const dbLayer = Layer.succeed(Database)({
+*   const dbLayer = Layer.succeed(Database, {
 *     query: Effect.fn("Database.query")((sql: string) => Effect.succeed("result"))
 *   })
 *   const context = yield* Layer.buildWithMemoMap(dbLayer, memoMap, scope)
@@ -3539,8 +3721,8 @@ var MemoMapImpl = class {
 * })
 * ```
 *
-* @since 4.0.0
 * @category memo map
+* @since 4.0.0
 */
 const makeMemoMapUnsafe = () => new MemoMapImpl();
 (class extends Service()("effect/Layer/CurrentMemoMap") {
@@ -3551,14 +3733,25 @@ const mergeAllEffect = (layers, memoMap, scope) => {
 	return forEach(layers, (layer) => layer.build(memoMap, forkUnsafe(parentScope, "sequential")), { concurrency: layers.length }).pipe(map((context) => mergeAll$1(...context)));
 };
 /**
-* Combines all the provided layers concurrently, creating a new layer with merged input, error, and output types.
+* Combines all the provided layers concurrently, creating a new layer with
+* merged input, error, and output types.
+*
+* **When to use**
+*
+* Use this when you need to combine multiple independent layers.
+*
+* **Details**
 *
 * All layers are built concurrently, and their outputs are merged into a single layer.
-* This is useful when you need to combine multiple independent layers.
 *
-* @example
+* If multiple merged layers depend on the same layer value, that dependency is
+* shared by default. Reuse a named layer value when you want services to share
+* the same resource, such as one database pool.
+*
+* **Example** (Merging independent layers)
+*
 * ```ts
-* import { Effect, Layer, Context } from "effect"
+* import { Context, Effect, Layer } from "effect"
 *
 * class Database extends Context.Service<Database, {
 *   readonly query: (sql: string) => Effect.Effect<string>
@@ -3568,29 +3761,41 @@ const mergeAllEffect = (layers, memoMap, scope) => {
 *   readonly log: (msg: string) => Effect.Effect<void>
 * }>()("Logger") {}
 *
-* const dbLayer = Layer.succeed(Database)({
+* const dbLayer = Layer.succeed(Database, {
 *   query: Effect.fn("Database.query")((sql: string) => Effect.succeed("result"))
 * })
-* const loggerLayer = Layer.succeed(Logger)({
+* const loggerLayer = Layer.succeed(Logger, {
 *   log: Effect.fn("Logger.log")((msg: string) => Effect.sync(() => console.log(msg)))
 * })
 *
 * const mergedLayer = Layer.mergeAll(dbLayer, loggerLayer)
 * ```
 *
-* @since 2.0.0
+* @see {@link merge} for merging one layer with another layer or array
+*
 * @category zipping
+* @since 2.0.0
 */
 const mergeAll = (...layers) => fromBuild((memoMap, scope) => mergeAllEffect(layers, memoMap, scope));
 /**
-* Merges this layer with the specified layer concurrently, producing a new layer with combined input and output types.
+* Merges this layer with another layer concurrently, producing a new layer with
+* combined input, error, and output types.
 *
-* This is a binary version of `mergeAll` that merges exactly two layers or one layer with an array of layers.
-* The layers are built concurrently and their outputs are combined.
+* **When to use**
 *
-* @example
+* Use `merge` when composing from an existing layer in a pipeline. Use
+* `mergeAll` when you already have all layers as separate arguments.
+*
+* **Details**
+*
+* This is a binary version of `mergeAll` that merges exactly two layers or one
+* layer with an array of layers. The layers are built concurrently and their
+* outputs are combined.
+*
+* **Example** (Merging two layers)
+*
 * ```ts
-* import { Effect, Layer, Context } from "effect"
+* import { Context, Effect, Layer } from "effect"
 *
 * class Database extends Context.Service<Database, {
 *   readonly query: (sql: string) => Effect.Effect<string>
@@ -3600,27 +3805,29 @@ const mergeAll = (...layers) => fromBuild((memoMap, scope) => mergeAllEffect(lay
 *   readonly log: (msg: string) => Effect.Effect<void>
 * }>()("Logger") {}
 *
-* const dbLayer = Layer.succeed(Database)({
+* const dbLayer = Layer.succeed(Database, {
 *   query: Effect.fn("Database.query")((sql: string) => Effect.succeed("result"))
 * })
-* const loggerLayer = Layer.succeed(Logger)({
+* const loggerLayer = Layer.succeed(Logger, {
 *   log: Effect.fn("Logger.log")((msg: string) => Effect.sync(() => console.log(msg)))
 * })
 *
 * const mergedLayer = Layer.merge(dbLayer, loggerLayer)
 * ```
 *
-* @since 2.0.0
+* @see {@link mergeAll} for merging several layers at once
+*
 * @category zipping
+* @since 2.0.0
 */
 const merge = /* @__PURE__ */ dual(2, (self, that) => mergeAll(self, ...Array.isArray(that) ? that : [that]));
 //#endregion
-//#region ../../../node_modules/.bun/effect@4.0.0-beta.66/node_modules/effect/dist/Effect.js
+//#region ../../../node_modules/.bun/effect@4.0.0-beta.70/node_modules/effect/dist/Effect.js
 /**
 * Provides a way to write effectful code using generator functions, simplifying
 * control flow and error handling.
 *
-* **When to Use**
+* **When to use**
 *
 * `gen` allows you to write code that looks and behaves like synchronous
 * code, but it can handle asynchronous tasks, errors, and complex control flow
@@ -3631,7 +3838,8 @@ const merge = /* @__PURE__ */ dual(2, (self, that) => mergeAll(self, ...Array.is
 * explicit control over the execution of effects. You can `yield*` values from
 * effects and return the final result at the end.
 *
-* @example
+* **Example** (Sequencing effects with generators)
+*
 * ```ts
 * import { Data, Effect } from "effect"
 *
@@ -3663,8 +3871,8 @@ const merge = /* @__PURE__ */ dual(2, (self, that) => mergeAll(self, ...Array.is
 * })
 * ```
 *
-* @since 2.0.0
 * @category Creating Effects
+* @since 2.0.0
 */
 const gen = gen$1;
 Service()("effect/Effect/Transaction");

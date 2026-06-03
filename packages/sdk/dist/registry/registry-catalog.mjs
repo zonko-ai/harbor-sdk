@@ -10753,12 +10753,10 @@ var gmail_mcp_default = {
 	display_name: "Gmail",
 	description: "Read, search, draft, send, label, and triage Gmail messages on behalf of the connected user",
 	category: "comms",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/49d5a85a-a4ff-4842-a0ea-e545b3a1d7c3/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_S4X59eoandGf"
+		"composio_auth_config_id": "ac_S4X59eoandGf",
+		"toolkit_slug": "gmail"
 	},
 	auth: {
 		"method": "none",
@@ -10779,12 +10777,10 @@ var google_drive_mcp_default = {
 	display_name: "Google Drive",
 	description: "Search and read files in the connected user's Google Drive",
 	category: "storage",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/fc1c078c-7248-4437-8cf5-57acd0c2bdd7/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_-JpcQd2Qeck8"
+		"composio_auth_config_id": "ac_-JpcQd2Qeck8",
+		"toolkit_slug": "googledrive"
 	},
 	auth: {
 		"method": "none",
@@ -10805,12 +10801,10 @@ var google_sheets_mcp_default = {
 	display_name: "Google Sheets",
 	description: "Read and write Google Sheets ranges, append rows, and create tabs",
 	category: "data",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/ab99f337-9071-4b5f-be19-5d7a65e72638/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_Ou58hAS2jOhP"
+		"composio_auth_config_id": "ac_Ou58hAS2jOhP",
+		"toolkit_slug": "googlesheets"
 	},
 	auth: {
 		"method": "none",
@@ -10831,12 +10825,10 @@ var google_docs_mcp_default = {
 	display_name: "Google Docs",
 	description: "Read and append content to Google Docs as markdown",
 	category: "data",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/587d655f-9574-454a-80ce-04a3d3d4c8e0/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_KB7gKC3kbFGP"
+		"composio_auth_config_id": "ac_KB7gKC3kbFGP",
+		"toolkit_slug": "googledocs"
 	},
 	auth: {
 		"method": "none",
@@ -10857,12 +10849,10 @@ var google_calendar_mcp_default = {
 	display_name: "Google Calendar",
 	description: "List, create, and update calendar events; read free/busy across calendars",
 	category: "comms",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/5dea3930-4d0b-4f5a-9441-a015d54747cc/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_HZdMZoL4mwsL"
+		"composio_auth_config_id": "ac_HZdMZoL4mwsL",
+		"toolkit_slug": "googlecalendar"
 	},
 	auth: {
 		"method": "none",
@@ -10883,12 +10873,10 @@ var onedrive_mcp_default = {
 	display_name: "OneDrive",
 	description: "Search, read, upload, share, and manage files in the connected user's OneDrive",
 	category: "storage",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/9e1d321d-ce15-4789-9da5-63432955f994/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_SsVdIydkFEGK"
+		"composio_auth_config_id": "ac_SsVdIydkFEGK",
+		"toolkit_slug": "one_drive"
 	},
 	auth: {
 		"method": "none",
@@ -10909,12 +10897,10 @@ var outlook_mcp_default = {
 	display_name: "Outlook",
 	description: "Read, search, draft, send, and organize Outlook mail, calendar events, and contacts",
 	category: "comms",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/fbf60df9-b039-463a-91fc-a329aa9a6870/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_qzmn1g9V4Fe3"
+		"composio_auth_config_id": "ac_qzmn1g9V4Fe3",
+		"toolkit_slug": "outlook"
 	},
 	auth: {
 		"method": "none",
@@ -10935,12 +10921,10 @@ var microsoft_teams_mcp_default = {
 	display_name: "Microsoft Teams",
 	description: "Read and manage Teams chats, channels, meetings, files, and collaboration workflows",
 	category: "comms",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/a6de0b0d-90dd-4aaf-83db-d8b9a77b9263/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_jA2-etu4SEI6"
+		"composio_auth_config_id": "ac_jA2-etu4SEI6",
+		"toolkit_slug": "microsoft_teams"
 	},
 	auth: {
 		"method": "none",
@@ -10961,12 +10945,10 @@ var excel_mcp_default = {
 	display_name: "Excel",
 	description: "Read, update, create, and analyze Excel workbooks, worksheets, ranges, tables, and charts",
 	category: "data",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/79d97c07-1396-4cc7-b6f8-90dab637cbcf/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_NlWoBCTlrzGW"
+		"composio_auth_config_id": "ac_NlWoBCTlrzGW",
+		"toolkit_slug": "excel"
 	},
 	auth: {
 		"method": "none",
@@ -10987,12 +10969,10 @@ var sharepoint_mcp_default = {
 	display_name: "SharePoint",
 	description: "Search, read, create, update, and manage SharePoint sites, lists, folders, and files",
 	category: "storage",
-	kind: "mcp",
+	kind: "composio",
 	config: {
-		"mcp_endpoint": "https://backend.composio.dev/v3/mcp/334ca15a-d504-4495-bbe8-b65d5f59dd6a/mcp?user_id={user_id}",
-		"mcp_transport": "http",
-		"mcp_default_headers": { "x-api-key": "{{env:COMPOSIO_API_KEY}}" },
-		"composio_auth_config_id": "ac_jajzHz0UpwEM"
+		"composio_auth_config_id": "ac_jajzHz0UpwEM",
+		"toolkit_slug": "share_point"
 	},
 	auth: {
 		"method": "none",
