@@ -8,6 +8,13 @@ The package is split into two layers:
 - `harbor_sdk_generated`: generated protocol client produced from the shared
   Harbor OpenAPI and Stainless-compatible config.
 
+The current pre-release wheel is distributed as a GitHub release artifact:
+
+    python -m pip install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.1/harbor_sdk-0.1.1-py3-none-any.whl
+
+Runtime dependencies are installed by the wheel: `httpx` for sync/async HTTP
+transport and `pydantic` for generated protocol models.
+
 ## Usage
 
 ```python
@@ -47,13 +54,16 @@ result = await client.runtime.execute(code='return "ok"')
 `HARBOR_WORKSPACE_ID`. API-key clients require a workspace id at construction;
 there is no hidden workspace lookup.
 
-## Regeneration
+## Release Regeneration
 
-The generated layer is refreshed from the repo root:
+The generated layer is refreshed from the Harbor monorepo, then copied into this
+publish-shaped repository. Do not edit `harbor_sdk_generated` by hand.
+
+From the Harbor monorepo:
 
 ```bash
 HARBOR_STAINFUL_BIN=tmp/protocol/python/.venv/bin/stainful bun run protocol:generate:python
 ```
 
-Do not edit `harbor_sdk_generated` by hand. Change the shared OpenAPI/Stainless
-inputs or the generator script instead.
+Change the shared OpenAPI/Stainless inputs or the generator script there, then
+rerun this repository's smoke and pack checks before release.

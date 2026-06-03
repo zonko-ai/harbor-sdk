@@ -78,13 +78,15 @@ examples in the shape external developers consume.
 | Package | Purpose |
 | --- | --- |
 | `@hrbr/client` | Promise-first Harbor API client for application, browser, integration, CLI, and server authors. Includes `@hrbr/client/effect` for Effect-native hosts. |
-| `@hrbr/sdk` | Composite system SDK facade for Harbor runtime, platform, plugin, protocol, registry, Orbit, and control-plane contracts. |
-| `harbor-sdk` | Python client SDK published from `packages/python`, with sync and async clients over the same generated Harbor protocol. |
+| `@hrbr/sdk` | Composite system SDK facade for Harbor runtime, platform, inspect, plugin, protocol, registry, Orbit, and control-plane contracts. |
+| `harbor-sdk` | Python client SDK from `packages/python`, with sync and async clients over the same generated Harbor protocol. |
 
-The intended public npm surface is two packages. The Python surface is one PyPI
-package named `harbor-sdk` with import package `harbor_sdk`. Leaf
-runtime/protocol/platform packages stay behind `@hrbr/sdk` unless there is a
-concrete reason to expose a new public product.
+The intended public TypeScript surface is two package identities. The Python
+surface is one distribution package named `harbor-sdk` with import package
+`harbor_sdk`. In the current pre-release lane, all three packages are
+distributed as GitHub release artifacts rather than npm or PyPI registry
+publishes. Leaf runtime/protocol/platform packages stay behind `@hrbr/sdk`
+unless there is a concrete reason to expose a new public product.
 
 ---
 
@@ -98,10 +100,10 @@ concrete reason to expose a new public product.
 | Generated protocol client | `harbor.api` and `@hrbr/client/generated/harbor` expose generated Harbor API resources and types. |
 | Explicit auth modes | Workspace API keys, bearer tokens, token providers, OAuth authorize URL helpers, and device-login helpers. |
 | Runtime results | `runtime.execute` preserves raw `result` and typed `content` blocks, including explicit skill bundles. |
-| System namespaces | `@hrbr/sdk` exports `Agents`, `Core`, `Orbit`, `Platform`, `Plugins`, `Protocol`, `Registry`, and `Runtime`. |
-| Focused subpaths | Narrow imports such as `@hrbr/sdk/core/trigger`, `@hrbr/sdk/registry`, and `@hrbr/sdk/platform/local`. |
+| System namespaces | `@hrbr/sdk` exports `Agents`, `Core`, `Inspect`, `Orbit`, `Platform`, `Plugins`, `Protocol`, `Registry`, and `Runtime`. |
+| Focused subpaths | Narrow imports such as `@hrbr/sdk/inspect`, `@hrbr/sdk/core/trigger`, `@hrbr/sdk/registry`, and `@hrbr/sdk/platform/local`. |
 | Local server | `@hrbr/sdk/platform/local` can initialize a local project, serve Harbor-compatible routes, record runs, and host a small frontend. |
-| Packaged artifacts | Package directories contain `dist`, declaration files, modern `exports`, and npm publish metadata. |
+| Packaged artifacts | Package directories contain `dist`, declaration files, modern `exports`, and release metadata. |
 
 ---
 
@@ -153,6 +155,14 @@ bun run --filter local-platform-example serve
 
 Open the printed `http://127.0.0.1:<port>` URL. The example uses
 `local-token` as its bearer token when the frontend asks for auth.
+
+Install the current release artifacts directly from GitHub:
+
+```bash
+npm install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.1/hrbr-client-0.1.1.tgz
+npm install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.1/hrbr-sdk-0.1.1.tgz
+python -m pip install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.1/harbor_sdk-0.1.1-py3-none-any.whl
+```
 
 ---
 
@@ -289,7 +299,7 @@ routes for the local workspace/run flow used by the examples.
 | `examples/browser-client` | Browser/app integration with caller-owned bearer token state. |
 | `examples/client-promise` | Promise runtime execution and content blocks for text plus explicit skill bundles. |
 | `examples/python-client` | Offline Python client call showing text, JSON, and skill-bundle content blocks. |
-| `examples/sdk-system` | Root namespace imports and focused subpaths from `@hrbr/sdk`. |
+| `examples/sdk-system` | Root namespace imports, the inspect namespace, and focused subpaths from `@hrbr/sdk`. |
 | `examples/local-platform` | Local project, local server, SDK client call, and built-in frontend. |
 
 Run all examples through the smoke command:
@@ -355,27 +365,28 @@ above in this repository.
 
 ---
 
-## Publishing
+## Release Artifacts
 
-Publish from the package directories after generated artifacts have been
-refreshed and verified:
+The current release flow builds GitHub release artifacts from the package
+directories after generated artifacts have been refreshed and verified:
 
 ```bash
-npm publish ./packages/client --access public
-npm publish ./packages/sdk --access public
 bun run python:sdk:pack
-python3 -m twine upload tmp/python-dist/harbor_sdk-*.whl
+npm pack ./packages/client --pack-destination tmp/release-artifacts
+npm pack ./packages/sdk --pack-destination tmp/release-artifacts
+cp tmp/python-dist/harbor_sdk-*.whl tmp/release-artifacts/
 ```
 
-Use the source Harbor monorepo publish smoke before refreshing this repository
-so stale intermediate tarballs do not get copied here.
+Upload the three files in `tmp/release-artifacts` to the matching GitHub
+release tag. Do not publish to npm or PyPI unless the registry release lane has
+explicitly been opened.
 
 ---
 
 ## Roadmap
 
-- [ ] Publish `@hrbr/client` and `@hrbr/sdk` to npm.
-- [ ] Publish `harbor-sdk` to PyPI.
+- [ ] Open the npm registry release lane for `@hrbr/client` and `@hrbr/sdk`.
+- [ ] Open the PyPI registry release lane for `harbor-sdk`.
 - [ ] Add more framework examples for browser, server, CLI, and worker hosts.
 - [ ] Keep local platform frontend examples aligned with the hosted Harbor API
       contract.
