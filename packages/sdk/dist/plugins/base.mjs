@@ -1616,12 +1616,12 @@ Schema.Struct({
 	server_name: Schema.NullOr(Schema.String),
 	oauth: Schema.NullOr(McpOAuthDiscoveryResult$1)
 });
+Schema.Struct({ expires_in_seconds: Schema.optional(Schema.Number) });
 Schema.Struct({
-	workspace_id: WorkspaceId,
-	after: Schema.optional(Schema.Number),
-	timeout_ms: Schema.optional(Schema.Number)
+	workspace_id: Schema.String,
+	token: Schema.String,
+	expires_at: Schema.String
 });
-Schema.Struct({ workspace_id: WorkspaceId });
 const WorkspaceActivityEvent = Schema.Struct({
 	version: Schema.Number,
 	topic: Schema.String,
@@ -1804,6 +1804,254 @@ Schema.Struct({
 	clientVersion: Schema.NonEmptyString,
 	machineId: Schema.optional(Schema.String),
 	agentFamily: Schema.optional(Schema.String)
+});
+//#endregion
+//#region ../core-effect/src/context.ts
+const CONTEXT_TRACE_POLL_INTERVAL_MS = 360 * 60 * 1e3;
+const CONTEXT_TRACE_MIN_CONSUME_GAP_MS = 300 * 60 * 1e3;
+const CONTEXT_FRESHNESS_TTL_MS = 10080 * 60 * 1e3;
+const CONTEXT_WORKSPACE_INACTIVITY_STOP_MS = 7200 * 60 * 1e3;
+const ContextEntityId = Schema.NonEmptyString;
+const ContextEntityKind = Schema.Literals([
+	"workspace",
+	"plugin_namespace",
+	"topic_join",
+	"team_member",
+	"run_evidence"
+]);
+const ContextEntityStatus = Schema.Literals([
+	"active",
+	"partial",
+	"blocked",
+	"stale",
+	"inactive"
+]);
+const ContextConfidence = Schema.Literals([
+	"high",
+	"medium",
+	"low"
+]);
+const ContextProfileValue = Schema.Union([
+	Schema.String,
+	Schema.Number,
+	Schema.Boolean,
+	Schema.Array(Schema.String),
+	Schema.Null
+]);
+const ContextProfileKv = Schema.Struct({
+	key: Schema.NonEmptyString,
+	value: ContextProfileValue,
+	evidence: Schema.optional(Schema.String),
+	confidence: ContextConfidence
+});
+const ContextQueryPath = Schema.Struct({
+	intent: Schema.NonEmptyString,
+	tool: Schema.NonEmptyString,
+	when_to_use: Schema.String,
+	required_inputs: Schema.Array(Schema.String),
+	read_only: Schema.Boolean
+});
+const ContextEvidenceRef = Schema.Struct({
+	kind: Schema.Literals([
+		"path",
+		"run_id",
+		"trace_window",
+		"url"
+	]),
+	value: Schema.NonEmptyString
+});
+const ContextSourceMetadata = Schema.Struct({
+	source_id: Schema.optional(SourceId),
+	namespace: SourceNamespace,
+	status: Schema.String,
+	tool_count: Schema.optional(Schema.Number),
+	catalog_category: Schema.optional(Schema.String),
+	auth_method: Schema.optional(Schema.String),
+	refreshed_at: Timestamp
+});
+const ContextRefreshPolicy = Schema.Struct({
+	auto_refresh: Schema.Boolean,
+	freshness_ttl_ms: Schema.Number,
+	trace_poll_interval_ms: Schema.Number,
+	min_trace_consume_gap_ms: Schema.Number,
+	stop_if_no_traces_for_ms: Schema.Number
+});
+Schema.decodeUnknownSync(ContextRefreshPolicy)({
+	auto_refresh: true,
+	freshness_ttl_ms: CONTEXT_FRESHNESS_TTL_MS,
+	trace_poll_interval_ms: CONTEXT_TRACE_POLL_INTERVAL_MS,
+	min_trace_consume_gap_ms: CONTEXT_TRACE_MIN_CONSUME_GAP_MS,
+	stop_if_no_traces_for_ms: CONTEXT_WORKSPACE_INACTIVITY_STOP_MS
+});
+const ContextConsumptionState = Schema.Struct({
+	last_trace_consumed_at: Schema.optional(Timestamp),
+	last_trace_window_start_utc: Schema.optional(Timestamp),
+	last_trace_window_end_utc: Schema.optional(Timestamp),
+	last_trace_cursor: Schema.optional(Schema.String),
+	last_user_activity_at: Schema.optional(Timestamp),
+	auto_refresh_stopped_at: Schema.optional(Timestamp)
+});
+const ContextEntity = Schema.Struct({
+	entity_id: ContextEntityId,
+	kind: ContextEntityKind,
+	workspace_id: WorkspaceId,
+	workspace_slug: Schema.optional(Schema.NonEmptyString),
+	namespace: Schema.optional(SourceNamespace),
+	title: Schema.NonEmptyString,
+	status: ContextEntityStatus,
+	confidence: ContextConfidence,
+	profile_kv: Schema.Array(ContextProfileKv),
+	query_paths: Schema.Array(ContextQueryPath),
+	evidence: Schema.Array(ContextEvidenceRef),
+	related_entity_ids: Schema.Array(ContextEntityId),
+	source_metadata: Schema.optional(ContextSourceMetadata),
+	refresh_policy: ContextRefreshPolicy,
+	consumption_state: ContextConsumptionState,
+	updated_at: Timestamp
+});
+const ContextMachineState = Schema.Struct({
+	workspace_id: WorkspaceId,
+	workspace_slug: Schema.optional(Schema.NonEmptyString),
+	entities: Schema.Record(Schema.String, ContextEntity),
+	consumption_state: ContextConsumptionState,
+	updated_at: Timestamp
+});
+const PluginNamespaceAddedTrigger = Schema.Struct({
+	kind: Schema.Literal("plugin_namespace_added"),
+	workspace_id: WorkspaceId,
+	workspace_slug: Schema.optional(Schema.NonEmptyString),
+	namespace: SourceNamespace,
+	source_id: Schema.optional(SourceId),
+	source_status: Schema.String,
+	tool_count: Schema.optional(Schema.Number),
+	catalog_category: Schema.optional(Schema.String),
+	auth_method: Schema.optional(Schema.String),
+	occurred_at: Timestamp
+});
+const PluginNamespaceReconnectedTrigger = Schema.Struct({
+	kind: Schema.Literal("plugin_namespace_reconnected"),
+	workspace_id: WorkspaceId,
+	namespace: SourceNamespace,
+	source_id: Schema.optional(SourceId),
+	source_status: Schema.String,
+	tool_count: Schema.optional(Schema.Number),
+	occurred_at: Timestamp
+});
+const PluginNamespaceInstanceRefreshedTrigger = Schema.Struct({
+	kind: Schema.Literal("plugin_namespace_instance_refreshed"),
+	workspace_id: WorkspaceId,
+	namespace: SourceNamespace,
+	source_id: Schema.optional(SourceId),
+	source_status: Schema.String,
+	tool_count: Schema.optional(Schema.Number),
+	occurred_at: Timestamp
+});
+const TraceWindowObservedTrigger = Schema.Struct({
+	kind: Schema.Literal("trace_window_observed"),
+	workspace_id: WorkspaceId,
+	observed_at: Timestamp,
+	window_start_utc: Timestamp,
+	window_end_utc: Timestamp,
+	new_trace_count: Schema.Number.check(Schema.isInt(), Schema.isGreaterThanOrEqualTo(0)),
+	run_ids: Schema.Array(RunId)
+});
+const ManualContextRefreshRequestedTrigger = Schema.Struct({
+	kind: Schema.Literal("manual_context_refresh_requested"),
+	workspace_id: WorkspaceId,
+	requested_at: Timestamp,
+	scope: Schema.Literals(["workspace", "namespace"]),
+	namespace: Schema.optional(SourceNamespace),
+	requested_by: Schema.optional(UserId),
+	reason: Schema.optional(Schema.String)
+});
+const TeamMemberAddedTrigger = Schema.Struct({
+	kind: Schema.Literal("team_member_added"),
+	workspace_id: WorkspaceId,
+	member_id: UserId,
+	name: Schema.NonEmptyString,
+	email: Schema.optional(Schema.String),
+	occurred_at: Timestamp
+});
+const FreshnessExpiredTrigger = Schema.Struct({
+	kind: Schema.Literal("freshness_expired"),
+	workspace_id: WorkspaceId,
+	entity_id: ContextEntityId,
+	observed_at: Timestamp
+});
+const WorkspaceInactivityObservedTrigger = Schema.Struct({
+	kind: Schema.Literal("workspace_inactivity_observed"),
+	workspace_id: WorkspaceId,
+	observed_at: Timestamp,
+	last_trace_at: Schema.optional(Timestamp),
+	inactive_for_ms: Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))
+});
+Schema.Union([
+	PluginNamespaceAddedTrigger,
+	PluginNamespaceReconnectedTrigger,
+	PluginNamespaceInstanceRefreshedTrigger,
+	TraceWindowObservedTrigger,
+	ManualContextRefreshRequestedTrigger,
+	TeamMemberAddedTrigger,
+	FreshnessExpiredTrigger,
+	WorkspaceInactivityObservedTrigger
+]);
+const ContextCommand = Schema.Union([
+	Schema.Struct({
+		kind: Schema.Literal("create_or_refresh_namespace_entity"),
+		namespace: SourceNamespace,
+		reason: Schema.String
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("generate_namespace_profile"),
+		namespace: SourceNamespace,
+		reason: Schema.String
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("digest_trace_window"),
+		window_start_utc: Timestamp,
+		window_end_utc: Timestamp,
+		run_ids: Schema.Array(RunId),
+		read_only: Schema.Boolean,
+		allow_plugin_exec: Schema.Boolean
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("refresh_workspace_context"),
+		reason: Schema.String
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("refresh_namespace_context"),
+		namespace: SourceNamespace,
+		reason: Schema.String
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("refresh_affected_joins"),
+		entity_ids: Schema.Array(ContextEntityId),
+		reason: Schema.String
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("seed_team_member_queries"),
+		member_id: UserId,
+		name: Schema.NonEmptyString,
+		email: Schema.optional(Schema.String)
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("mark_entity_stale"),
+		entity_id: ContextEntityId,
+		reason: Schema.String
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("stop_auto_refresh"),
+		reason: Schema.String
+	}),
+	Schema.Struct({
+		kind: Schema.Literal("noop"),
+		reason: Schema.String
+	})
+]);
+Schema.Struct({
+	state: ContextMachineState,
+	commands: Schema.Array(ContextCommand),
+	receipts: Schema.Array(Schema.String)
 });
 Schema.Struct({
 	id: Schema.String,
@@ -2340,6 +2588,28 @@ Schema.NullOr(Schema.Struct({
 	]),
 	data: Schema.optional(Schema.Unknown)
 }));
+const OrbitStorageReadEncoding = Schema.Union([
+	Schema.Literal("bytes"),
+	Schema.Literal("text"),
+	Schema.Literal("base64")
+]);
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	key: OrbitStorageKey,
+	offset: Schema.optional(Schema.Number),
+	length: Schema.optional(Schema.Number),
+	encoding: Schema.optional(OrbitStorageReadEncoding)
+});
+Schema.Struct({
+	bytes: Schema.optional(Schema.Uint8Array),
+	text: Schema.optional(Schema.String),
+	data_base64: Schema.optional(Schema.String),
+	size: Schema.Number,
+	offset: Schema.Number,
+	length: Schema.Number,
+	eof: Schema.Boolean,
+	content_type: Schema.String
+});
 Schema.Struct({
 	workspace_id: OrbitWorkspaceId,
 	key: OrbitStorageKey
@@ -3123,6 +3393,7 @@ const ORBIT_PRIMITIVE_KEYS = [
 	"storage_list",
 	"storage_delete",
 	"storage_url",
+	"storage_read",
 	"cache_get",
 	"cache_set",
 	"cache_delete",

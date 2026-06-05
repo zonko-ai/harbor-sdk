@@ -510,6 +510,28 @@ const OrbitStorageGetResponse = Schema.NullOr(Schema.Struct({
 	]),
 	data: Schema.optional(Schema.Unknown)
 }));
+const OrbitStorageReadEncoding = Schema.Union([
+	Schema.Literal("bytes"),
+	Schema.Literal("text"),
+	Schema.Literal("base64")
+]);
+const OrbitStorageReadBody = Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	key: OrbitStorageKey,
+	offset: Schema.optional(Schema.Number),
+	length: Schema.optional(Schema.Number),
+	encoding: Schema.optional(OrbitStorageReadEncoding)
+});
+const OrbitStorageReadResponse = Schema.Struct({
+	bytes: Schema.optional(Schema.Uint8Array),
+	text: Schema.optional(Schema.String),
+	data_base64: Schema.optional(Schema.String),
+	size: Schema.Number,
+	offset: Schema.Number,
+	length: Schema.Number,
+	eof: Schema.Boolean,
+	content_type: Schema.String
+});
 const OrbitStorageUrlBody = Schema.Struct({
 	workspace_id: OrbitWorkspaceId,
 	key: OrbitStorageKey
@@ -1295,6 +1317,7 @@ const ORBIT_PRIMITIVE_KEYS = [
 	"storage_list",
 	"storage_delete",
 	"storage_url",
+	"storage_read",
 	"cache_get",
 	"cache_set",
 	"cache_delete",
@@ -1378,6 +1401,6 @@ function orbitJobVersionRow(version) {
 	};
 }
 //#endregion
-export { HOST_CALL_PRIMITIVE_KEYS, ORBIT_PRIMITIVE_KEYS, OrbitAiClassifyResponse, OrbitAiEmbedResponse, OrbitAiModel, OrbitAiModelTask, OrbitAiModelsResponse, OrbitAiModelsResultInfo, OrbitAiRerankResponse, OrbitAiRunArgs, OrbitAiSummaryResponse, OrbitAiTextOptions, OrbitAiTextResponse, OrbitAppAccess, OrbitAppAccessUpdateBody, OrbitAppAccessUpdateResponse, OrbitAppActivityKind, OrbitAppActivityListBody, OrbitAppActivityListResponse, OrbitAppActivityRow, OrbitAppActorKind, OrbitAppDetail, OrbitAppDisableBody, OrbitAppDisableResponse, OrbitAppInputAdapter, OrbitAppInspectBody, OrbitAppInspectResponse, OrbitAppInvocationGetBody, OrbitAppInvocationGetResponse, OrbitAppInvocationListBody, OrbitAppInvocationListResponse, OrbitAppInvocationStatus, OrbitAppInvocationSummary, OrbitAppJobCallStatus, OrbitAppJobCallSummary, OrbitAppJobRef, OrbitAppListBody, OrbitAppListResponse, OrbitAppName, OrbitAppOpenBody, OrbitAppOpenResponse, OrbitAppOutputAdapter, OrbitAppPublishBody, OrbitAppPublishBundle, OrbitAppPublishResponse, OrbitAppPublishRuntime, OrbitAppRateLimit, OrbitAppRoute, OrbitAppRouteAuth, OrbitAppRouteMethod, OrbitAppRoutePermission, OrbitAppStatus, OrbitAppSummary, OrbitAppTheme, OrbitAppTransform, OrbitAppVersion, OrbitAppVersionRecord, OrbitAppVersionStatus, OrbitArtifactRef, OrbitBrandColor, OrbitBrandFontFamily, OrbitBrandLogoUrl, OrbitBrandName, OrbitDbPeekBody, OrbitDbPeekResponse, OrbitDbTableName, OrbitDbTableSummary, OrbitDbTablesBody, OrbitDbTablesResponse, OrbitJobArtifactRef, OrbitJobCallerKind, OrbitJobCapability, OrbitJobDeploymentProvider, OrbitJobDeploymentStatus, OrbitJobDetail, OrbitJobDisableBody, OrbitJobDisableResponse, OrbitJobExecutionLane, OrbitJobIdempotency, OrbitJobInspectBody, OrbitJobInspectResponse, OrbitJobInvocationDetail, OrbitJobInvocationGetBody, OrbitJobInvocationGetResponse, OrbitJobInvocationListBody, OrbitJobInvocationListResponse, OrbitJobInvocationStatus, OrbitJobInvocationSummary, OrbitJobKind, OrbitJobListBody, OrbitJobListResponse, OrbitJobName, OrbitJobPublishBody, OrbitJobPublishBundle, OrbitJobPublishResponse, OrbitJobPublishRuntime, OrbitJobRetentionPolicy, OrbitJobRetryPolicy, OrbitJobRunBody, OrbitJobRunLane, OrbitJobRunResponse, OrbitJobStatus, OrbitJobSummary, OrbitJobVersion, OrbitJobVersionRecord, OrbitJobVersionStatus, OrbitJobVersionsBody, OrbitJobVersionsResponse, OrbitJsonSchema, OrbitPrimitive, OrbitReadinessCheckKind, OrbitReadinessStatus, OrbitReadinessSubjectKind, OrbitReadinessSummary, OrbitScope, OrbitSocketBroadcastBody, OrbitSocketBroadcastResponse, OrbitSocketChannel, OrbitSocketPermission, OrbitSocketStatsBody, OrbitSocketStatsResponse, OrbitSocketUrlBody, OrbitSocketUrlResponse, OrbitStorageDeleteBody, OrbitStorageDeleteResponse, OrbitStorageEncoding, OrbitStorageGetBody, OrbitStorageGetResponse, OrbitStorageKey, OrbitStorageListBody, OrbitStorageListResponse, OrbitStorageObject, OrbitStoragePutBody, OrbitStorageUrlBody, OrbitStorageUrlResponse, OrbitUsageQueryBody, OrbitUsageQueryResponse, OrbitUsageRow, OrbitWorkspaceId, WFP_NATIVE_PRIMITIVE_KEYS, WorkspaceBranding, defineOrbitApp, defineOrbitJob, orbitAppDetailView, orbitAppListRow, orbitJobDetailView, orbitJobListRow, orbitJobVersionRow };
+export { HOST_CALL_PRIMITIVE_KEYS, ORBIT_PRIMITIVE_KEYS, OrbitAiClassifyResponse, OrbitAiEmbedResponse, OrbitAiModel, OrbitAiModelTask, OrbitAiModelsResponse, OrbitAiModelsResultInfo, OrbitAiRerankResponse, OrbitAiRunArgs, OrbitAiSummaryResponse, OrbitAiTextOptions, OrbitAiTextResponse, OrbitAppAccess, OrbitAppAccessUpdateBody, OrbitAppAccessUpdateResponse, OrbitAppActivityKind, OrbitAppActivityListBody, OrbitAppActivityListResponse, OrbitAppActivityRow, OrbitAppActorKind, OrbitAppDetail, OrbitAppDisableBody, OrbitAppDisableResponse, OrbitAppInputAdapter, OrbitAppInspectBody, OrbitAppInspectResponse, OrbitAppInvocationGetBody, OrbitAppInvocationGetResponse, OrbitAppInvocationListBody, OrbitAppInvocationListResponse, OrbitAppInvocationStatus, OrbitAppInvocationSummary, OrbitAppJobCallStatus, OrbitAppJobCallSummary, OrbitAppJobRef, OrbitAppListBody, OrbitAppListResponse, OrbitAppName, OrbitAppOpenBody, OrbitAppOpenResponse, OrbitAppOutputAdapter, OrbitAppPublishBody, OrbitAppPublishBundle, OrbitAppPublishResponse, OrbitAppPublishRuntime, OrbitAppRateLimit, OrbitAppRoute, OrbitAppRouteAuth, OrbitAppRouteMethod, OrbitAppRoutePermission, OrbitAppStatus, OrbitAppSummary, OrbitAppTheme, OrbitAppTransform, OrbitAppVersion, OrbitAppVersionRecord, OrbitAppVersionStatus, OrbitArtifactRef, OrbitBrandColor, OrbitBrandFontFamily, OrbitBrandLogoUrl, OrbitBrandName, OrbitDbPeekBody, OrbitDbPeekResponse, OrbitDbTableName, OrbitDbTableSummary, OrbitDbTablesBody, OrbitDbTablesResponse, OrbitJobArtifactRef, OrbitJobCallerKind, OrbitJobCapability, OrbitJobDeploymentProvider, OrbitJobDeploymentStatus, OrbitJobDetail, OrbitJobDisableBody, OrbitJobDisableResponse, OrbitJobExecutionLane, OrbitJobIdempotency, OrbitJobInspectBody, OrbitJobInspectResponse, OrbitJobInvocationDetail, OrbitJobInvocationGetBody, OrbitJobInvocationGetResponse, OrbitJobInvocationListBody, OrbitJobInvocationListResponse, OrbitJobInvocationStatus, OrbitJobInvocationSummary, OrbitJobKind, OrbitJobListBody, OrbitJobListResponse, OrbitJobName, OrbitJobPublishBody, OrbitJobPublishBundle, OrbitJobPublishResponse, OrbitJobPublishRuntime, OrbitJobRetentionPolicy, OrbitJobRetryPolicy, OrbitJobRunBody, OrbitJobRunLane, OrbitJobRunResponse, OrbitJobStatus, OrbitJobSummary, OrbitJobVersion, OrbitJobVersionRecord, OrbitJobVersionStatus, OrbitJobVersionsBody, OrbitJobVersionsResponse, OrbitJsonSchema, OrbitPrimitive, OrbitReadinessCheckKind, OrbitReadinessStatus, OrbitReadinessSubjectKind, OrbitReadinessSummary, OrbitScope, OrbitSocketBroadcastBody, OrbitSocketBroadcastResponse, OrbitSocketChannel, OrbitSocketPermission, OrbitSocketStatsBody, OrbitSocketStatsResponse, OrbitSocketUrlBody, OrbitSocketUrlResponse, OrbitStorageDeleteBody, OrbitStorageDeleteResponse, OrbitStorageEncoding, OrbitStorageGetBody, OrbitStorageGetResponse, OrbitStorageKey, OrbitStorageListBody, OrbitStorageListResponse, OrbitStorageObject, OrbitStoragePutBody, OrbitStorageReadBody, OrbitStorageReadEncoding, OrbitStorageReadResponse, OrbitStorageUrlBody, OrbitStorageUrlResponse, OrbitUsageQueryBody, OrbitUsageQueryResponse, OrbitUsageRow, OrbitWorkspaceId, WFP_NATIVE_PRIMITIVE_KEYS, WorkspaceBranding, defineOrbitApp, defineOrbitJob, orbitAppDetailView, orbitAppListRow, orbitJobDetailView, orbitJobListRow, orbitJobVersionRow };
 
 //# sourceMappingURL=orbit.mjs.map

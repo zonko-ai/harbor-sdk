@@ -161,13 +161,12 @@ const MCP_CLIENT_NAME_TO_AGENT_FAMILY = {
 	"qwen-code": "mcp-local",
 	"qwen-cli-mcp-client": "mcp-local"
 };
-function asRecord(value) {
-	return value && typeof value === "object" && !Array.isArray(value) ? value : null;
-}
 function parsedAgentHostname(metadataJson) {
 	if (!metadataJson) return null;
 	try {
-		const host = asRecord(JSON.parse(metadataJson))?.hostname;
+		const parsed = JSON.parse(metadataJson);
+		if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+		const host = Reflect.get(parsed, "hostname");
 		if (typeof host !== "string") return null;
 		const trimmed = host.trim();
 		return trimmed.length > 0 ? trimmed : null;

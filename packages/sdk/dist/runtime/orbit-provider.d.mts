@@ -92,6 +92,11 @@ declare const RUNTIME_ORBIT_PRIMITIVES: readonly [{
   readonly family: "storage";
   readonly exposedOnHrbr: true;
 }, {
+  readonly key: "storage_read";
+  readonly operation: "storage.read";
+  readonly family: "storage";
+  readonly exposedOnHrbr: true;
+}, {
   readonly key: "cache_get";
   readonly operation: "cache.get";
   readonly family: "cache";

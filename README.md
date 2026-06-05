@@ -159,9 +159,9 @@ Open the printed `http://127.0.0.1:<port>` URL. The example uses
 Install the current release artifacts directly from GitHub:
 
 ```bash
-npm install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.1/hrbr-client-0.1.1.tgz
-npm install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.1/hrbr-sdk-0.1.1.tgz
-python -m pip install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.1/harbor_sdk-0.1.1-py3-none-any.whl
+npm install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.2/hrbr-client-0.1.2.tgz
+npm install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.2/hrbr-sdk-0.1.2.tgz
+python -m pip install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.2/harbor_sdk-0.1.2-py3-none-any.whl
 ```
 
 ---

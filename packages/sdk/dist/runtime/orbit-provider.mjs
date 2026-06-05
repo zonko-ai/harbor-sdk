@@ -35,6 +35,12 @@ const RUNTIME_ORBIT_PRIMITIVES = [
 		exposedOnHrbr: true
 	},
 	{
+		key: "storage_read",
+		operation: "storage.read",
+		family: "storage",
+		exposedOnHrbr: true
+	},
+	{
 		key: "cache_get",
 		operation: "cache.get",
 		family: "cache",
@@ -249,6 +255,7 @@ function createRuntimeOrbitSurfaceSource(options = {}) {
 		"    list: (opts) => " + runtimeOrbitCall(options, "storage_list", "opts ?? {}") + ",",
 		"    delete: (key) => " + runtimeOrbitCall(options, "storage_delete", "{ key }") + ",",
 		"    url: (key) => " + runtimeOrbitCall(options, "storage_url", "{ key }") + ",",
+		"    read: (key, opts) => " + runtimeOrbitCall(options, "storage_read", "{ key, ...opts }") + ",",
 		"  },",
 		"  cache: {",
 		"    get: (key) => " + runtimeOrbitCall(options, "cache_get", "{ key }") + ",",

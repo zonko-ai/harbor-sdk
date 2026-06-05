@@ -453,9 +453,8 @@ function workflowSkillDetail(entry) {
 function workflowToolSlotName(value) {
 	if (typeof value === "string") return value;
 	if (typeof value !== "object" || value === null) return String(value);
-	const record = value;
-	const slug = record.slug ?? record.id ?? record.name;
-	const kind = record.kind;
+	const slug = Reflect.get(value, "slug") ?? Reflect.get(value, "id") ?? Reflect.get(value, "name");
+	const kind = Reflect.get(value, "kind");
 	if (typeof slug === "string" && typeof kind === "string" && kind !== "tool") return `${kind}:${slug}`;
 	if (typeof slug === "string") return slug;
 	return JSON.stringify(value);

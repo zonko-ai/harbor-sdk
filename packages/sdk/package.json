@@ -1,6 +1,6 @@
 {
   "name": "@hrbr/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": false,
   "description": "Composite Harbor system SDK facade for internal runtime, platform, plugin, protocol, and control-plane building blocks.",
   "license": "MIT",

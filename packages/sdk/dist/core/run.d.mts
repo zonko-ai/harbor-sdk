@@ -116,7 +116,7 @@ type SpanMetadataOrbit = {
 };
 type SpanMetadataRetry = {
   attempt: number;
-  reason: '401_refresh' | '404_reinit' | string;
+  reason: '401_refresh' | '404_reinit' | (string & {});
   caused_by_span_id: string;
   delta_ms?: number;
 };
@@ -131,7 +131,7 @@ type SpanMetadataMcpReconnect = {
   instructions?: string;
 };
 type SpanMetadataMcpNotification = {
-  level: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency' | string;
+  level: 'debug' | 'info' | 'notice' | 'warning' | 'error' | 'critical' | 'alert' | 'emergency' | (string & {});
   logger?: string;
   data: unknown;
 };
@@ -146,7 +146,7 @@ type SpanMetadataRun = {
   code?: string;
   language?: string;
   sources?: string[];
-  mode?: 'codemode' | string;
+  mode?: 'codemode' | (string & {});
   logs?: Array<{
     level?: string;
     message: string;

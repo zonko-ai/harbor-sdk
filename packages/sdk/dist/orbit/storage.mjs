@@ -510,6 +510,28 @@ const OrbitStorageGetResponse = Schema.NullOr(Schema.Struct({
 	]),
 	data: Schema.optional(Schema.Unknown)
 }));
+const OrbitStorageReadEncoding = Schema.Union([
+	Schema.Literal("bytes"),
+	Schema.Literal("text"),
+	Schema.Literal("base64")
+]);
+Schema.Struct({
+	workspace_id: OrbitWorkspaceId,
+	key: OrbitStorageKey,
+	offset: Schema.optional(Schema.Number),
+	length: Schema.optional(Schema.Number),
+	encoding: Schema.optional(OrbitStorageReadEncoding)
+});
+Schema.Struct({
+	bytes: Schema.optional(Schema.Uint8Array),
+	text: Schema.optional(Schema.String),
+	data_base64: Schema.optional(Schema.String),
+	size: Schema.Number,
+	offset: Schema.Number,
+	length: Schema.Number,
+	eof: Schema.Boolean,
+	content_type: Schema.String
+});
 const OrbitStorageUrlBody = Schema.Struct({
 	workspace_id: OrbitWorkspaceId,
 	key: OrbitStorageKey
@@ -1293,6 +1315,7 @@ const ORBIT_PRIMITIVE_KEYS = [
 	"storage_list",
 	"storage_delete",
 	"storage_url",
+	"storage_read",
 	"cache_get",
 	"cache_set",
 	"cache_delete",

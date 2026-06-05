@@ -37,12 +37,12 @@ Schema.String.check(Schema.isPattern(/^[a-z0-9]+(?:_[a-z0-9]+)*$/));
 Schema.Record(Schema.String, Schema.Unknown);
 //#endregion
 //#region ../core-effect/src/activity.ts
-const WorkspaceActivitySinceBody = Schema.Struct({
-	workspace_id: WorkspaceId,
-	after: Schema.optional(Schema.Number),
-	timeout_ms: Schema.optional(Schema.Number)
+const ActivityStreamUrlBody = Schema.Struct({ expires_in_seconds: Schema.optional(Schema.Number) });
+const ActivityStreamUrlResult = Schema.Struct({
+	workspace_id: Schema.String,
+	token: Schema.String,
+	expires_at: Schema.String
 });
-const WorkspaceActivityHeadBody = Schema.Struct({ workspace_id: WorkspaceId });
 const WorkspaceActivityEvent = Schema.Struct({
 	version: Schema.Number,
 	topic: Schema.String,
@@ -84,6 +84,6 @@ const WorkspaceNotificationMarkReadBody = Schema.Struct({
 const WorkspaceNotificationMarkAllReadBody = Schema.Struct({ workspace_id: WorkspaceId });
 const WorkspaceNotificationMarkReadResult = Schema.Struct({ marked: Schema.Number });
 //#endregion
-export { WorkspaceActivityEvent, WorkspaceActivityHeadBody, WorkspaceActivityHeadResult, WorkspaceActivitySinceBody, WorkspaceActivitySinceResult, WorkspaceNotification, WorkspaceNotificationMarkAllReadBody, WorkspaceNotificationMarkReadBody, WorkspaceNotificationMarkReadResult, WorkspaceNotificationsListBody, WorkspaceNotificationsListResult };
+export { ActivityStreamUrlBody, ActivityStreamUrlResult, WorkspaceActivityEvent, WorkspaceActivityHeadResult, WorkspaceActivitySinceResult, WorkspaceNotification, WorkspaceNotificationMarkAllReadBody, WorkspaceNotificationMarkReadBody, WorkspaceNotificationMarkReadResult, WorkspaceNotificationsListBody, WorkspaceNotificationsListResult };
 
 //# sourceMappingURL=activity.mjs.map

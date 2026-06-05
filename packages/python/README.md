@@ -10,7 +10,7 @@ The package is split into two layers:
 
 The current pre-release wheel is distributed as a GitHub release artifact:
 
-    python -m pip install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.1/harbor_sdk-0.1.1-py3-none-any.whl
+    python -m pip install https://github.com/zonko-ai/harbor-sdk/releases/download/v0.1.2/harbor_sdk-0.1.2-py3-none-any.whl
 
 Runtime dependencies are installed by the wheel: `httpx` for sync/async HTTP
 transport and `pydantic` for generated protocol models.

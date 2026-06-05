@@ -12613,6 +12613,78 @@ const inspectRootGlobalNames = [
 	"defineJob",
 	"deployApp"
 ];
+const harborInspectDomainKeys = [
+	"auth.status",
+	"auth.start",
+	"auth.logout",
+	"auth.diagnose",
+	"workspace.current",
+	"workspace.list",
+	"workspace.switch",
+	"workspace.select",
+	"workspace.create",
+	"sources.list",
+	"sources.search",
+	"sources.install",
+	"sources.remove",
+	"sources.installStatus",
+	"sources.oauthStart",
+	"tools.search",
+	"context.entities.list",
+	"context.entities.read",
+	"context.entities.get",
+	"context.files.list",
+	"context.files.read",
+	"context.files.search",
+	"runs.list",
+	"runs.get",
+	"runs.graph",
+	"runs.trace",
+	"jobs.list",
+	"jobs.inspect",
+	"jobs.versions",
+	"apps.list",
+	"apps.inspect",
+	"apps.open",
+	"triggers.inspect",
+	"triggers.activate",
+	"triggers.list",
+	"triggers.get",
+	"triggers.pause",
+	"triggers.resume",
+	"triggers.disable",
+	"triggers.replay",
+	"triggers.deliveries.list",
+	"triggers.deliveries.get",
+	"triggers.limits.get",
+	"triggers.limits.update"
+];
+const harborInspectBehaviorProtocol = {
+	id: "harbor.inspect.control-plane.v1",
+	rootGlobal: "hrbr",
+	domainKeys: harborInspectDomainKeys,
+	rootGlobalNames: inspectRootGlobalNames,
+	blockedGlobals: [
+		"fetch",
+		"XMLHttpRequest",
+		"WebSocket",
+		"require",
+		"process",
+		"Bun",
+		"Deno",
+		"fs"
+	],
+	capabilities: {
+		hostCall: "path_args",
+		network: "none",
+		filesystem: {
+			mode: "none",
+			reason: "Harbor inspect is a control-plane runtime. It does not expose raw local or server filesystem access; use hrbr exec or a dedicated host-dispatched hrbr.fs protocol when filesystem access is added."
+		},
+		shell: "none"
+	},
+	toolDescription: "Harbor inspect JS only. One control-plane global: hrbr. Use hrbr.auth/hrbr.workspace/hrbr.sources/hrbr.tools/hrbr.context/hrbr.runs/hrbr.jobs/hrbr.apps/hrbr.triggers. No raw filesystem, shell, local git, direct network, or sand runtime."
+};
 const legacyInspectDomainNames = [
 	"auth",
 	"workspace",
@@ -12623,6 +12695,19 @@ const legacyInspectDomainNames = [
 	"apps",
 	"harbor"
 ];
+function assertInspectProtocolDomainKeys(protocol, implementedKeys) {
+	const implemented = new Set(implementedKeys);
+	const protocolKeys = new Set(protocol.domainKeys);
+	const missing = protocol.domainKeys.filter((key) => !implemented.has(key));
+	const extra = implementedKeys.filter((key) => !protocolKeys.has(key));
+	if (missing.length > 0 || extra.length > 0) {
+		const parts = [];
+		if (missing.length > 0) parts.push("missing: " + missing.join(", "));
+		if (extra.length > 0) parts.push("extra: " + extra.join(", "));
+		throw new Error("Inspect protocol " + protocol.id + " does not match implemented host handlers (" + parts.join("; ") + ").");
+	}
+	return protocol.domainKeys;
+}
 const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
 const isNode = (value) => Boolean(value && typeof value === "object" && typeof value.type === "string");
 const walk = (node, visit) => {
@@ -12694,6 +12779,15 @@ function applyInspectErrorHint(_code, error) {
 		const domain = name === "harbor" ? "hrbr" : "hrbr." + name;
 		return error + " Hint: inspect exposes one control-plane global named hrbr. Use " + domain + " instead.";
 	}
+	for (const name of [
+		"fs",
+		"require",
+		"process",
+		"Bun",
+		"Deno",
+		"readFile",
+		"readFileSync"
+	]) if (error.includes(name + " is not defined") || error.includes("'" + name + "' is not defined") || error.includes("\"" + name + "\" is not defined") || error.includes("Cannot access " + name) || error.includes("Cannot access '" + name + "'") || error.includes("Cannot access \"" + name + "\"")) return error + " Hint: " + harborInspectBehaviorProtocol.capabilities.filesystem.reason;
 	return error;
 }
 function wrapInspectUserCode(code) {
@@ -12850,12 +12944,18 @@ const schemaAndAuthoringLines = (deployAppRuntime) => [
 	"  return definition;",
 	"}"
 ];
+const inspectProtocolForOptions = (protocol) => protocol ?? harborInspectBehaviorProtocol;
+const inspectDomainKeysForOptions = (protocol, domainKeys) => domainKeys ?? protocol.domainKeys;
+const blockedGlobalLines = (globals) => [...globals.map((name) => "const " + name + " = undefined;"), ...globals.map((name) => "globalThis." + name + " = undefined;")];
 function buildInspectRuntimeSource(code, options) {
+	const protocol = inspectProtocolForOptions(options.protocol);
+	const domainKeys = inspectDomainKeysForOptions(protocol, options.domainKeys);
 	const resultKind = options.resultKind ?? "harbor.inspect_result";
 	return [
 		...options.hostCallSetup,
 		"const __inspectSource = " + JSON.stringify(code) + ";",
-		"const __inspectDomainKeys = " + JSON.stringify(options.domainKeys) + ";",
+		"const __inspectProtocolId = " + JSON.stringify(protocol.id) + ";",
+		"const __inspectDomainKeys = " + JSON.stringify(domainKeys) + ";",
 		"const __hostFunction = (path) => Object.freeze(function(...args) { return __hostCall(path, args); });",
 		"function __freezeInspectSurface(value) {",
 		"  if (!value || typeof value !== \"object\" || Object.isFrozen(value)) return value;",
@@ -12899,16 +12999,11 @@ function buildInspectRuntimeSource(code, options) {
 			"}"
 		] : [],
 		"const hrbr = __buildInspectSurface(__inspectDomainKeys);",
-		"const fetch = undefined;",
-		"const XMLHttpRequest = undefined;",
-		"const WebSocket = undefined;",
 		"globalThis.hrbr = hrbr;",
 		"globalThis.defineJob = defineJob;",
 		"globalThis.deployApp = deployApp;",
-		"globalThis.fetch = undefined;",
-		"globalThis.XMLHttpRequest = undefined;",
-		"globalThis.WebSocket = undefined;",
 		"globalThis.console = console;",
+		...blockedGlobalLines(protocol.blockedGlobals),
 		...options.clearGlobalHostCall ? ["globalThis.__hostCall = undefined;"] : [],
 		"globalThis.__userPromise = " + wrapInspectUserCode(code) + ";",
 		...options.resultEnvelope ? [
@@ -12924,6 +13019,7 @@ function buildInspectRuntimeSource(code, options) {
 }
 function buildQuickJsInspectSource(code, options) {
 	return buildInspectRuntimeSource(code, {
+		protocol: options.protocol,
 		domainKeys: options.domainKeys,
 		hostCallSetup: ["const __hostCall = globalThis.__hostCall;"],
 		deployAppRuntime: options.deployAppRuntime === void 0 ? "classic" : options.deployAppRuntime,
@@ -12932,6 +13028,7 @@ function buildQuickJsInspectSource(code, options) {
 }
 function buildDispatchInspectWorkerSource(code, options) {
 	return buildInspectRuntimeSource(code, {
+		protocol: options.protocol,
 		domainKeys: options.domainKeys,
 		hostCallSetup: [
 			"const __inspectLogs = [];",
@@ -12975,7 +13072,326 @@ function normalizeInspectWorkerResult(code, timeoutMs, workerResult, resultKind 
 function firstString(...values) {
 	for (const value of values) if (typeof value === "string" && value.length > 0) return value;
 }
+function getInspectString(record, keys) {
+	for (const key of keys) {
+		const value = record[key];
+		if (typeof value === "string" && value.trim().length > 0) return value.trim();
+	}
+}
+function getInspectRecord(record, key) {
+	const value = record[key];
+	return isRecord(value) ? value : void 0;
+}
+function getInspectValue(record, keys) {
+	for (const key of keys) if (Object.prototype.hasOwnProperty.call(record, key)) return record[key];
+}
+const MAX_COMPACT_SCHEMA_FIELDS = 24;
+const MAX_COMPACT_SCHEMA_LENGTH = 1200;
+const MAX_SCHEMA_SUMMARY_DEPTH = 2;
+const MAX_SCHEMA_PATHS = 16;
+const MAX_SCHEMA_PATH_DEPTH = 2;
+function compactSchemaText(value) {
+	return value.length > MAX_COMPACT_SCHEMA_LENGTH ? value.slice(0, MAX_COMPACT_SCHEMA_LENGTH - 1) + "…" : value;
+}
+function parseSchemaValue(value) {
+	if (typeof value !== "string") return value;
+	const trimmed = value.trim();
+	if (!trimmed) return void 0;
+	if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return compactSchemaText(trimmed);
+	try {
+		return JSON.parse(trimmed);
+	} catch {
+		return compactSchemaText(trimmed);
+	}
+}
+function schemaTypeName(value) {
+	if (!isRecord(value)) return void 0;
+	const type = value.type;
+	if (typeof type === "string" && type.length > 0) return type;
+	if (Array.isArray(type)) {
+		const nonNull = type.filter((item) => typeof item === "string" && item !== "null");
+		if (nonNull.length > 0) return nonNull.join("|");
+	}
+	if (isRecord(value.properties)) return "object";
+	if (value.items !== void 0) return "array";
+}
+function schemaRefName(value) {
+	const parts = value.split("/");
+	return parts[parts.length - 1] || value;
+}
+function summarizeSchemaNode(value, depth = 0) {
+	const parsed = parseSchemaValue(value);
+	if (parsed === void 0 || parsed === null) return "unknown";
+	if (typeof parsed === "string") return compactSchemaText(parsed);
+	if (!isRecord(parsed)) return typeof parsed;
+	const ref = getInspectString(parsed, ["$ref"]);
+	if (ref) return "ref<" + schemaRefName(ref) + ">";
+	const enumValues = Array.isArray(parsed.enum) ? parsed.enum : void 0;
+	if (enumValues && enumValues.length > 0) return compactSchemaText("enum<" + enumValues.slice(0, 8).map((item) => JSON.stringify(item)).join("|") + (enumValues.length > 8 ? "|…" : "") + ">");
+	const union = Array.isArray(parsed.anyOf) && parsed.anyOf || Array.isArray(parsed.oneOf) && parsed.oneOf || Array.isArray(parsed.allOf) && parsed.allOf;
+	if (union && union.length > 0) return compactSchemaText(union.slice(0, 6).map((item) => summarizeSchemaNode(item, depth + 1)).join(" | ") + (union.length > 6 ? " | …" : ""));
+	const typeName = schemaTypeName(parsed);
+	if (typeName === "array") return summarizeSchemaNode(parsed.items, depth + 1) + "[]";
+	if (typeName === "object" || isRecord(parsed.properties)) {
+		if (depth >= MAX_SCHEMA_SUMMARY_DEPTH) return "object";
+		const properties = isRecord(parsed.properties) ? parsed.properties : {};
+		const entries = Object.entries(properties);
+		if (entries.length === 0) return "object";
+		const required = new Set(Array.isArray(parsed.required) ? parsed.required.filter((item) => typeof item === "string") : []);
+		const fields = entries.slice(0, MAX_COMPACT_SCHEMA_FIELDS).map(([key, child]) => {
+			return key + (required.has(key) ? "" : "?") + ": " + summarizeSchemaNode(child, depth + 1);
+		});
+		if (entries.length > MAX_COMPACT_SCHEMA_FIELDS) fields.push("…+" + String(entries.length - MAX_COMPACT_SCHEMA_FIELDS));
+		return compactSchemaText("object{" + fields.join(", ") + "}");
+	}
+	if (typeName) return typeName;
+	const title = getInspectString(parsed, ["title"]);
+	return title ? "schema<" + title + ">" : "unknown";
+}
+function compactInspectSchema(value) {
+	return summarizeSchemaNode(value);
+}
+function primarySchemaNode(value) {
+	const parsed = parseSchemaValue(value);
+	if (!isRecord(parsed)) return parsed;
+	const union = Array.isArray(parsed.anyOf) && parsed.anyOf || Array.isArray(parsed.oneOf) && parsed.oneOf || Array.isArray(parsed.allOf) && parsed.allOf;
+	if (!union || union.length === 0) return parsed;
+	return union.find((item) => isRecord(item) && (isRecord(item.properties) || item.items !== void 0)) ?? union[0];
+}
+function pushSchemaPath(paths, path) {
+	if (!path || paths.length >= MAX_SCHEMA_PATHS || paths.includes(path)) return;
+	paths.push(path);
+}
+function collectSchemaPaths(value, prefix, depth, paths) {
+	if (paths.length >= MAX_SCHEMA_PATHS) return;
+	const node = primarySchemaNode(value);
+	if (!isRecord(node)) return;
+	const typeName = schemaTypeName(node);
+	if (typeName === "array" || node.items !== void 0) {
+		const arrayPath = prefix ? prefix + "[]" : "[]";
+		pushSchemaPath(paths, arrayPath);
+		if (depth < MAX_SCHEMA_PATH_DEPTH) collectSchemaPaths(node.items, arrayPath, depth + 1, paths);
+		return;
+	}
+	if (!(typeName === "object" || isRecord(node.properties))) return;
+	const properties = isRecord(node.properties) ? node.properties : {};
+	for (const [key, child] of Object.entries(properties)) {
+		if (paths.length >= MAX_SCHEMA_PATHS) break;
+		const childNode = primarySchemaNode(child);
+		const childType = schemaTypeName(childNode);
+		const childPath = prefix ? prefix + "." + key : key;
+		if (isRecord(childNode) && (childType === "array" || childNode.items !== void 0)) {
+			const arrayPath = childPath + "[]";
+			pushSchemaPath(paths, arrayPath);
+			if (depth < MAX_SCHEMA_PATH_DEPTH) collectSchemaPaths(childNode.items, arrayPath, depth + 1, paths);
+			continue;
+		}
+		pushSchemaPath(paths, childPath);
+		if (depth < MAX_SCHEMA_PATH_DEPTH && isRecord(childNode) && (childType === "object" || isRecord(childNode.properties))) collectSchemaPaths(childNode, childPath, depth + 1, paths);
+	}
+}
+function compactSchemaPaths(value) {
+	const paths = [];
+	collectSchemaPaths(value, "", 0, paths);
+	return paths;
+}
+function omitEmpty(record) {
+	const out = {};
+	for (const [key, value] of Object.entries(record)) {
+		if (isWorkspaceIdentifierKey(key)) continue;
+		if (value === void 0 || value === null) continue;
+		if (typeof value === "string" && value.length === 0) continue;
+		out[key] = value;
+	}
+	return out;
+}
+function buildInspectAuthStatusResult(options) {
+	const email = typeof options.email === "string" && options.email.length > 0 ? options.email : null;
+	const selected = options.selectedWorkspacePresent === true;
+	if (options.authenticated) return omitEmpty({
+		summary: options.mode === "cloud" ? "Authenticated via WorkOS" + (email ? " as " + email : "") + (selected ? " with a selected workspace." : ".") : "Authenticated as " + (email ?? "unknown user") + (selected ? " with a selected workspace." : "."),
+		mode: options.mode,
+		status: "authenticated",
+		authenticated: true,
+		email,
+		workspace: options.workspace === void 0 ? void 0 : shallowInspectValue(options.workspace)
+	});
+	const pending = options.pending;
+	if (pending !== void 0 && pending !== null) return omitEmpty({
+		summary: "Login pending. Open verification_uri_complete, then run auth.status().",
+		mode: options.mode,
+		status: "pending",
+		authenticated: false,
+		pending_auth: pending,
+		pending_error: options.pendingError,
+		next: "Open verification_uri_complete, then run auth.status()."
+	});
+	return {
+		summary: options.mode === "cloud" ? "Remote Harbor MCP auth is required before inspect can run." : "Harbor MCP is installed, but Harbor auth is required before workspace, source, tool, or exec actions.",
+		mode: options.mode,
+		status: "unauthenticated",
+		authenticated: false,
+		next: options.mode === "cloud" ? "Reconnect the Harbor MCP session through the MCP client." : "Ask the user: Harbor is installed but not authenticated. Proceed to start auth now? If yes, call hrbr.auth.start()."
+	};
+}
+function buildInspectAuthManagedResult(options) {
+	return {
+		summary: options.action === "start" ? "Remote Harbor MCP auth is managed by the MCP client WorkOS connection session." : "Remote Harbor MCP logout is managed by the MCP client WorkOS connection session.",
+		mode: options.mode,
+		status: "managed_by_mcp_client",
+		authenticated: true
+	};
+}
+function callFromTool(record) {
+	return getInspectString(getInspectRecord(record, "call") ?? {}, ["example", "expression"]) ?? getInspectString(record, ["call_example", "example_exec"]);
+}
+function signatureArgs(signature) {
+	if (!signature) return void 0;
+	const start = signature.indexOf("(");
+	if (start < 0) return void 0;
+	let depth = 0;
+	for (let index = start; index < signature.length; index += 1) {
+		const char = signature[index];
+		if (char === "(") depth += 1;
+		if (char === ")") {
+			depth -= 1;
+			if (depth === 0) {
+				const args = signature.slice(start + 1, index).trim();
+				return args.length > 0 ? args : void 0;
+			}
+		}
+	}
+}
+function signatureReturn(signature) {
+	if (!signature) return void 0;
+	const start = signature.indexOf("Promise<");
+	if (start < 0) return void 0;
+	const bodyStart = start + 8;
+	let depth = 1;
+	for (let index = bodyStart; index < signature.length; index += 1) {
+		const char = signature[index];
+		if (char === "<") depth += 1;
+		if (char === ">") {
+			depth -= 1;
+			if (depth === 0) {
+				const value = signature.slice(bodyStart, index).trim();
+				return value.length > 0 ? value : void 0;
+			}
+		}
+	}
+}
+function compactInspectToolSearchHit(tool) {
+	if (!isRecord(tool)) return null;
+	const toolId = getInspectString(tool, ["tool_id", "id"]);
+	const name = getInspectString(tool, ["name"]);
+	if (!toolId || !name) return null;
+	return omitEmpty({
+		tool_id: toolId,
+		name,
+		call: callFromTool(tool),
+		input_schema: compactInspectSchema(getInspectValue(tool, ["input_schema", "inputSchema"])),
+		output_schema: compactInspectSchema(getInspectValue(tool, ["output_schema", "outputSchema"])),
+		output_paths: compactSchemaPaths(getInspectValue(tool, ["output_schema", "outputSchema"]))
+	});
+}
+function compactInspectToolContract(tool) {
+	if (!isRecord(tool)) return null;
+	const hit = compactInspectToolSearchHit(tool);
+	if (!hit) return null;
+	const signature = getInspectString(tool, ["signature"]);
+	const inputType = getInspectString(tool, ["input_type"]);
+	const outputType = getInspectString(tool, ["output_type"]);
+	const typeDefinitions = getInspectString(tool, ["type_definitions"]);
+	return omitEmpty({
+		...hit,
+		id: hit.tool_id,
+		namespace: getInspectString(tool, ["namespace", "source_namespace"]),
+		signature,
+		input: inputType ?? signatureArgs(signature),
+		output: outputType ?? signatureReturn(signature),
+		input_schema: compactInspectSchema(getInspectValue(tool, ["input_schema", "inputSchema"])),
+		output_schema: compactInspectSchema(getInspectValue(tool, ["output_schema", "outputSchema"])),
+		output_paths: compactSchemaPaths(getInspectValue(tool, ["output_schema", "outputSchema"])),
+		types: typeDefinitions,
+		schema_ref: "harbor://tool/" + encodeURIComponent(String(hit.tool_id)) + "/schema"
+	});
+}
+function contractLookupHint(toolId, mode) {
+	const id = String(toolId);
+	if (mode === "runtime") return "Use hrbr.tools.describe(" + JSON.stringify(id) + ") only when the raw nested contract is needed.";
+	return "Read harbor://tool/" + encodeURIComponent(id) + "/schema only when the raw nested contract is needed.";
+}
+function buildInspectToolSearchResult(options) {
+	const hits = options.hits.map(compactInspectToolSearchHit).filter((hit) => hit !== null);
+	const best = hits[0] ?? null;
+	return omitEmpty({
+		summary: hits.length === 0 ? "No tools matched " + JSON.stringify(options.query) + "." : "Best tool for " + JSON.stringify(options.query) + " is " + String(best?.call ?? best?.tool_id ?? best?.name) + ".",
+		count: hits.length,
+		hits,
+		best,
+		next: best ? "Use call exactly as returned; input_schema/output_schema are compact summaries. " + contractLookupHint(best.tool_id, options.contractLookup) : "Try a narrower action query or inspect sources.list() for available connected sources."
+	});
+}
+function shallowInspectValue(value, options = {}) {
+	return shallowInspectValueAt(value, 0, options.maxDepth ?? 2);
+}
+function shallowInspectValueAt(value, depth, maxDepth) {
+	if (value === null || value === void 0) return void 0;
+	if (typeof value !== "object") return value;
+	if (Array.isArray(value)) {
+		if (isPrimitiveInspectArray(value)) return value.filter((item) => item !== void 0 && item !== null);
+		if (depth > maxDepth) return summarizeInspectArray(value);
+		return value.map((item) => depth + 1 > maxDepth && item !== null && typeof item === "object" ? summarizeInspectContainer(item) : shallowInspectValueAt(item, depth + 1, maxDepth)).filter((item) => item !== void 0);
+	}
+	if (!isRecord(value)) return String(value);
+	if (depth > maxDepth) return summarizeInspectObject(value);
+	const out = {};
+	for (const [key, child] of Object.entries(value)) {
+		if (isWorkspaceIdentifierKey(key)) continue;
+		const next = depth + 1 >= maxDepth && child !== null && typeof child === "object" && !isPrimitiveInspectArray(child) ? summarizeInspectContainer(child) : shallowInspectValueAt(child, depth + 1, maxDepth);
+		if (next === void 0 || next === null) continue;
+		if (typeof next === "string" && next.length === 0) continue;
+		if (Array.isArray(next) && next.length === 0) continue;
+		out[key] = next;
+	}
+	return out;
+}
+function isPrimitiveInspectArray(value) {
+	return Array.isArray(value) && value.every((item) => item === null || item === void 0 || typeof item === "string" || typeof item === "number" || typeof item === "boolean");
+}
+function summarizeInspectContainer(value) {
+	return Array.isArray(value) ? summarizeInspectArray(value) : summarizeInspectObject(value);
+}
+function summarizeInspectArray(value) {
+	return "[" + value.length + " item" + (value.length === 1 ? "" : "s") + "]";
+}
+function summarizeInspectObject(value) {
+	const parts = [];
+	for (const key of [
+		"id",
+		"tool_id",
+		"run_id",
+		"trigger_id",
+		"name",
+		"namespace",
+		"status",
+		"kind",
+		"type"
+	]) {
+		const item = value[key];
+		if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") parts.push(key + "=" + String(item));
+		if (parts.length >= 4) break;
+	}
+	if (parts.length === 0) for (const [key, item] of Object.entries(value)) {
+		if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") parts.push(key + "=" + String(item));
+		if (parts.length >= 4) break;
+	}
+	return parts.length > 0 ? parts.join(" ") : "{...}";
+}
+function isWorkspaceIdentifierKey(key) {
+	return key === "workspace_id" || key === "workspaceId" || key === "selected_workspace_id";
+}
 //#endregion
-export { INSPECT_RESULT_KIND, applyInspectErrorHint, buildDispatchInspectWorkerSource, buildInspectRuntimeSource, buildQuickJsInspectSource, inspectGlobalShadowingError, inspectRootGlobalNames, legacyInspectDomainNames, normalizeInspectWorkerResult, wrapInspectUserCode };
+export { INSPECT_RESULT_KIND, applyInspectErrorHint, assertInspectProtocolDomainKeys, buildDispatchInspectWorkerSource, buildInspectAuthManagedResult, buildInspectAuthStatusResult, buildInspectRuntimeSource, buildInspectToolSearchResult, buildQuickJsInspectSource, compactInspectToolContract, compactInspectToolSearchHit, harborInspectBehaviorProtocol, harborInspectDomainKeys, inspectGlobalShadowingError, inspectRootGlobalNames, legacyInspectDomainNames, normalizeInspectWorkerResult, shallowInspectValue, wrapInspectUserCode };
 
 //# sourceMappingURL=inspect.mjs.map

@@ -2,16 +2,20 @@ import { Schema } from "effect";
 
 //#region ../core-effect/src/activity.d.ts
 type WorkspaceActivityTopic = 'plugin_source.changed' | 'plugin_source.import_started' | 'plugin_source.import_progress' | 'plugin_source.import_finished' | 'plugin_source.import_failed' | 'plugin_tools.index_finished' | 'orbit_readiness.changed' | 'orbit_job.health_changed' | 'orbit_app.health_changed' | 'plugin_tool.health_changed';
-declare const WorkspaceActivitySinceBody: Schema.Struct<{
-  readonly workspace_id: Schema.String;
-  readonly after: Schema.optional<Schema.Number>;
-  readonly timeout_ms: Schema.optional<Schema.Number>;
+declare const ActivityStreamUrlBody: Schema.Struct<{
+  readonly expires_in_seconds: Schema.optional<Schema.Number>;
 }>;
-type WorkspaceActivitySinceBody = typeof WorkspaceActivitySinceBody.Type;
-declare const WorkspaceActivityHeadBody: Schema.Struct<{
+type ActivityStreamUrlBody = typeof ActivityStreamUrlBody.Type;
+declare const ActivityStreamUrlResult: Schema.Struct<{
   readonly workspace_id: Schema.String;
+  readonly token: Schema.String;
+  readonly expires_at: Schema.String;
 }>;
-type WorkspaceActivityHeadBody = typeof WorkspaceActivityHeadBody.Type;
+interface ActivityStreamUrlResult {
+  readonly workspace_id: string;
+  readonly token: string;
+  readonly expires_at: string;
+}
 declare const WorkspaceActivityEvent: Schema.Struct<{
   readonly version: Schema.Number;
   readonly topic: Schema.String;
@@ -20,7 +24,7 @@ declare const WorkspaceActivityEvent: Schema.Struct<{
 }>;
 interface WorkspaceActivityEvent {
   readonly version: number;
-  readonly topic: WorkspaceActivityTopic | string;
+  readonly topic: WorkspaceActivityTopic | (string & {});
   readonly payload: unknown;
   readonly created_at: string;
 }
@@ -88,7 +92,7 @@ interface WorkspaceNotification {
   readonly id: string;
   readonly workspace_id: string;
   readonly version: number;
-  readonly topic: WorkspaceActivityTopic | string;
+  readonly topic: WorkspaceActivityTopic | (string & {});
   readonly payload: unknown;
   readonly created_at: string;
   readonly read_at: string | null;
@@ -131,5 +135,5 @@ interface WorkspaceNotificationMarkReadResult {
   readonly marked: number;
 }
 //#endregion
-export { WorkspaceActivityEvent, WorkspaceActivityHeadBody, WorkspaceActivityHeadResult, WorkspaceActivityInvalidates, WorkspaceActivityInvalidationPayload, WorkspaceActivityNotification, WorkspaceActivityPayload, WorkspaceActivitySinceBody, WorkspaceActivitySinceResult, WorkspaceActivityTopic, WorkspaceNotification, WorkspaceNotificationMarkAllReadBody, WorkspaceNotificationMarkReadBody, WorkspaceNotificationMarkReadResult, WorkspaceNotificationsListBody, WorkspaceNotificationsListResult };
+export { ActivityStreamUrlBody, ActivityStreamUrlResult, WorkspaceActivityEvent, WorkspaceActivityHeadResult, WorkspaceActivityInvalidates, WorkspaceActivityInvalidationPayload, WorkspaceActivityNotification, WorkspaceActivityPayload, WorkspaceActivitySinceResult, WorkspaceActivityTopic, WorkspaceNotification, WorkspaceNotificationMarkAllReadBody, WorkspaceNotificationMarkReadBody, WorkspaceNotificationMarkReadResult, WorkspaceNotificationsListBody, WorkspaceNotificationsListResult };
 //# sourceMappingURL=activity.d.mts.map
